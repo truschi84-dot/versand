@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tresch & Sohn - Master-Checkliste V21 (Full System Test)</title>
+    <style>
+        :root { --primary: #004b93; --secondary: #ff6b00; --success: #28a745; --danger: #dc3545; --bg: #f4f7f9; --card: #ffffff; }
+        body { font-family: 'Segoe UI', Roboto, sans-serif; background-color: var(--bg); margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; }
+        header { width: 100%; background: var(--primary); color: white; padding: 20px 0; text-align: center; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .progress-container { width: 80%; max-width: 800px; background: rgba(255,255,255,0.2); height: 25px; border-radius: 12.5px; margin: 15px auto; overflow: hidden; }
+        #main-progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%); transition: width 0.4s ease; }
+        main { width: 95%; max-width: 1400px; margin: 30px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; }
+        
+        .card { background: var(--card); border-radius: 15px; padding: 20px; border-top: 8px solid var(--primary); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .card.lkw { border-top-color: var(--primary); }
+        .card.sort { border-top-color: #ff6b00; }
+        .card.noelke { border-top-color: #137333; }
+        .card.leergut { border-top-color: #f39c12; }
+        .card.rekla { border-top-color: var(--danger); }
+        .card.logistik { border-top-color: #9c27b0; }
+        .card.stress { border-top-color: #4285F4; }
+        .card.completed { border-color: var(--success) !important; background: #f0fff4; }
+        
+        h2 { margin-top: 0; display: flex; justify-content: space-between; font-size: 1.2em; border-bottom: 2px solid #eee; padding-bottom: 10px; align-items: center; }
+        .status-badge { font-size: 0.7em; padding: 4px 10px; border-radius: 12px; background: #eee; color: #555; }
+        .card.completed .status-badge { background: var(--success); color: white; }
+        
+        .task-item { display: flex; align-items: flex-start; padding: 10px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+        .task-item:hover { background: #fcfcfc; }
+        input[type="checkbox"] { width: 20px; height: 20px; margin-right: 12px; accent-color: var(--success); cursor: pointer; flex-shrink: 0; margin-top: 2px; }
+        .task-info b { display: block; color: #111; font-size: 14px; margin-bottom: 2px; }
+        .task-info span { font-size: 12px; color: #666; line-height: 1.4; display: block; }
+        .formula { background: #e8f0fe; border-left: 4px solid var(--primary); padding: 6px; margin-top: 6px; font-family: monospace; font-size: 12px; color: #004b93; font-weight: bold; border-radius: 0 4px 4px 0; }
+        
+        .reset-btn { background: var(--danger); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; margin-bottom: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        #celebration { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 40px; border-radius: 20px; box-shadow: 0 0 100px rgba(0,0,0,0.5); z-index: 2000; text-align: center; border: 4px solid var(--success); }
+        
+        @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1 style="margin: 0; padding-top: 10px;">Master-Checkliste V20 (Release Candidate) 🦾</h1>
+    <p style="margin: 5px 0 15px 0; font-size: 14px; opacity: 0.9;">Die finale Prüfung vor dem Lager-Rollout</p>
+    <div style="font-weight: bold; font-size: 18px;">Fortschritt: <span id="percent-text">0</span>%</div>
+    <div class="progress-container"><div id="main-progress-bar"></div></div>
+</header>
+
+<main>
+    <section class="card mitarbeiter" id="card-a">
+        <h2>🛠️ Teil A: LKW & Rechner <span class="status-badge" id="status-a">In Prüfung</span></h2>
+        
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-a">
+            <div class="task-info"><b>1. Cloud-Sync (Startvorgang)</b><span>🔄 Button drücken. Kommt Meldung: "Listen aktualisiert!"?</span></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-a">
+            <div class="task-info"><b>2. Standard-LKW Mathe-Check</b><span>Brutto 500, E2 10, Herta 4, H1 1, Euro 1.</span><div class="formula">Ziel: 431.00 kg Netto (500 - 20 - 10 - 18 - 21)</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-a">
+            <div class="task-info"><b>3. Sonderposten-Rechnung</b><span>Eingabe: 5, 4, 3, 2 | kg/Stück: 0.5 | Stk/Krt: leer.</span><div class="formula">Ziel: 31.00 kg (62 Kartons * 0.5)</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-a">
+            <div class="task-info"><b>4. Keine-Palette-Sperre</b><span>Haken bei "Keine Palette" setzen. Wird H1 rot/gesperrt und auf 0 gesetzt?</span></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-a">
+            <div class="task-info"><b>5. MHD-Automatik (Eingabehilfe)</b><span>Tippe "2412" im MHD Feld. Wird es zu "24.12"?</span></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-a">
+            <div class="task-info"><b>6. Swipe-to-Delete</b><span>Eintrag in der Liste nach LINKS wischen. Erscheint der rote Mülleimer?</span></div>
+        </div>
+    </section>
+
+    <section class="card reklamation" id="card-c">
+        <h2>⚠️ Teil B: Reklamationen <span class="status-badge" id="status-c">In Prüfung</span></h2>
+        
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-c">
+            <div class="task-info"><b>1. Basis Pflichtfelder-Test</b><span>Alle Felder leer lassen und auf "Drucken" drücken.</span><div class="formula">Erscheint das Popup mit exakt 5 fehlenden Feldern (Lief., LS-Nr., etc.)?</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-c">
+            <div class="task-info"><b>2. Dynamische Pflicht: Mindergewicht</b><span>Mangel "Mindergewicht" wählen. Alle anderen Pflichtfelder ausfüllen, aber Soll/Ist freilassen.</span><div class="formula">Popup muss nun "Soll-Gewicht" und "Ist-Gewicht" fordern!</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-c">
+            <div class="task-info"><b>3. Dynamische Pflicht: zu kurzes MHD</b><span>Mangel "zu kurzes MHD" wählen.</span><div class="formula">Popup muss zwingend das "MHD (Datum)" Feld fordern!</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-c">
+            <div class="task-info"><b>4. Foto-Verarbeitung</b><span>Ein Beweisfoto aufnehmen und Drucken drücken.</span><div class="formula">Wird das Foto sauber auf dem Druck-Beleg (Exemplar 1 & 2) angezeigt?</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-c">
+            <div class="task-info"><b>5. Layout & 2 Exemplare</b><span>Gedruckten Beleg prüfen.</span><div class="formula">Steht oben rot ⚠️ REKLAMATION? Gibt es 2 Exemplare auf getrennten Seiten?</div></div>
+        </div>
+    </section>
+
+    <section class="card zebra" id="card-d">
+        <h2>🦓 Teil C: Zebra-Druck & Nölke <span class="status-badge" id="status-d">In Prüfung</span></h2>
+        
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-d">
+            <div class="task-info"><b>1. Barcode Scanner (Kamera)</b><span>Nölke-Kamera-Button drücken. Öffnet sich der Scanner und liest EANs korrekt ein?</span></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-d">
+            <div class="task-info"><b>2. Listen-Bündelung</b><span>Produkt + 4 Kisten + 20 kg eingeben. "+ Speichern" drücken.</span><div class="formula">In der Liste darf nur 1 EINZIGER Eintrag (4 Krt, 20kg) erscheinen!</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-d">
+            <div class="task-info"><b>3. Gewichts-Split für Etiketten</b><span>Den Eintrag (4 Krt, 20kg) anhaken und "🦓 Etiketten" drücken.</span><div class="formula">App muss melden: "4 Etikett(en) werden gesendet".</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-d">
+            <div class="task-info"><b>4. Live-Druck Test</b><span>Schauen, was aus dem Zebra Drucker kommt.</span><div class="formula">Sind es 4 Etiketten? Steht auf jedem exakt 5,00 kg und 1 Kiste?</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-d">
+            <div class="task-info"><b>5. DataMatrix Code Check</b><span>Mit einem MDE-Gerät/Handy den quadratischen 2D Code auf dem neuen Etikett scannen.</span><div class="formula">Steht alles drin? (Art-Nr, Name, Datum, Charge, MHD, 5.00kg...)</div></div>
+        </div>
+    </section>
+
+    <section class="card stress" id="card-e">
+        <h2>🔥 Teil D: Praxis & Stress-Test <span class="status-badge" id="status-e">In Prüfung</span></h2>
+        
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-e">
+            <div class="task-info"><b>1. Offline-Überleben</b><span>WLAN/Mobile Daten am Handy ausschalten. App schließen und neu öffnen.</span><div class="formula">Lädt die App dank v37 Service Worker trotzdem noch sofort?</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-e">
+            <div class="task-info"><b>2. Dark Mode UI-Check</b><span>Dark Mode (🌙) aktivieren.</span><div class="formula">Sind die neuen Reklamations-Felder und Nölke-Checkboxen gut lesbar?</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-e">
+            <div class="task-info"><b>3. Sprachsteuerung (Mikrofon)</b><span>Auf das 🎤 beim Gewicht drücken. "Fünfundzwanzig Komma Sieben" sagen.</span><div class="formula">Steht 25.7 im Feld?</div></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-e">
+            <div class="task-info"><b>4. PC Control Center (Sicherung)</b><span>Logistik: Einen Artikelnamen am PC ändern -> "Cloud Speichern". Kommt Bestätigung?</span></div>
+        </div>
+        <div class="task-item" onclick="toggle(this)"><input type="checkbox" class="cb cb-e">
+            <div class="task-info"><b>5. Handschuh-Test (WICHTIG!)</b><span>Lass einen Mitarbeiter mit Arbeits-Handschuhen die Nölke Checkboxen und "Drucken" bedienen.</span><div class="formula">Sind die Felder groß genug?</div></div>
+        </div>
+    </section>
+
+</main>
+
+<button class="reset-btn" onclick="resetAll()">Liste zurücksetzen</button>
+
+<div id="celebration">
+    <h1 style="color: var(--success); margin-top: 0;">🏆 V20 READY FOR RAMPE! 🏆</h1>
+    <p style="font-size: 18px;">Alle Module, Workflows und Drucker laufen fehlerfrei.</p>
+    <p style="color: #666;">Gib die Handys an die Jungs raus!</p>
+    <button class="reset-btn" style="background: var(--success); margin-bottom: 0;" onclick="location.reload()">System Starten</button>
+</div>
+
+<script>
+    function toggle(el) { 
+        const cb = el.querySelector('input'); 
+        if(event.target.tagName !== 'INPUT') cb.checked = !cb.checked; 
+        update(); 
+    }
+
+    function update() {
+        const all = document.querySelectorAll('.cb');
+        const allA = document.querySelectorAll('.cb-a');
+        const allB = document.querySelectorAll('.cb-b');
+        const allC = document.querySelectorAll('.cb-c');
+        const allD = document.querySelectorAll('.cb-d');
+        const allE = document.querySelectorAll('.cb-e');
+        const allF = document.querySelectorAll('.cb-f');
+        const allG = document.querySelectorAll('.cb-g');
+
+        const checked = Array.from(all).filter(c => c.checked).length;
+        const percent = Math.round((checked / all.length) * 100);
+
+        document.getElementById('main-progress-bar').style.width = percent + '%';
+        document.getElementById('percent-text').innerText = percent;
+
+        const updCard = (cid, sid, cbs) => {
+            const done = Array.from(cbs).every(c => c.checked);
+            const cardEl = document.getElementById(cid);
+            const statusEl = document.getElementById(sid);
+            if(cardEl) cardEl.classList.toggle('completed', done);
+            if(statusEl) statusEl.innerText = done ? 'FERTIG ✅' : 'In Prüfung';
+        };
+
+        updCard('card-a', 'status-a', allA); 
+        updCard('card-b', 'status-b', allB); 
+        updCard('card-c', 'status-c', allC); 
+        updCard('card-d', 'status-d', allD); 
+        updCard('card-e', 'status-e', allE); 
+        updCard('card-f', 'status-f', allF); 
+        updCard('card-g', 'status-g', allG); 
+
+        if(percent === 100) {
+            document.getElementById('celebration').style.display = 'block';
+        } else {
+            document.getElementById('celebration').style.display = 'none';
+        }
+
+        // Neue Storage-Key Version (V21)
+        localStorage.setItem('tresch_v21_state', JSON.stringify(Array.from(all).map(c => c.checked)));
+    }
+
+    function resetAll() { 
+        if(confirm("Wirklich die komplette Checkliste löschen?")) { 
+            document.querySelectorAll('.cb').forEach(c => c.checked = false); 
+            update(); 
+        } 
+    }
+
+    window.onload = () => {
+        const s = JSON.parse(localStorage.getItem('tresch_v21_state') || '[]');
+        document.querySelectorAll('.cb').forEach((c, i) => { if(s[i]) c.checked = true; });
+        update();
+    }
+</script>
+
+</body>
+</html>

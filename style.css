@@ -1,0 +1,140 @@
+/* ==================== DRUCK / PDF STYLES (FÜR BEIDE APPS) ==================== */
+@media screen {
+    #printArea { display: none; }
+}
+@media print {
+    @page { margin: 10mm; size: A4 portrait; }
+    body { margin: 0; padding: 0; box-sizing: border-box; background: white; }
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #pageComparison, #pageComparison * { visibility: visible; }
+    #printArea { position: absolute; left: 0; top: 0; width: 100%; max-width: 100%; background: white; color: black; box-sizing: border-box; }
+    #pageComparison { position: absolute; left: 0; top: 0; width: 100%; padding: 0; }
+    header, .bottom-nav, .drawer, button, .tab-wrapper { display: none !important; }
+    .card { box-shadow: none; border: none; padding: 0; margin: 0; }
+    .analysis-table th, .analysis-table td { font-size: 11px; padding: 4px; border: 1px solid #000; color: #000 !important; }
+    .worker-col { background-color: transparent !important; }
+    .print-produkt-titel { font-weight: bold; font-size: 18px; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #000; }
+    .print-detail-zeile { font-size: 16px; margin-left: 10px; margin-bottom: 3px; }
+}
+
+/* ==================== GLOBAL ==================== */
+:root { 
+    --primary: #004b93; --bg: #f2f4f8; --card: #ffffff; --accent: #ff6b00; --warning: #ed6c02;
+    --text: #222222; --border: #dcdfe6; --danger: #ff4444; --success: #28a745; --sonder: #673ab7;
+}
+body, html { margin: 0; padding: 0; font-family: sans-serif; background: var(--bg); height: 100%; -webkit-user-select: none; user-select: none; touch-action: manipulation; overscroll-behavior-y: contain; }
+input, select, textarea { -webkit-user-select: auto; user-select: auto; }
+
+/* ==================== CSS APP 2 (RECHNER V6 PRO CLOUD) ==================== */
+#app2_wrapper { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; overflow-y: auto; box-sizing: border-box; }
+#app2_wrapper header { background: var(--primary); color: white; padding: 10px; padding-top: calc(10px + env(safe-area-inset-top)); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.1); box-sizing: border-box; }
+#app2_wrapper .header-center { text-align: center; flex: 1; padding: 0 10px; }
+#app2_wrapper .head-title { font-size: 16px; font-weight: bold; margin: 0; white-space: nowrap; }
+#app2_wrapper .head-subtitle { font-size: 10px; opacity: 0.8; margin: 0; }
+#app2_wrapper .header-btn { background: rgba(255,255,255,0.2); border: 1px solid white; color: white; padding: 7px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+#app2_wrapper .tab-wrapper { display: flex; background: var(--primary); }
+#app2_wrapper .tab-btn { flex: 1; background: transparent; color: rgba(255,255,255,0.6); border: none; padding: 12px 2px; font-size: 11px; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent; text-transform: uppercase; }
+#app2_wrapper .tab-btn.active { color: white; border-bottom: 3px solid var(--accent); background: rgba(0,0,0,0.1); }
+#app2_wrapper .tab-content { display: none; flex: 1; flex-direction: column; padding-bottom: 20px;}
+#app2_wrapper .tab-content.active { display: flex; }
+
+#app2_wrapper .input-area { padding: 10px; background: var(--card); border-bottom: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+#app2_wrapper .field { display: flex; flex-direction: column; margin-bottom: 8px; }
+#app2_wrapper .field label { font-size: 9px; color: #666; text-transform: uppercase; margin-bottom: 2px; text-align: center; font-weight: bold; }
+#app2_wrapper input, #app2_wrapper select { background: #fafafa; border: 1px solid var(--border); padding: 8px; border-radius: 6px; font-size: 16px; text-align: center; outline: none; height: 38px; box-sizing: border-box; width: 100%; color: var(--text); }
+
+#app2_wrapper .sonder-box { background: #f3e5f5; border: 1px solid #d1c4e9; padding: 10px; border-radius: 8px; margin-bottom: 10px; display: none; }
+#app2_wrapper .grid-row-1 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+#app2_wrapper .grid-row-2 { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 6px; }
+
+#app2_wrapper .add-btn { background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 15px; height: 40px; width: 100%; box-shadow: 0 4px 6px rgba(255,107,0,0.2); cursor: pointer; }
+#app2_wrapper .clear-btn { background: #ffebee; color: var(--danger); border: 1px solid #ffcdd2; border-radius: 8px; height: 40px; font-size: 18px; cursor: pointer; }
+#app2_wrapper .sonder-toggle-btn { background: var(--sonder); color: white; border: none; padding: 0 8px; border-radius: 8px; font-weight: bold; font-size: 11px; height: 40px; min-width: 80px; cursor: pointer; }
+
+#app2_wrapper .select-trigger { background: #fff; border: 2px solid var(--primary); padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; color: var(--primary); cursor: pointer; margin-bottom: 10px; font-size: 15px; }
+
+#app2_wrapper .summary-card { background: #e8f0fe; border: 1px solid #b3d4ff; padding: 10px; border-radius: 8px; margin: 10px; }
+#app2_wrapper .summary-title { font-size: 11px; color: var(--primary); font-weight: bold; text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid #b3d4ff; padding-bottom: 4px; }
+#app2_wrapper .sup-item-box { border-bottom: 1px solid #c8dcfc; padding: 5px 0; display: flex; justify-content: space-between; align-items: baseline; }
+#app2_wrapper .sup-weight-tag { font-size: 13px; font-weight: bold; color: var(--accent); }
+#app2_wrapper .sup-leergut-inline { font-size: 10px; color: #555; margin-left: auto; padding-right: 10px; }
+
+#app2_wrapper .leergut-card { background: #e6f4ea; border: 1px solid #a8dab5; padding: 10px; border-radius: 8px; margin: 0 10px 15px 10px; }
+#app2_wrapper .leergut-title { font-size: 11px; color: #137333; font-weight: bold; text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid #a8dab5; padding-bottom: 4px; }
+#app2_wrapper .leergut-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 12px; font-weight: bold; }
+
+#app2_wrapper  .palette-card { background: var(--card); padding: 15px; border-radius: 10px; margin: 8px 10px; display: flex; justify-content: space-between; align-items: center; border-left: 10px solid var(--primary); border: 1px solid var(--border); box-sizing: border-box; }
+        
+        /* NEU: Control Center Design */
+        .control-center { background: #d1e3ff; margin: 10px; padding: 15px; border-radius: 12px; border: 2px solid var(--primary); display: flex; justify-content: space-between; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .control-item { flex: 1; text-align: center; }
+        .control-item b { display: block; font-size: 20px; color: #000; }
+        .control-item span { font-size: 10px; text-transform: uppercase; color: var(--primary); font-weight: bold; }
+
+
+#calc-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f7f7f7; z-index: 3000; flex-direction: column; }
+.calc-header { padding: calc(15px + env(safe-area-inset-top)) 20px 15px 20px; display: flex; justify-content: space-between; align-items: center; font-size: 18px; font-weight: bold; border-bottom: 1px solid #ddd; }
+#c-disp { font-size: 40px; text-align: right; color: #000; padding: 20px; border: none; background: transparent; width: 100%; box-sizing: border-box; height: 100px; border-bottom: 1px solid #ddd; outline: none; }
+.c-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 20px; }
+.c-btn { border-radius: 12px; border: none; font-size: 22px; background: #ffffff; aspect-ratio: 1/1; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); color: #000; }
+.c-op { color: var(--accent); font-weight: bold; }
+
+/* GLOBALE MODALS (Für beide Apps nutzbar) */
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box; }
+.modal-content { background: #ffffff; width: 100%; max-width: 450px; border-radius: 12px; padding: 15px; max-height: 85vh; display: flex; flex-direction: column; overflow-y: auto; box-sizing: border-box; }
+.search-box { padding: 12px; border: 2px solid var(--primary); border-radius: 8px; font-size: 18px; margin-bottom: 10px; width: 100%; box-sizing: border-box; }
+.results-list { overflow-y: auto; flex: 1; }
+.result-item { padding: 15px; border-bottom: 1px solid #eee; font-size: 16px; color: #333; cursor: pointer; }
+
+.sync-active { animation: spin 1s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+@keyframes cmdBlink { 50% { opacity: 0; } }
+.cmd-cursor { animation: cmdBlink 1s step-end infinite; font-weight: bold; }
+
+/* ==================== CSS APP 1 (Logistik Pro) ==================== */
+#app1_wrapper { --primary: #004b93; --bg: #f0f2f5; --success: #2e7d32; --danger: #c62828; --accent: #e3f2fd; --warning: #ed6c02; font-family: 'Segoe UI', sans-serif; background: var(--bg); min-height: 100vh; padding-bottom: 110px; position: relative; box-sizing: border-box; }
+#app1_wrapper header { background: var(--primary); color: white; padding: 15px; padding-top: calc(15px + env(safe-area-inset-top)); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; }
+#app1_wrapper .burger { font-size: 24px; cursor: pointer; margin-right: 15px; }
+#app1_wrapper .drawer { position: fixed; top: 0; left: -280px; width: 260px; height: 100%; background: white; z-index: 400; transition: 0.3s; padding-top: calc(20px + env(safe-area-inset-top)); box-shadow: 2px 0 10px rgba(0,0,0,0.2); }
+#app1_wrapper .drawer.open { left: 0; }
+#app1_wrapper .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 300; }
+#app1_wrapper .drawer-item { padding: 15px 20px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 14px; color: #333; }
+#app1_wrapper nav.bottom-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; border-top: 1px solid #ccc; height: 75px; z-index: 200; padding-bottom: env(safe-area-inset-bottom); }
+#app1_wrapper .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #666; cursor: pointer; padding-top: 5px; }
+#app1_wrapper .nav-item.active { color: var(--primary); font-weight: bold; border-top: 3px solid var(--primary); }
+#app1_wrapper .page { padding: 15px; display: none; }
+#app1_wrapper .page.active { display: block; }
+#app1_wrapper .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); color: #333; }
+#app1_wrapper .analysis-table { width: 100%; border-collapse: collapse; font-size: 10px; background: white; min-width: 400px; }
+#app1_wrapper .analysis-table th { background: #f8f9fa; padding: 6px 2px; border: 1px solid #eee; color: #333; }
+#app1_wrapper .analysis-table td { padding: 8px 2px; border: 1px solid #eee; text-align: center; font-weight: bold; color: #333; }
+#app1_wrapper .worker-col { text-align: left !important; padding-left: 8px !important; font-size: 11px; }
+#app1_wrapper .worker-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin: 2px; display: inline-block; color: white; font-weight: bold; }
+#app1_wrapper .day-summary-card { background: var(--accent); border-radius: 12px; padding: 10px; margin: 10px 0; display: flex; justify-content: space-around; text-align: center; cursor: pointer; }
+#app1_wrapper .stat-box b { display: block; font-size: 14px; color: var(--primary); }
+#app1_wrapper input, #app1_wrapper select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 10px; font-size: 16px; box-sizing: border-box; background: #fafafa; color: #333; }
+#app1_wrapper button { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; }
+#app1_wrapper .btn-main { background: var(--primary); color: white; }
+#app1_wrapper .worker-list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; background: white; color: #333; }
+#app1_wrapper .color-preview { width: 25px; height: 25px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; padding: 0; overflow: hidden; }
+#app1_wrapper .color-preview input[type="color"] { opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+
+.export-btn { border: none; border-radius: 4px; font-size: 11px; font-weight: bold; padding: 3px 6px; cursor: pointer; margin-left: 8px; display: inline-block; vertical-align: middle; min-width: 40px; }
+.ex-state { background-color: #fff3e0; color: var(--accent); border: 1px solid #ffcc80; }
+.uns-state { background-color: #e6ffe6; color: var(--success); border: 1px solid #a3e9a4; }
+
+/* ==================== SWIPE TO DELETE ==================== */
+.swipe-wrap { position: relative; overflow: hidden; border-radius: 8px; background: var(--danger); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+.swipeable { transition: transform 0.2s ease-out; position: relative; z-index: 2; height: 100%; box-sizing: border-box; touch-action: pan-y; background: inherit; }
+.swipe-bg { position: absolute; top: 0; right: 0; width: 100%; height: 100%; z-index: 1; display: flex; align-items: center; justify-content: flex-end; cursor: pointer; }
+.swipe-bg span { color: white; padding: 0 20px; font-size: 24px; font-weight: bold; }
+
+/* ==================== TOAST & CUSTOM CONFIRM ==================== */
+#toast-container { position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; width: 90%; max-width: 400px; pointer-events: none; }
+.toast { background: #333; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 14px; font-weight: bold; text-align: center; opacity: 0; transform: translateY(20px); transition: opacity 0.3s, transform 0.3s; }
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+.toast.warning { background: var(--warning, #ed6c02); border: 1px solid #e65100; color: #fff; }
