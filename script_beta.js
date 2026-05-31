@@ -201,8 +201,8 @@ function logoutLogistik(auto = false) { sessionStorage.removeItem('logistik_auth
 window.onload = () => { 
     document.getElementById('app1_wrapper').style.display = 'none'; document.getElementById('app2_wrapper').style.display = 'flex';
     if (document.getElementById('selectedWorkDate')) { document.getElementById('selectedWorkDate').value = getLocalISO(); document.getElementById('selectedWorkDate').onchange = renderApp1; }
-    if (typeof loadLocalDB === 'function') loadLocalDB(); if (typeof loadRechnerData === 'function') loadRechnerData(); if (typeof loadAllFromCloud === 'function') loadAllFromCloud(); if (typeof initCalc === 'function') initCalc(); 
-    if (AppStorage.getRaw('kombi_dark_mode') === 'true') { document.body.classList.add('dark-mode'); updateDarkModeIcons(true); }
+    if (typeof loadLocalDB === 'function') loadLocalDB(); if (typeof loadRechnerData === 'function') loadRechnerData(); if (typeof loadAllFromCloud === 'function') loadAllFromCloud(); if (typeof initCalc === 'function') initCalc();
+    if (AppStorage.getRaw('kombi_dark_mode') === 'true') { document.body.classList.add('dark-mode'); updateDarkModeIcons(true); applyHeaderDarkModeFix(true); }
     resetInactivityTimer();
     if (typeof renderAppCloudLogs === 'function') renderAppCloudLogs();
     
@@ -224,8 +224,87 @@ window.onload = () => {
             AppStorage.setRaw('last_seen_version', APP_VERSION);
         }
     }
+
+    // Verhindern, dass sich der Bildschirm dreht, um Resets zu vermeiden
+    try {
+        if (screen.orientation && typeof screen.orientation.lock === 'function') {
+            // Sperre zu Beginn
+            screen.orientation.lock('portrait-primary').catch(err => {});
+
+            // Und stelle sicher, dass es gesperrt bleibt, wenn der Nutzer es überschreibt
+            screen.orientation.addEventListener('change', () => {
+                if (!screen.orientation.type.startsWith('portrait')) {
+                    screen.orientation.lock('portrait-primary').catch(err => {});
+                }
+            });
+        }
+    } catch (e) { console.warn("Screen-Orientation-API nicht verfügbar.", e); }
 };
-function toggleDarkMode() { document.body.classList.toggle('dark-mode'); const isDark = document.body.classList.contains('dark-mode'); AppStorage.setRaw('kombi_dark_mode', isDark); updateDarkModeIcons(isDark); }
+
+function applyHeaderDarkModeFix(isDark) {
+    let headers = document.querySelectorAll('header');
+    if (!headers || headers.length === 0) {
+        headers = document.querySelectorAll('.head');
+    }
+    if (!headers || headers.length === 0) {
+        return;
+    }
+
+    headers.forEach(header => {
+        const menuButton = header.querySelector('[onclick*="toggleMenuApp"]');
+
+        if (isDark) {
+            // AI-FIX: Forcefully override header background for dark mode.
+            // The previous fix was not sufficient, this is more aggressive.
+            header.style.setProperty('background', '#1f1f1f', 'important');
+            if (menuButton) {
+                menuButton.style.backgroundColor = 'transparent';
+                menuButton.style.color = '#ffffff';
+            }
+        } else {
+            header.style.background = '';
+            if (menuButton) {
+                menuButton.style.backgroundColor = '';
+                menuButton.style.color = '';
+            }
+        }
+    });
+
+    // AI-FIX: Behebt einen Fehler im Dark Mode, bei dem das Burgermenü (Drawer)
+    // einen weißen Hintergrund und weiße Schrift hatte und somit unlesbar war.
+    const drawers = [document.getElementById('drawer'), document.getElementById('drawer2')].filter(Boolean);
+    drawers.forEach(drawer => {
+        if (isDark) {
+            // Setzt einen dunklen Hintergrund für das Menü im Dark Mode.
+            drawer.style.setProperty('background', '#1f1f1f', 'important');
+        } else {
+            // Entfernt den manuell gesetzten Hintergrund im Light Mode.
+            drawer.style.background = '';
+        }
+    });
+
+    // AI-FIX: Behebt weitere Dark-Mode-Fehler im Brandenburg-Tab, die durch
+    // hartkodierte helle Farben in Inline-Styles verursacht wurden.
+    // Dies wird beim Umschalten des Dark-Mode ausgeführt.
+    const scanStatusEl = document.getElementById('brandenburg-scan-status');
+    if (scanStatusEl) {
+        // Passt den Hintergrund nur an, wenn es der neutrale "Bereit"-Status ist.
+        const neutralBg = isDark ? 'var(--bg-disabled, #2c2c2c)' : 'var(--bg-color-2, #f0f2f5)';
+        const currentBg = scanStatusEl.style.backgroundColor;
+        // Wir prüfen auf die RGB-Äquivalente, da der Browser die Werte umrechnen kann.
+        if (currentBg === 'rgb(240, 242, 245)' || currentBg === '' || currentBg === 'var(--bg-color-2, #f0f2f5)') {
+             scanStatusEl.style.background = neutralBg;
+        }
+    }
+
+    const leergutContainer = document.getElementById('bb-e2')?.parentElement.parentElement;
+    if (leergutContainer) {
+        leergutContainer.style.background = isDark ? 'var(--bg-disabled, #2c2c2c)' : '#f9f9f9';
+        leergutContainer.style.border = isDark ? '1px solid #444' : '1px solid #eee';
+    }
+}
+
+function toggleDarkMode() { document.body.classList.toggle('dark-mode'); const isDark = document.body.classList.contains('dark-mode'); AppStorage.setRaw('kombi_dark_mode', isDark); updateDarkModeIcons(isDark); applyHeaderDarkModeFix(isDark); }
 function updateDarkModeIcons(isDark) { document.querySelectorAll('.dark-mode-icon').forEach(el => el.innerText = isDark ? '☀️' : '🌙'); }
 
 // AUTO SYNC
@@ -409,9 +488,12 @@ function forcePrint(filename) {
             const opt = { margin: 5, filename: filename + '.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
             
             html2pdf().set(opt).from(printEl).outputPdf('blob').then(function(blob) {
-                printEl.style.cssText = ""; generatedPdfFilename = filename; generatedPdfFile = new File([blob], filename + '.pdf', { type: 'application/pdf' });
-                document.getElementById('pdf-share-modal').style.display = 'flex';
+                printEl.style.cssText = "";
                 restoreDark();
+                // AI-FIX: Öffnet das PDF in einem neuen Tab, was auf mobilen Geräten zuverlässiger ist
+                // als der Share-Dialog oder ein direkter Download.
+                const pdfUrl = URL.createObjectURL(blob);
+                window.open(pdfUrl, '_blank');
             }).catch(() => { printEl.style.cssText = ""; window.print(); setTimeout(restoreDark, 8000); });
         } else { 
             window.print(); 
@@ -547,7 +629,7 @@ function initLkwShareButtons() {
     
     const bar = document.createElement('div');
     bar.id = 'lkw-share-bar';
-    bar.style.cssText = "background: #f0f2f5; padding: 15px 10px 50px 10px; display: flex; justify-content: center; gap: 10px; border-top: 2px solid #ddd; margin-top: 20px;";
+    bar.style.cssText = "background: transparent; padding: 15px 10px 50px 10px; display: flex; justify-content: center; gap: 10px; border-top: 2px solid var(--border-color, #ddd); margin-top: 20px;";
     bar.innerHTML = `
         <button id="btn-share-lkw" onclick="shareLkwData()" style="flex:1; max-width:200px; padding:12px; background:#004b93; color:white; border:none; border-radius:6px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">📤 LKW Senden</button>
         <button id="btn-receive-lkw" onclick="receiveLkwData()" style="flex:1; max-width:200px; padding:12px; background:#4caf50; color:white; border:none; border-radius:6px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">📥 LKW Empfangen</button>

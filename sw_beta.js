@@ -1,16 +1,18 @@
-const CACHE_NAME = 'logistik-app-v7';
-const CACHE_NAME = 'logistik-app-v8';
+const CACHE_NAME = 'logistik-app-beta-v11'; // AI-EDIT: Cache-Version erhöht, um Neuladen zu erzwingen.
 const ASSETS_TO_CACHE = [
-    './',
-    './index.html',
-    './style.css',
-    './script.js',
-    './rechner.js',
-    './rechner_scanner.js',
-    './rechner_druck.js',
-    './rechner_reklamation.js',
-    './rechner_leergut.js',
-    './logistik.js',
+    // AI-FIX: Der Service Worker für die Beta-Version wird so angepasst, dass er die korrekten
+    // Beta-Dateien (*_beta.js, *_beta.css etc.) zwischenspeichert. Dies behebt das Kernproblem,
+    // dass Änderungen in der Beta-Umgebung nicht wirksam wurden, weil fälschlicherweise
+    // die alten Live-Dateien aus dem Cache geladen wurden.
+    './index_beta.html',
+    './style_beta.css',
+    './script_beta.js',
+    './rechner_beta.js',
+    './rechner_scanner_beta.js',
+    './rechner_druck_beta.js',
+    './rechner_reklamation_beta.js',
+    './rechner_leergut_beta.js',
+    './logistik_beta.js',
     './html5-qrcode.js'
 ];
 
@@ -60,8 +62,8 @@ self.addEventListener('fetch', (event) => {
                 }).catch(async (err) => {
                     // Wenn das Netzwerk fehlschlägt und wir eine zwischengespeicherte Antwort haben, ist das ok.
                     // Wenn nicht, und es eine Navigationsanfrage ist, zeige die Offline-Seite.
-                    if (!cachedResponse && event.request.mode === 'navigate') {
-                         return (await caches.match('./index.html')) || (await caches.match('./'));
+                    if (!cachedResponse && event.request.mode === 'navigate') { // AI-FIX: Fallback auf die korrekte Beta-Indexseite.
+                         return (await caches.match('./index_beta.html')) || (await caches.match('./index_beta.html'));
                     }
                 });
 

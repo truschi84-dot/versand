@@ -15,6 +15,9 @@ let isScannerStarting = false;
 let isScannerStopping = false;
 let isZoomed = false;
 let scannerTarget = 'noelke';
+let scannerExpectedType = null; // 'BC' or 'QR' or null (auto)
+let photoCanvas = null;
+let photoScanHelper = null;
 
 function playBeep() {
     try {
@@ -24,50 +27,17 @@ function playBeep() {
     } catch(e) {}
 }
 
-async function startBarcodeScanner(target = 'noelke') {
+async function startBarcodeScanner(target = 'noelke', expectedType = null) {
     scannerTarget = target;
+    scannerExpectedType = expectedType;
     document.getElementById('scanner-modal').style.display = 'flex';
     
     if (isScannerStopping || isScannerStarting) return;
     isScannerStarting = true;
 
-    if ('BarcodeDetector' in window) {
-        try {
-            const qrReader = document.getElementById('qr-reader');
-            qrReader.innerHTML = '<video id="native-video" style="width:100%; max-height:60vh; object-fit:cover; border-radius:8px;" autoplay playsinline></video>';
-            const videoEl = document.getElementById('native-video');
-
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", focusMode: "continuous", width: { ideal: 1920 }, height: { ideal: 1080 } }
-            });
-            
-            videoEl.srcObject = stream;
-            nativeVideoStream = stream;
-
-            await new Promise(resolve => { videoEl.onloadedmetadata = () => { videoEl.play(); resolve(); }; });
-
-            const barcodeDetector = new BarcodeDetector();
-            
-            nativeScanInterval = setInterval(async () => {
-                if (videoEl.readyState !== 4) return;
-                try {
-                    const barcodes = await barcodeDetector.detect(videoEl);
-                    if (barcodes.length > 0) {
-                        stopBarcodeScanner();
-                        playBeep();
-                        handleScannedBarcode(barcodes[0].rawValue);
-                    }
-                } catch (e) {}
-            }, 40); 
-            
-            isScannerStarting = false;
-            return; 
-        } catch (err) {
-            console.warn("Nativer Scanner konnte nicht starten, lade Fallback...", err);
-            stopBarcodeScanner(); 
-        }
-    }
-
+    // AI-FIX: Die Scanner-Logik wird an die stabile Live-Version angeglichen, um Kamera-Fehler zu beheben.
+    // Ein kleiner Timeout stellt sicher, dass das Modal vollständig im DOM ist, bevor die Kamera gestartet wird.
+    // Die Konfiguration wird vereinfacht, um die Kompatibilität zu erhöhen.
     setTimeout(() => {
         try {
             const qrReader = document.getElementById('qr-reader');
@@ -75,24 +45,34 @@ async function startBarcodeScanner(target = 'noelke') {
             
             html5QrCode = new Html5Qrcode("qr-reader");
             html5QrCode.start(
-                { facingMode: "environment", advanced: [{ focusMode: "continuous" }] }, 
-                { fps: 30, qrbox: function(w, h) { let size = Math.min(w, h) * 0.95; return { width: size, height: size }; } }, 
-                (decodedText) => {
+                { facingMode: "environment" }, // Vereinfachte Kamera-Anforderung für höhere Kompatibilität
+                { 
+                    fps: 15, // Ein guter Kompromiss für Leistung und Akku
+                    qrbox: function(w, h) { let size = Math.min(w, h) * 0.9; return { width: size, height: size }; }
+                    // `formatsToSupport` wird entfernt, um die Kompatibilität zu maximieren (wie in der Live-Version)
+                }, 
+                (decodedText, decodedResult) => {
+                    // Erfolgreicher Scan
                     stopBarcodeScanner();
                     playBeep();
                     handleScannedBarcode(decodedText);
                 }, 
-                (err) => {} 
+                (errorMessage) => {
+                    // Scan-Fehler (z.B. Code nicht lesbar) werden ignoriert, um weiter zu scannen.
+                } 
             ).then(() => {
                 isScannerStarting = false;
             }).catch((err) => {
+                // Kritischer Fehler beim Starten der Kamera
                 isScannerStarting = false;
-                console.error("Fallback Scanner Fehler:", err);
+                console.error("Scanner Fehler:", err);
                 showToast("Kamera-Fehler.", "error");
                 stopBarcodeScanner();
             });
         } catch (err) {
             isScannerStarting = false;
+            console.error("Scanner konnte nicht initialisiert werden:", err);
+            showToast("Scanner-Fehler.", "error");
             stopBarcodeScanner();
         }
     }, 150);
@@ -229,7 +209,22 @@ function parseGS1(barcode) {
     if (typeof barcode !== 'string') return null;
     let cleanBarcode = barcode.replace(/^\][A-Za-z]\d/, '');
     cleanBarcode = cleanBarcode.replace(/[^\x20-\x7E\x1D]/g, '');
-    if (/^\d{8}$/.test(cleanBarcode) || /^\d{13}$/.test(cleanBarcode)) return null;
+
+    // AI-FIX: Die vorherige Logik hat fälschlicherweise einfache EAN-8 und EAN-13 Barcodes abgewiesen.
+    // Diese neue Logik prüft zuerst, ob es sich um einen einfachen EAN-Code handelt und gibt dafür
+    // ein gültiges Objekt zurück. Nur wenn es kein einfacher EAN ist, wird versucht, ihn als
+    // komplexen GS1-Code zu parsen. Dies behebt die Fehler bei allen Scannern.
+    const hasAIs = cleanBarcode.includes("(") || cleanBarcode.includes(String.fromCharCode(29)) || /^(01|02|10|15|17|31)/.test(cleanBarcode);
+
+    if (!hasAIs) {
+        if (/^\d{13}$/.test(cleanBarcode)) {
+            return { gtin: '0' + cleanBarcode, ean: cleanBarcode, mhd: null, charge: null };
+        }
+        if (/^\d{8}$/.test(cleanBarcode)) {
+            return { gtin: '000000' + cleanBarcode, ean: cleanBarcode, mhd: null, charge: null };
+        }
+        return null; // Kein bekannter einfacher EAN und keine AIs gefunden.
+    }
 
     let result = { gtin: null, mhd: null, ean: null, charge: null };
 
@@ -309,6 +304,14 @@ function parseGS1(barcode) {
 }
 
 function handleScannedBarcode(ean) {
+    if (scannerTarget === 'brandenburg-scan-input') {
+        // Für Brandenburg wird der Scan-Wert immer direkt an den spezialisierten Handler übergeben.
+        if (typeof handleBrandenburgScan === 'function') {
+            handleBrandenburgScan(ean);
+        }
+        return; // Wichtig: Hier beenden, damit nicht die alte Logik greift.
+    }
+
     let gs1Data = parseGS1(ean);
 
     if(scannerTarget === 'rek-ls') {

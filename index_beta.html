@@ -129,7 +129,7 @@ bitte strikt in index_beta.html und den *_beta.js Dateien durchführen.
 
         body.dark-mode { background-color: #121212 !important; color: #ffffff !important; }
         body.dark-mode #app2_wrapper, body.dark-mode #app1_wrapper { background-color: #121212 !important; }
-        body.dark-mode header { background-color: #1f1f1f !important; color: #ffffff !important; border-bottom: 1px solid #333 !important; }
+        body.dark-mode header { background: #1f1f1f !important; color: #ffffff !important; border-bottom: 1px solid #333 !important; }
         body.dark-mode .card, body.dark-mode .summary-card, body.dark-mode .leergut-card, body.dark-mode .palette-card,
         body.dark-mode .input-area, body.dark-mode .sonder-box, body.dark-mode .select-trigger,
         body.dark-mode .worker-list-item, body.dark-mode #artSupplierCheckboxes,
@@ -209,6 +209,7 @@ bitte strikt in index_beta.html und den *_beta.js Dateien durchführen.
         <div class="drawer-item menu-tab" id="menu-tab-sort" onclick="switchTabAndCloseMenu('sort')"><span class="item-icon">📦</span><span>Sortierung</span></div>
         <div class="drawer-item menu-tab" id="menu-tab-noelke" onclick="switchTabAndCloseMenu('noelke')"><span class="item-icon">📝</span><span>Nölke</span></div>
         <div class="drawer-item menu-tab" id="menu-tab-leergut" onclick="switchTabAndCloseMenu('leergut')"><span class="item-icon">♻️</span><span>Leergut</span></div>
+        <div class="drawer-item menu-tab" id="menu-tab-brandenburg" onclick="switchTabAndCloseMenu('brandenburg')"><span class="item-icon">🏭</span><span>Brandenburg WE</span></div>
         <hr class="drawer-separator">
         <div class="drawer-item" onclick="toggleDarkMode(); toggleMenuApp2(false);" style="display: flex; align-items: center; gap: 10px;"><span class="item-icon">🌙</span><span>Dark Mode</span></div>
         <div class="drawer-item" onclick="toggleCalc(true); toggleMenuApp2(false);" style="display: flex; align-items: center; gap: 10px;"><span class="item-icon">🖩</span><span>Taschenrechner</span></div>
@@ -425,6 +426,52 @@ bitte strikt in index_beta.html und den *_beta.js Dateien durchführen.
                 </div>
             </div>
         </div>
+    </div>
+
+    <div id="tab-brandenburg" class="tab-content">
+        <input type="hidden" id="brandenburg-scan-input" oninput="handleBrandenburgScan(this.value)">
+        <div class="input-area" style="border-top: 4px solid #8e44ad;">
+            <div style="font-weight:bold; color:#8e44ad; margin-bottom:15px; text-align:center;">Brandenburg Wareneingang</div>
+            
+            <div id="brandenburg-scan-status" style="text-align: center; padding: 10px; background: #f3e5f5; color: #8e44ad; border-radius: 8px; font-weight: bold; margin-bottom: 10px;">
+                Warte auf Scan 1...
+            </div>
+            <div id="brandenburg-debug" style="display:none; text-align:left; font-size:12px; color:#333; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; margin-bottom:10px; white-space: pre-wrap; max-height:120px; overflow:auto;"></div>
+            
+
+            <div id="brandenburg-data-form" style="display: none;">
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <div class="field" style="flex:1;"><label>Artikel</label><input type="text" id="bb-artikel" readonly style="background: #eee;"></div>
+                    <div class="field" style="flex:1;"><label>Charge</label><input type="text" id="bb-charge" readonly style="background: #eee;"></div>
+                </div>
+                <div class="field" style="margin-bottom:10px;"><label>Netto (Etikett)</label><input type="text" id="bb-netto-scan" readonly style="background: #e8f5e9; color: #2e7d32; font-weight: bold;"></div>
+                
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                                        <div class="field" style="flex:1;"><label>Brutto (Ist)</label><input type="number" step="0.01" id="bb-brutto" inputmode="decimal" oninput="calcBrandenburgNetto()"></div>
+                    <div class="field" style="flex:1; display: none;"><label>Leergut (Auto)</label><input type="text" id="bb-leergut" readonly style="background: #f0f2f5;"></div>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-bottom:10px; background: #f9f9f9; padding: 8px; border-radius: 6px; border: 1px solid #eee;">
+                    <div class="field" style="flex:1; margin-bottom:0;">
+                        <label style="font-size:10px; font-weight:bold; color:#555;">E2 Kisten</label>
+                        <input type="number" id="bb-e2" placeholder="0" oninput="calcBrandenburgNetto()" inputmode="numeric"></div>
+                    <div class="field" style="flex:1; margin-bottom:0;">
+                        <label style="font-size:10px; font-weight:bold; color:#555;">H1 Paletten</label>
+                        <input type="number" id="bb-h1" placeholder="0" oninput="calcBrandenburgNetto()" inputmode="numeric"></div>
+                </div>
+                
+                <div class="field" style="margin-bottom:15px;"><label>Ist-Netto (Berechnet)</label><input type="text" id="bb-netto-ist" readonly style="font-weight: bold; font-size: 18px;"></div>
+                
+                <div style="display:flex; gap:10px;">
+                    <button class="clear-btn" onclick="resetBrandenburgScanner()">↺</button>
+                    <button class="add-btn" style="flex:1; background:#8e44ad;" onclick="saveBrandenburgPalette()">+ Palette speichern</button>
+                </div>
+            </div>
+        </div>
+        
+        <div style="padding: 10px; text-align: center; font-weight: bold; color: #555;">Erfasste Paletten: <span id="bb-counter">0</span></div>
+        <div class="list-area" id="list-brandenburg"></div>
+        <div style="padding: 10px;"><button onclick="showBrandenburgSummary()" style="background: #34495e; color: white; width: 100%; padding: 15px; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ Drucken / Zusammenfassung</button></div>
     </div>
 </div>
 
@@ -737,6 +784,23 @@ bitte strikt in index_beta.html und den *_beta.js Dateien durchführen.
                 </div>
             </div>
 
+            <div id="edit-brandenburg-fields" style="display:none;">
+                <div class="field"><label>Artikel</label><input type="text" id="edit-bb-artikel"></div>
+                <div class="field"><label>Charge</label><input type="text" id="edit-bb-charge"></div>
+                <div style="display:flex; gap:10px;">
+                    <div class="field" style="flex:1;"><label>Brutto (kg)</label><input type="number" id="edit-bb-brutto" oninput="calcEditBrandenburgNetto()" inputmode="decimal"></div>
+                    <div class="field" style="flex:1; display: none;"><label>Leergut (kg)</label><input type="text" id="edit-bb-leergut" readonly style="background:#eee;"></div>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <div class="field" style="flex:1;"><label>E2 Kisten</label><input type="number" id="edit-bb-e2" oninput="calcEditBrandenburgNetto()" inputmode="numeric"></div>
+                    <div class="field" style="flex:1;"><label>H1 Paletten</label><input type="number" id="edit-bb-h1" oninput="calcEditBrandenburgNetto()" inputmode="numeric"></div>
+                </div>
+                <div class="field">
+                    <label>Netto (berechnet)</label>
+                    <input type="text" id="edit-bb-netto-ist" readonly style="font-weight:bold;">
+                </div>
+            </div>
+
             <div id="edit-noelke-fields" style="display:none;">
                 <div class="grid-row-1">
                     <div class="field"><label>E2 Kisten</label><input type="number" id="edit-n-e2" inputmode="numeric"></div>
@@ -775,9 +839,11 @@ bitte strikt in index_beta.html und den *_beta.js Dateien durchführen.
     <div class="modal-content" style="padding: 15px; text-align: center;">
         <h3 style="margin-top:0; color:#137333;">📷 Barcode scannen</h3>
         <div id="qr-reader" style="width:100%; min-height: 250px; border-radius: 8px; overflow: hidden; border: 2px solid #137333;"></div>
+        <div id="photo-scan-container" style="display:none; width:0; height:0; overflow:hidden;"></div>
         <div style="display:flex; gap:10px; margin-top:15px;">
             <button id="torch-btn" onclick="toggleTorch()" style="flex:1; padding:15px; background:#fff3e0; color: #e65100; border:1px solid #ffe0b2; border-radius:8px; font-weight:bold; cursor:pointer;">🔦 Licht an</button>
             <button id="zoom-btn" onclick="toggleZoom()" style="flex:1; padding:15px; background:#e3f2fd; color: #1565c0; border:1px solid #bbdefb; border-radius:8px; font-weight:bold; cursor:pointer;">🔍 Zoom</button>
+            <button onclick="captureScanPhoto()" style="flex:1; padding:15px; background:#dcedc8; color: #33691e; border:1px solid #c5e1a5; border-radius:8px; font-weight:bold; cursor:pointer;">📸 Foto</button>
             <button onclick="stopBarcodeScanner()" style="flex:1; padding:15px; background:#ffebee; color: #c62828; border:1px solid #ffcdd2; border-radius:8px; font-weight:bold; cursor:pointer;">Abbrechen</button>
         </div>
     </div>
@@ -1005,6 +1071,20 @@ bitte strikt in index_beta.html und den *_beta.js Dateien durchführen.
 
     <button id="rek-print-btn" onclick="printReklamation()" style="width: 100%; margin-top: 15px; padding: 22px; font-size: 20px; background: #d32f2f; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 6px 20px rgba(211,47,47,0.4);">🖨️ Reklamation Drucken</button>
     <button id="rek-update-btn" onclick="updateCloudReklamation()" style="display:none; width: 100%; margin-top: 15px; padding: 15px; font-size: 18px; background: #ff6b00; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer;">💾 Änderungen in Cloud speichern</button>
+    </div>
+</div>
+
+<div id="brandenburg-summary-modal" class="modal" style="z-index: 10000;">
+    <div class="modal-content" style="border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+            <h3 style="margin:0; font-size: 18px; color: #8e44ad;">📑 Zusammenfassung</h3>
+            <span onclick="document.getElementById('brandenburg-summary-modal').style.display='none'" style="font-size: 26px; color: #999; cursor: pointer; line-height: 1;">&times;</span>
+        </div>
+        <div id="bb-summary-content" style="font-size: 14px; margin-bottom: 20px;"></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button onclick="document.getElementById('brandenburg-summary-modal').style.display='none'" style="padding: 12px; background: #eee; color: #333; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Schließen</button>
+            <button onclick="printBrandenburgSummary()" style="padding: 12px; background: #34495e; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">🖨️ Drucken</button>
+        </div>
     </div>
 </div>
 

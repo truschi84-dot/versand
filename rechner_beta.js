@@ -32,7 +32,7 @@ function loadRechnerData() {
         
         if(typeof buildAppUI === 'function') buildAppUI();
 
-        if(typeof renderLKW === 'function') { renderLKW(); renderSort(); renderNoelke(); }
+        if(typeof renderLKW === 'function') { renderLKW(); renderSort(); renderNoelke(); loadBrandenburgData(); }
     } catch(e) { console.error("Fehler in loadRechnerData", e); }
 }
 
@@ -122,7 +122,6 @@ function switchTab(tabId) {
         let activeContent = document.getElementById('tab-' + tabId);
         let activeMenuItem = document.getElementById('menu-tab-' + tabId);
         let activeTabButton = document.getElementById('btn-tab-' + tabId);
-        
         if (activeContent) activeContent.classList.add('active');
         if (activeMenuItem) activeMenuItem.classList.add('active');
         if (activeTabButton) activeTabButton.classList.add('active');
@@ -1054,6 +1053,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if(typeof initLgZaehler === 'function') setTimeout(initLgZaehler, 500);
+
 });
 
 // ======================= LEERGUT ZÄHLER RESET LOGIK =======================
@@ -1101,3 +1101,908 @@ window.clearLadeAssiInputs = function() {
     resetLadeProgress(true);
     showToast("Lade-Assistent geleert!", "success");
 };
+
+// ======================= BRANDENBURG WARENEINGANG =======================
+let brandenburgState = { scans: [], entries: [], lastScan: null };
+let editingBrandenburgIndex = null; // AI-ADD: For editing entries
+/**
+ * Helper to parse the GS1 code from Brandenburg. It tries to find weight and charge.
+ * @param {string} gs1Candidate - The scanned string that might be the GS1 code.
+ * @returns {object|null} An object with {charge, netto} or null if it's not a valid GS1 code.
+ */
+function isLikelyBrandenburgSscc(s) {
+    if (!s || typeof s !== 'string') return false;
+    const clean = s.replace(/\s|\[|\]|\]C1/g, '');
+    return /^00\d{18}$/.test(clean) || /^\d{18}$/.test(clean);
+}
+
+function isLikelyBrandenburgGs1(s) {
+    if (!s || typeof s !== 'string') return false;
+    const clean = s.replace(/\s/g, '');
+    if (/\(01\)|\(02\)|\(10\)|\(15\)|\(17\)|\(3302\)|\(400\)|\(401\)|\x1D/.test(clean)) return true;
+    if (/^(00|01|02|10|15|17|3302|400|401|31\d)/.test(clean)) return true;
+    return false;
+}
+
+function extractBrandenburgArticleCandidate(text) {
+    if (!text || typeof text !== 'string') return null;
+    const groups = text.match(/\b\d{6,8}\b/g) || [];
+    for (const group of groups) {
+        if (/^00\d{18}$/.test(group)) continue;
+        if (/^01\d{14}$/.test(group)) continue;
+        if (/^02\d{14}$/.test(group)) continue;
+        if (/^3302\d{6}$/.test(group)) continue;
+        if (/^31\d\d{6}$/.test(group)) continue;
+        return group;
+    }
+    return null;
+}
+
+function tryParseBrandenburgGs1(gs1Candidate) {
+    if (!gs1Candidate || typeof gs1Candidate !== 'string') return null;
+
+    let cleanText = gs1Candidate.replace(/\]C1/g, '').replace(/\[|\]/g, '').replace(/\x1D/g, String.fromCharCode(29)).trim();
+    if (!cleanText) return null;
+
+    if (isLikelyBrandenburgSscc(cleanText)) {
+        return null;
+    }
+
+    const result = { charge: null, netto: 0, gtin: null, article: null };
+
+    const parseAiValue = (ai, value) => {
+        if (ai === '3302' && /^\d{6}$/.test(value)) {
+            result.netto = parseInt(value, 10) / 100.0;
+            return true;
+        }
+        if (/^31\d$/.test(ai) && /^\d{6}$/.test(value)) {
+            result.netto = parseInt(value, 10) / 1000.0;
+            return true;
+        }
+        if ((ai === '01' || ai === '02') && /^\d{14}$/.test(value)) {
+            result.gtin = value;
+            return true;
+        }
+        if (ai === '10') {
+            let charge = value;
+            const fncIndex = charge.indexOf(String.fromCharCode(29));
+            if (fncIndex !== -1) charge = charge.substring(0, fncIndex);
+            charge = charge.replace(/^IDE/, '');
+            if (charge) {
+                result.charge = charge;
+                return true;
+            }
+        }
+        if ((ai === '400' || ai === '401') && value) {
+            let article = value;
+            const fncIndex = article.indexOf(String.fromCharCode(29));
+            if (fncIndex !== -1) article = article.substring(0, fncIndex);
+            result.article = article;
+            return true;
+        }
+        return false;
+    };
+
+    let foundAny = false;
+    let parsePos = 0;
+
+    const tryParseParenthesized = () => {
+        const regex = /\((00|01|02|10|15|17|3302|31\d|400|401)\)([^\(\x1D]*)/g;
+        let match;
+        while ((match = regex.exec(cleanText))) {
+            const ai = match[1];
+            let value = match[2];
+            const sepIndex = value.indexOf(String.fromCharCode(29));
+            if (sepIndex !== -1) value = value.substring(0, sepIndex);
+            if (parseAiValue(ai, value)) foundAny = true;
+        }
+    };
+
+    tryParseParenthesized();
+
+    if (!foundAny) {
+        const raw = cleanText;
+        let pos = 0;
+        while (pos < raw.length) {
+            let ai = raw.substr(pos, 2);
+            if (raw.substr(pos, 4) === '3302') ai = '3302';
+            else if (raw.substr(pos, 3) === '400' || raw.substr(pos, 3) === '401') ai = raw.substr(pos, 3);
+            else if (ai === '31') ai = raw.substr(pos, 3);
+            let value = null;
+            if (ai === '00' && pos + 20 <= raw.length) {
+                pos += 20;
+                continue;
+            }
+            if ((ai === '01' || ai === '02') && pos + 16 <= raw.length) {
+                value = raw.substr(pos + 2, 14);
+                parseAiValue(ai, value);
+                pos += 16;
+                foundAny = true;
+                continue;
+            }
+            if (ai === '10' || ai === '400' || ai === '401') {
+                const rest = raw.substr(pos + (ai.length));
+                const nextAi = rest.search(/(?:00|01|02|10|15|17|3302|400|401|31\d)/);
+                value = nextAi >= 0 ? rest.substring(0, nextAi) : rest;
+                parseAiValue(ai, value);
+                foundAny = true;
+                break;
+            }
+            if (ai === '15' || ai === '17' || /^31\d$/.test(ai)) {
+                let length = 6;
+                const aiLen = ai.length;
+                if (pos + aiLen + length <= raw.length) {
+                    value = raw.substr(pos + aiLen, length);
+                    parseAiValue(ai, value);
+                    pos += aiLen + length;
+                    foundAny = true;
+                    continue;
+                }
+            }
+            if (ai === '3302' && pos + 6 + 2 <= raw.length) {
+                value = raw.substr(pos + 4, 6);
+                parseAiValue('3302', value);
+                pos += 10;
+                foundAny = true;
+                continue;
+            }
+            break;
+        }
+    }
+
+    if (!foundAny) {
+        return null;
+    }
+
+    if (!result.charge) {
+        const cMatch = cleanText.match(/(?:\(10\)|\b10)([A-Z]*\d{6,})(?=\x1D|$)/);
+        if (cMatch) {
+            result.charge = cMatch[1].replace(/^IDE/, '');
+        }
+    }
+
+    if ((result.netto && result.netto > 0) || result.charge) {
+        return result;
+    }
+    return null;
+}
+
+function tryParseBrandenburgGs1(gs1Candidate) {
+    if (!gs1Candidate || typeof gs1Candidate !== 'string') return null;
+
+    let cleanText = gs1Candidate.replace(/\]C1/g, '').replace(/\[|\]/g, '').trim();
+    if (!cleanText) return null;
+
+    if (isLikelyBrandenburgSscc(cleanText)) {
+        return null;
+    }
+
+    const result = { charge: null, netto: 0, gtin: null, article: null };
+
+    const parseAiValue = (ai, value) => {
+        if (ai === '3302' && /^\d{6}$/.test(value)) {
+            if (result.netto === 0) result.netto = parseInt(value, 10) / 100.0;
+            return true;
+        }
+        if (/^31\d\d$/.test(ai) && /^\d{6}$/.test(value)) {
+            const decimals = parseInt(ai.substring(2, 3), 10);
+            if (result.netto === 0) result.netto = parseInt(value, 10) / Math.pow(10, decimals);
+            return true;
+        }
+        if ((ai === '01' || ai === '02') && /^\d{14}$/.test(value)) {
+            if (!result.gtin) result.gtin = value;
+            if (!result.article) result.article = value;
+            return true;
+        }
+        if (ai === '10') {
+            let charge = value;
+            const fncIndex = charge.indexOf(String.fromCharCode(29));
+            if (fncIndex !== -1) charge = charge.substring(0, fncIndex);
+            charge = charge.replace(/^IDE/, '');
+            if (charge && !/due\s*charge/i.test(charge)) {
+                if (!result.charge) result.charge = charge;
+                return true;
+            }
+        }
+        if ((ai === '400' || ai === '401') && value) {
+            let article = value;
+            const fncIndex = article.indexOf(String.fromCharCode(29));
+            if (fncIndex !== -1) article = article.substring(0, fncIndex);
+            if (!result.article) result.article = article;
+            return true;
+        }
+        // User specific: article number is 7-14 digits after AI (01)
+        if (ai === '01' && /^\d{7,13}$/.test(value)) {
+            if (!result.article) result.article = value;
+            return true;
+        }
+        return false;
+    };
+
+    // Try parsing with <GS> separators first (for QR codes)
+    if (cleanText.includes(String.fromCharCode(29))) {
+        const parts = cleanText.split(String.fromCharCode(29));
+        for (const part of parts) {
+            if (part.startsWith('01')) parseAiValue('01', part.substring(2));
+            else if (part.startsWith('10')) parseAiValue('10', part.substring(2));
+            else if (part.startsWith('3302')) parseAiValue('3302', part.substring(4));
+        }
+    }
+
+    // Then try parenthesized AIs (for barcodes)
+    const parenRegex = /\(((?:00|01|02|10|15|17|3302|31\d\d|400|401))\)([^\(\x1D]*)/g;
+    let match;
+    while ((match = parenRegex.exec(cleanText))) {
+        parseAiValue(match[1], match[2]);
+    }
+
+    // Fallback für Gewicht ohne Klammern, falls bisher nichts gefunden wurde.
+    // Dies ist für Scanner, die bei GS1-128 Codes die Klammern entfernen.
+    if (result.netto === 0) {
+        // Suche nach (3302), was Gewicht in kg mit 2 Dezimalstellen ist.
+        const weightMatch = cleanText.match(/3302(\d{6})/);
+        if (weightMatch) {
+            parseAiValue('3302', weightMatch[1]);
+        }
+    }
+
+    // Final check for any found data
+    if (result.article || result.charge || result.gtin || result.netto > 0) {
+        return result;
+    }
+
+    return null;
+}
+
+// Normalize a raw Brandenburg scan entry and infer BC/QR type when needed
+function normalizeBrandenburgEntry(raw) {
+    if (!raw) return null;
+    let entry = { type: 'AUTO', value: '' };
+    if (typeof raw === 'string') {
+        const m = raw.match(/^([A-Z0-9_-]+)\|([\s\S]+)$/);
+        entry.value = m ? m[2] : raw;
+        entry.type = m ? m[1] : 'AUTO';
+    } else if (typeof raw === 'object') {
+        entry.type = raw.type || 'AUTO';
+        entry.value = raw.value || '';
+    }
+    entry.value = (entry.value || '').toString().trim();
+    if (!entry.value) return null;
+
+    const type = entry.type.toString().toUpperCase();
+    if (type === 'QR' || type === 'BC') {
+        entry.type = type;
+        return entry;
+    }
+    if (isLikelyBrandenburgSscc(entry.value)) {
+        entry.type = 'BC';
+        return entry;
+    }
+    entry.type = isLikelyBrandenburgGs1(entry.value) ? 'QR' : 'BC';
+    return entry;
+}
+
+function processBrandenburgScanEntries(rawEntries) {
+    const entries = Array.isArray(rawEntries) ? rawEntries : [rawEntries];
+    const latestEntry = normalizeBrandenburgEntry(entries[entries.length - 1]);
+
+    if (!latestEntry) {
+        return;
+    }
+
+    // Prevent fast re-scans of the same code
+    if (brandenburgState.lastScan && brandenburgState.lastScan.value === latestEntry.value && (Date.now() - brandenburgState.lastScan.ts) < 1500) {
+        return;
+    }
+    brandenburgState.lastScan = { value: latestEntry.value, ts: Date.now() };
+
+    // We only care about QR codes now.
+    if (latestEntry.type !== 'QR') {
+        showToast('Strichcode ignoriert. Bitte den QR-Code scannen.', 'info');
+        return;
+    }
+
+    // We have a QR code, process it.
+    const qrData = tryParseBrandenburgGs1(latestEntry.value);
+
+    if (qrData && (qrData.article || qrData.gtin || qrData.charge)) {
+        const article = qrData.article || qrData.gtin;
+        const charge = qrData.charge;
+
+        const isDark = document.body.classList.contains('dark-mode');
+        document.getElementById('brandenburg-scan-status').innerText = '✅ QR-Code erkannt!';
+        const statusEl = document.getElementById('brandenburg-scan-status');
+        statusEl.style.background = isDark ? "var(--success-bg, #1c3b1c)" : "var(--success-bg, #e8f5e9)";
+        statusEl.style.color = isDark ? "#66bb6a" : "#2e7d32";
+        document.getElementById('bb-artikel').value = article || ''; document.getElementById('bb-charge').value = charge || '';
+        document.getElementById('bb-netto-scan').value = '';
+        
+        // Alle Eingabefelder explizit editierbar machen, um manuelle Korrekturen zu ermöglichen.
+        ['bb-artikel', 'bb-charge', 'bb-netto-scan', 'bb-brutto', 'bb-leergut'].forEach(id => {
+            const input = document.getElementById(id);
+            if (input) {
+                input.readOnly = false; input.disabled = false;
+                input.style.background = '';
+                input.removeAttribute('readonly');
+            }
+        });
+
+        document.getElementById('brandenburg-data-form').style.display = 'block';
+        showToast('Daten aus QR-Code extrahiert. Bitte Gewicht manuell eintragen.', 'success');
+        if (typeof stopBarcodeScanner === 'function') { stopBarcodeScanner(); }
+        brandenburgState.scans = [];
+
+        // Nach dem Scan wird der Fokus auf das nächste Feld (Brutto) gesetzt,
+        // um die manuelle Eingabe zu ermöglichen und Fokusprobleme zu beheben.
+        setTimeout(() => {
+            document.getElementById('bb-brutto')?.focus();
+        }, 300);
+    } else {
+        showToast('Keine gültigen Artikel- oder Chargendaten im QR-Code gefunden.', 'error');
+        resetBrandenburgScanner();
+    }
+}
+
+function handleBrandenburgScan(scannedText) {
+    if (!scannedText) return;
+    console.log('Brandenburg scan received:', scannedText);
+    processBrandenburgScanEntries(scannedText);
+}
+
+function calcBrandenburgNetto() {
+    const brutto = parseFloat(document.getElementById('bb-brutto').value.replace(',', '.')) || 0;
+
+    // NEU: Leergut-Gewichte aus Config holen
+    const lgConfig = getLeergutConfig();
+    const e2Config = lgConfig.find(lg => lg.name.toUpperCase() === 'E2');
+    const h1Config = lgConfig.find(lg => lg.name.toUpperCase() === 'H1');
+    const e2Weight = e2Config ? e2Config.weight : 2.0;
+    const h1Weight = h1Config ? h1Config.weight : 18.0;
+
+    // NEU: E2 und H1 Anzahlen auslesen
+    const e2Count = parseInt(document.getElementById('bb-e2').value) || 0;
+    const h1Count = parseInt(document.getElementById('bb-h1').value) || 0;
+
+    // Leergut-Gesamtgewicht berechnen und anzeigen
+    const leergut = (e2Count * e2Weight) + (h1Count * h1Weight);
+    const leergutInput = document.getElementById('bb-leergut');
+    if (leergutInput) leergutInput.value = leergut.toFixed(2).replace('.', ',');
+
+    let istNetto = brutto - leergut;
+    const istNettoEl = document.getElementById('bb-netto-ist');
+    istNettoEl.value = istNetto.toFixed(2);
+
+    const scanNetto = parseFloat(document.getElementById('bb-netto-scan').value) || 0;
+    const diff = Math.abs(istNetto - scanNetto);
+    const isDark = document.body.classList.contains('dark-mode');
+    if (scanNetto > 0 && diff <= 0.1) {
+        istNettoEl.style.color = "#2e7d32";
+        istNettoEl.style.background = isDark ? "var(--success-bg, #1c3b1c)" : "var(--success-bg, #e8f5e9)";
+    } else if (scanNetto > 0) {
+        istNettoEl.style.color = "#c62828";
+        istNettoEl.style.background = isDark ? "var(--danger-bg, #4d1f1f)" : "var(--danger-bg, #ffebee)";
+    } else {
+        // AI-FIX: Stellt sicher, dass das Feld auch ohne Scan-Gewicht im Dark Mode korrekt aussieht.
+        istNettoEl.style.color = "";
+        istNettoEl.style.background = isDark ? 'var(--bg-disabled, #2c2c2c)' : 'var(--bg-disabled, #f0f2f5)';
+    }
+}
+
+function resetBrandenburgScanner() {
+    if (editingBrandenburgIndex !== null) {
+        cancelBrandenburgEdit();
+    }
+
+    brandenburgState.scans = []; brandenburgState.lastScan = null; if (typeof scannerExpectedType !== 'undefined') scannerExpectedType = null;
+    const scanStatusEl = document.getElementById('brandenburg-scan-status');
+    scanStatusEl.innerText = "Scanner wird gestartet...";
+    scanStatusEl.style.background = "var(--warning-bg, #fff3e0)";
+    scanStatusEl.style.color = "var(--warning-text, #e65100)";
+    if (typeof startBarcodeScanner === 'function') {
+        startBarcodeScanner('brandenburg-scan-input');
+    }
+    document.getElementById('brandenburg-data-form').style.display = 'block';
+    
+    // Felder zurücksetzen, bb-leergut ist jetzt berechnet und readonly
+    ['bb-artikel', 'bb-charge', 'bb-netto-scan', 'bb-brutto', 'bb-leergut', 'bb-netto-ist', 'bb-e2', 'bb-h1'].forEach(id => {
+        let el = document.getElementById(id);
+        if(el) {
+            el.value = '';
+            // Alle Eingabefelder explizit editierbar machen.
+            // 'bb-netto-ist' ist ein reines Anzeigefeld und bleibt gesperrt.
+            if (id !== 'bb-netto-ist' && id !== 'bb-leergut') {
+                el.readOnly = false; el.disabled = false;
+                el.style.background = '';
+                el.removeAttribute('readonly');
+            }
+        }
+    });
+    
+    const isDark = document.body.classList.contains('dark-mode');
+    let istNettoEl = document.getElementById('bb-netto-ist');
+    if(istNettoEl) {
+        istNettoEl.style.color = "";
+        // AI-FIX: Korrekter Hintergrund für Dark-Mode
+        istNettoEl.style.background = isDark ? 'var(--bg-disabled, #2c2c2c)' : 'var(--bg-disabled, #f0f2f5)';
+    }
+}
+
+function resetBrandenburgForm() {
+    if (editingBrandenburgIndex !== null) {
+        cancelBrandenburgEdit();
+        return; // cancelBrandenburgEdit will clear the form
+    }
+
+    ['bb-artikel', 'bb-charge', 'bb-netto-scan', 'bb-brutto', 'bb-leergut', 'bb-netto-ist', 'bb-e2', 'bb-h1'].forEach(id => {
+        let el = document.getElementById(id);
+        if(el) {
+            el.value = '';
+            if (id !== 'bb-netto-ist' && id !== 'bb-leergut') {
+                el.readOnly = false; el.disabled = false;
+                el.style.background = '';
+                el.removeAttribute('readonly');
+            }
+        }
+    });
+    
+    const isDark = document.body.classList.contains('dark-mode');
+    let istNettoEl = document.getElementById('bb-netto-ist');
+    if(istNettoEl) {
+        istNettoEl.style.color = "";
+        // AI-FIX: Korrekter Hintergrund für Dark-Mode
+        istNettoEl.style.background = isDark ? 'var(--bg-disabled, #2c2c2c)' : 'var(--bg-disabled, #f0f2f5)';
+    }
+    const scanStatusEl = document.getElementById('brandenburg-scan-status');
+    if (scanStatusEl) {
+        scanStatusEl.innerText = "Bereit zum Scannen oder zur manuellen Eingabe.";
+        scanStatusEl.style.background = "var(--bg-color-2, #f0f2f5)";
+        scanStatusEl.style.color = "var(--text-color, #555)";
+    }
+}
+
+function saveBrandenburgPalette() {
+    if (editingBrandenburgIndex !== null) {
+        showToast("Bitte erst die Bearbeitung abschließen.", "warning");
+        return;
+    }
+
+    let artikel = document.getElementById('bb-artikel').value;
+    let charge = document.getElementById('bb-charge').value;
+    let nettoScan = parseFloat(document.getElementById('bb-netto-scan').value) || 0;
+    let brutto = parseFloat(document.getElementById('bb-brutto').value.replace(',','.')) || 0;
+    
+    // NEU: E2 und H1 Anzahlen erfassen
+    let e2Count = parseInt(document.getElementById('bb-e2').value) || 0;
+    let h1Count = parseInt(document.getElementById('bb-h1').value) || 0;
+    let leergut = parseFloat(document.getElementById('bb-leergut').value.replace(',', '.')) || 0; // Gesamtgewicht bleibt für Kompatibilität
+
+    let nettoIst = parseFloat(document.getElementById('bb-netto-ist').value) || 0;
+    
+    if(!brutto) {
+        showToast("Bitte Bruttogewicht eingeben", "warning");
+        return;
+    }
+    
+    // NEU: Leergut als Objekt speichern
+    brandenburgState.entries.push({ 
+        id: Date.now().toString(), 
+        artikel: artikel, 
+        charge: charge, 
+        nettoScan: nettoScan, 
+        brutto: brutto, 
+        leergut: leergut, // altes Feld beibehalten
+        leergutCounts: { e2: e2Count, h1: h1Count }, // neues Feld
+        nettoIst: nettoIst, 
+        timestamp: new Date().toISOString() 
+    });
+    let db = AppStorage.get('kombi_rechner_db', {});
+    db.brandenburg = brandenburgState.entries;
+    AppStorage.set('kombi_rechner_db', db);
+    
+    renderBrandenburgList();
+    resetBrandenburgForm();
+    showToast("Palette gespeichert!", "success");
+}
+
+function loadBrandenburgData() {
+    let db = AppStorage.get('kombi_rechner_db', {});
+    brandenburgState.entries = db.brandenburg || [];
+    renderBrandenburgList();
+
+    const form = document.getElementById('brandenburg-data-form');
+    if (form) {
+        form.style.display = 'block';
+    }
+
+    // AI-EDIT: Felder für manuelle Eingabe immer freischalten.
+    // Das erlaubt die Eingabe von Daten, auch ohne vorher zu scannen.
+    ['bb-artikel', 'bb-charge', 'bb-netto-scan', 'bb-brutto', 'bb-e2', 'bb-h1'].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.readOnly = false;
+            input.style.background = '';
+            input.removeAttribute('readonly');
+        }
+    });
+    const leergutInput = document.getElementById('bb-leergut');
+    if (leergutInput) {
+        leergutInput.readOnly = true;
+        leergutInput.style.background = 'var(--bg-disabled, #f0f2f5)';
+        leergutInput.placeholder = 'Auto';
+    }
+    const scanStatusEl = document.getElementById('brandenburg-scan-status');
+    if (scanStatusEl) {
+        scanStatusEl.innerText = "Bereit zum Scannen oder zur manuellen Eingabe.";
+        scanStatusEl.style.background = "var(--bg-color-2, #f0f2f5)";
+        scanStatusEl.style.color = "var(--text-color, #555)";
+    }
+
+    const container = document.getElementById('tab-brandenburg');
+    if (container) {
+        // AI-EDIT: Add padding to the bottom to prevent being obscured by mobile nav bars
+        container.style.paddingBottom = '100px';
+
+        // Prüfen, ob der Button bereits existiert, um Duplikate zu vermeiden.
+        if (!document.getElementById('brandenburg-scan-btn')) {
+            const scanButton = document.createElement('button');
+            scanButton.id = 'brandenburg-scan-btn';
+            scanButton.innerHTML = '📷 QR-Code scannen';
+            scanButton.style.cssText = "width: calc(100% - 20px); margin: 15px 10px 5px 10px; padding: 15px; font-size: 16px; background: #8e44ad; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;";
+            scanButton.onclick = () => { if (typeof startBarcodeScanner === 'function') startBarcodeScanner('brandenburg-scan-input'); };
+            container.prepend(scanButton);
+        }
+
+        const saveButton = container.querySelector('.input-area .add-btn');
+        if (saveButton && !document.getElementById('brandenburg-button-container')) {
+            const buttonContainer = document.createElement('div');
+            buttonContainer.id = 'brandenburg-button-container';
+            saveButton.parentNode.insertBefore(buttonContainer, saveButton);
+            buttonContainer.appendChild(saveButton);
+            saveButton.id = 'btn-save-brandenburg';
+        }
+    }
+}
+
+function renderBrandenburgList() {
+    let countEl = document.getElementById('bb-counter');
+    if(countEl) countEl.innerText = brandenburgState.entries.length;
+    let listEl = document.getElementById('list-brandenburg');
+    if(!listEl) return;
+    listEl.innerHTML = brandenburgState.entries.map((e, index) => {
+        let isOk = Math.abs(e.nettoIst - e.nettoScan) <= 0.1;
+        let color = e.nettoScan > 0 ? (isOk ? "#2e7d32" : "#c62828") : "#8e44ad";
+        
+        let lgCounts = e.leergutCounts || {e2:0, h1:0};
+        let lgStr = [];
+        if (lgCounts.e2 > 0) lgStr.push(`${lgCounts.e2} E2`);
+        if (lgCounts.h1 > 0) lgStr.push(`${lgCounts.h1} H1`);
+        
+        return `<div class="swipe-wrap" style="margin: 0 10px 8px 10px;">
+            <div class="swipe-bg" onclick="deleteBrandenburgEntry(${index})"><span>🗑️</span></div>
+            <div class="palette-card swipeable" style="border-left-color:${color}; margin: 0; padding:12px;" onclick="editBrandenburgEntry(${index})">
+                <div style="flex:1;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <b style="font-size:14px; color:var(--brandenburg-color, #8e44ad); max-width: 80%;">${e.artikel || '-'}</b>
+                        <span style="font-size: 20px; color: var(--text-color-secondary, #999);">✏️</span>
+                    </div>
+                    <div style="font-size:12px; color:var(--text-color-secondary, #777); margin-top:2px;">Charge: ${e.charge || '-'}</div>
+                    <div style="margin-top:8px; border-top:1px solid var(--border-color, #eee); padding-top:8px; font-size:12px; color:var(--text-color, #555); display:flex; justify-content:space-between; flex-wrap:wrap; gap:5px;">
+                        <span>Brutto: <b>${e.brutto.toFixed(2)} kg</b></span>
+                        <span>Leergut: <b>${lgStr.join(', ') || '-'}</b></span>
+                        <span>Netto: <b style="color:${color};">${e.nettoIst.toFixed(2)} kg</b></span>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }).reverse().join('');
+}
+
+function deleteBrandenburgEntry(index) {
+    customConfirm("Diesen Eintrag wirklich löschen?", () => {
+        if (editingBrandenburgIndex === index) {
+            cancelBrandenburgEdit();
+        }
+
+        brandenburgState.entries.splice(index, 1);
+        let db = AppStorage.get('kombi_rechner_db', {});
+        db.brandenburg = brandenburgState.entries;
+        AppStorage.set('kombi_rechner_db', db);
+        renderBrandenburgList();
+        showToast("Gelöscht", "success");
+
+        if (editingBrandenburgIndex !== null && editingBrandenburgIndex > index) {
+            editingBrandenburgIndex--;
+        }
+    });
+}
+
+function editBrandenburgEntry(index) {
+    if (editingBrandenburgIndex !== null) {
+        showToast("Bitte erst die aktuelle Bearbeitung abschließen.", "warning");
+        return;
+    }
+    const entry = brandenburgState.entries[index];
+    if (!entry) return;
+    editingBrandenburgIndex = index;
+    document.getElementById('bb-artikel').value = entry.artikel || '';
+    document.getElementById('bb-charge').value = entry.charge || '';
+    document.getElementById('bb-netto-scan').value = entry.nettoScan || '';
+    document.getElementById('bb-brutto').value = entry.brutto.toFixed(2).replace('.',',');
+    document.getElementById('bb-e2').value = entry.leergutCounts?.e2 || '0';
+    document.getElementById('bb-h1').value = entry.leergutCounts?.h1 || '0';
+    calcBrandenburgNetto();
+    document.getElementById('tab-brandenburg').scrollTop = 0;
+    const buttonContainer = document.getElementById('brandenburg-button-container');
+    const saveBtn = document.getElementById('btn-save-brandenburg');
+    if (buttonContainer) {
+        if(saveBtn) saveBtn.style.display = 'none';
+        buttonContainer.innerHTML += `
+            <button id="btn-update-brandenburg" class="add-btn" style="background: var(--warning); flex:2;" onclick="updateBrandenburgEntry()">💾 Änderungen speichern</button>
+            <button id="btn-cancel-brandenburg" class="clear-btn" onclick="cancelBrandenburgEdit()">Abbrechen</button>
+        `;
+    }
+    showToast("Bearbeitungsmodus aktiv.", "info");
+}
+
+function updateBrandenburgEntry() {
+    if (editingBrandenburgIndex === null) return;
+    const entry = brandenburgState.entries[editingBrandenburgIndex];
+    if (!entry) return;
+    entry.artikel = document.getElementById('bb-artikel').value;
+    entry.charge = document.getElementById('bb-charge').value;
+    entry.nettoScan = parseFloat(document.getElementById('bb-netto-scan').value) || 0;
+    entry.brutto = parseFloat(document.getElementById('bb-brutto').value.replace(',','.')) || 0;
+    const e2Count = parseInt(document.getElementById('bb-e2').value) || 0;
+    const h1Count = parseInt(document.getElementById('bb-h1').value) || 0;
+    entry.leergutCounts = { e2: e2Count, h1: h1Count };
+    const lgConfig = getLeergutConfig();
+    const e2Weight = (lgConfig.find(lg => lg.name.toUpperCase() === 'E2') || {weight: 2.0}).weight;
+    const h1Weight = (lgConfig.find(lg => lg.name.toUpperCase() === 'H1') || {weight: 18.0}).weight;
+    entry.leergut = (e2Count * e2Weight) + (h1Count * h1Weight);
+    entry.nettoIst = entry.brutto - entry.leergut;
+    let db = AppStorage.get('kombi_rechner_db', {});
+    db.brandenburg = brandenburgState.entries;
+    AppStorage.set('kombi_rechner_db', db);
+    renderBrandenburgList();
+    cancelBrandenburgEdit();
+    showToast("Änderungen gespeichert!", "success");
+}
+
+function cancelBrandenburgEdit() {
+    editingBrandenburgIndex = null;
+    ['bb-artikel', 'bb-charge', 'bb-netto-scan', 'bb-brutto', 'bb-leergut', 'bb-netto-ist', 'bb-e2', 'bb-h1'].forEach(id => {
+        let el = document.getElementById(id);
+        if(el) el.value = '';
+    });
+    const isDark = document.body.classList.contains('dark-mode');
+    let istNettoEl = document.getElementById('bb-netto-ist');
+    if(istNettoEl) {
+        istNettoEl.style.color = "";
+        // AI-FIX: Korrekter Hintergrund für Dark-Mode
+        istNettoEl.style.background = isDark ? 'var(--bg-disabled, #2c2c2c)' : 'var(--bg-disabled, #f0f2f5)';
+    }
+    const buttonContainer = document.getElementById('brandenburg-button-container');
+    const saveBtn = document.getElementById('btn-save-brandenburg');
+    const updateBtn = document.getElementById('btn-update-brandenburg');
+    const cancelBtn = document.getElementById('btn-cancel-brandenburg');
+    if (buttonContainer) {
+        if(saveBtn) saveBtn.style.display = 'block';
+        if(updateBtn) updateBtn.remove();
+        if(cancelBtn) cancelBtn.remove();
+    }
+}
+
+function showBrandenburgSummary() {
+    let content = document.getElementById('bb-summary-content');
+    if(!content) return;
+    if(brandenburgState.entries.length === 0) {
+        content.innerHTML = "<p style='text-align:center; color:var(--text-color-secondary, #999);'>Keine Daten erfasst.</p>";
+        document.getElementById('brandenburg-summary-modal').style.display = 'flex';
+        return;
+    }
+
+    // 1. Daten gruppieren
+    let grouped = {};
+    brandenburgState.entries.forEach(e => {
+        const key = e.artikel || 'Unbekannter Artikel';
+        if(!grouped[key]) { 
+            grouped[key] = { 
+                chargen: new Set(), 
+                nettoSollSum: 0,
+                nettoIstSum: 0,
+                e2Sum: 0,
+                h1Sum: 0,
+                count: 0,
+                entries: [] 
+            }; 
+        }
+        grouped[key].chargen.add(e.charge);
+        grouped[key].nettoSollSum += e.nettoScan || 0;
+        grouped[key].nettoIstSum += e.nettoIst;
+        grouped[key].e2Sum += (e.leergutCounts ? e.leergutCounts.e2 : 0) || 0;
+        grouped[key].h1Sum += (e.leergutCounts ? e.leergutCounts.h1 : 0) || 0;
+        grouped[key].count++;
+        grouped[key].entries.push(e);
+    });
+
+    // 2. Gesamt-Leergut berechnen
+    let totalE2 = 0;
+    let totalH1 = 0;
+    brandenburgState.entries.forEach(e => {
+        totalE2 += (e.leergutCounts ? e.leergutCounts.e2 : 0) || 0;
+        totalH1 += (e.leergutCounts ? e.leergutCounts.h1 : 0) || 0;
+    });
+
+    // 3. HTML generieren
+    let html = '';
+    for(let art in grouped) { 
+        let g = grouped[art];
+        let chargenList = Array.from(g.chargen).filter(c => c).join(', ');
+
+        html += `<div style="border: 1px solid var(--border-color, #ddd); border-radius: 8px; margin-bottom: 20px; overflow: hidden;">`;
+        // Header für die Artikelgruppe
+        html += `<div style="background: var(--bg-color-2, #f4f6f9); padding: 10px; border-bottom: 1px solid var(--border-color, #ddd);">
+                    <div style="font-weight: bold; font-size: 16px;">${art}</div>
+                    <div style="font-size: 12px; color: var(--text-color-secondary, #555);">${chargenList || '-'}</div>
+                 </div>`;
+        
+        // Tabelle für einzelne Posten
+        html += `<table style="width:100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="font-size:11px; background: var(--bg-color-2, #fafafa);">
+                            <th style="padding: 6px; border-bottom: 1px solid var(--border-color, #ddd); text-align: left;">Brutto</th>
+                            <th style="padding: 6px; border-bottom: 1px solid var(--border-color, #ddd); text-align: left;">Leergut</th>
+                            <th style="padding: 6px; border-bottom: 1px solid var(--border-color, #ddd); text-align: right;">Netto (Soll)</th>
+                            <th style="padding: 6px; border-bottom: 1px solid var(--border-color, #ddd); text-align: right; color: #2e7d32;">Netto (Ist)</th>
+                            <th style="padding: 6px; border-bottom: 1px solid var(--border-color, #ddd); text-align: right;">Diff.</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+        
+        g.entries.forEach(entry => {
+            let lgCounts = entry.leergutCounts || {e2:0, h1:0};
+            let lgStr = [];
+            if (lgCounts.e2 > 0) lgStr.push(`${lgCounts.e2} E2`);
+            if (lgCounts.h1 > 0) lgStr.push(`${lgCounts.h1} H1`);
+            let diff = entry.nettoIst - (entry.nettoScan || 0);
+            let diffColor = Math.abs(diff) > 0.1 ? '#c62828' : '#2e7d32';
+            if (entry.nettoScan === 0) diffColor = '#555';
+
+            html += `<tr style="font-size: 13px;">
+                        <td style="padding: 6px; border-bottom: 1px solid var(--border-color, #eee);">${entry.brutto.toFixed(2)} kg</td>
+                        <td style="padding: 6px; border-bottom: 1px solid var(--border-color, #eee);">${lgStr.join(', ') || '-'}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid var(--border-color, #eee); text-align: right;">${(entry.nettoScan || 0).toFixed(2)} kg</td>
+                        <td style="padding: 6px; border-bottom: 1px solid var(--border-color, #eee); text-align: right;">${entry.nettoIst.toFixed(2)} kg</td>
+                        <td style="padding: 6px; border-bottom: 1px solid var(--border-color, #eee); text-align: right; font-weight: bold; color: ${diffColor};">${diff.toFixed(2)} kg</td>
+                     </tr>`;
+        });
+        html += `   </tbody>
+                 </table>`;
+
+        let totalDiff = g.nettoIstSum - g.nettoSollSum;
+        let totalDiffColor = Math.abs(totalDiff) > (g.count * 0.1) ? '#c62828' : '#1b5e20';
+        if (g.nettoSollSum === 0) totalDiffColor = '#1b5e20';
+
+        // Footer für die Artikelgruppe (Summe)
+        html += `<div style="background: var(--success-bg, #e8f5e9); padding: 10px; font-size: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px solid var(--border-color, #ccc);">
+                        <span>Summe Netto (Soll):</span><span style="font-weight: bold; color: var(--text-color-secondary, #555);">${g.nettoSollSum.toFixed(2)} kg</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px solid var(--border-color, #ccc);">
+                        <span>Summe Netto (Ist):</span><span style="font-weight: bold; color: #1b5e20;">${g.nettoIstSum.toFixed(2)} kg</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: bold;">Gesamtdifferenz:</span><span style="font-weight: bold; color: ${totalDiffColor};">${totalDiff.toFixed(2)} kg</span>
+                    </div>
+                 </div>`;
+        html += `</div>`;
+    }
+
+    // Gesamt-Leergut-Zusammenfassung
+    html += `<div style="background: var(--warning-bg, #fff3e0); padding: 15px; border-radius: 8px; border: 1px solid var(--warning-border, #ffe0b2); margin-top: 20px;">
+                <div style="font-weight: bold; margin-bottom: 10px; text-align: center; text-transform: uppercase; font-size: 14px; color: var(--warning-text, #e65100);">Gesamt-Leergut</div>
+                <div style="display:flex; justify-content:space-around; font-size: 16px;">
+                    <span><b>E2 Kisten:</b> ${totalE2}</span>
+                    <span><b>H1 Paletten:</b> ${totalH1}</span>
+                </div>
+             </div>`;
+
+    content.innerHTML = html;
+    document.getElementById('brandenburg-summary-modal').style.display = 'flex';
+}
+
+function printBrandenburgSummary() {
+    let printArea = document.getElementById('printArea'); if(!printArea) return;
+    let now = new Date(), dateStr = now.toLocaleDateString('de-DE'), timeStr = now.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
+    
+    // 1. Daten gruppieren (gleiche Logik wie in showBrandenburgSummary)
+    let grouped = {};
+    brandenburgState.entries.forEach(e => {
+        const key = e.artikel || 'Unbekannter Artikel';
+        if(!grouped[key]) { 
+            grouped[key] = { 
+                chargen: new Set(), 
+                nettoSollSum: 0,
+                nettoIstSum: 0,
+                entries: [] 
+            }; 
+        }
+        grouped[key].chargen.add(e.charge);
+        grouped[key].nettoSollSum += e.nettoScan || 0;
+        grouped[key].nettoIstSum += e.nettoIst;
+        grouped[key].count = (grouped[key].count || 0) + 1;
+        grouped[key].entries.push(e);
+    });
+
+    // 2. Gesamt-Leergut berechnen
+    let totalE2 = 0;
+    let totalH1 = 0;
+    brandenburgState.entries.forEach(e => {
+        totalE2 += (e.leergutCounts ? e.leergutCounts.e2 : 0) || 0;
+        totalH1 += (e.leergutCounts ? e.leergutCounts.h1 : 0) || 0;
+    });
+
+    // 3. HTML für den Druck generieren
+    let html = `<div style="font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto;">
+                    <h2 style="color: #333; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">Wareneingang Brandenburg</h2>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px;">
+                        <div><b>Datum:</b> ${dateStr}</div>
+                        <div><b>Uhrzeit:</b> ${timeStr}</div>
+                    </div>`;
+
+    for(let art in grouped) { 
+        let g = grouped[art];
+        let chargenList = Array.from(g.chargen).filter(c => c).join(', ');
+
+        html += `<div style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; overflow: hidden; page-break-inside: avoid;">
+                    <div style="background: #f4f6f9; padding: 10px; border-bottom: 1px solid #ddd;">
+                        <div style="font-weight: bold; font-size: 16px;">${art}</div>
+                        <div style="font-size: 12px; color: #555;">Chargen: ${chargenList || '-'}</div>
+                    </div>
+                    <table style="width:100%; border-collapse: collapse; font-size: 13px;">
+                        <thead style="font-size:11px; background: #fafafa;">
+                            <tr style="font-size:11px; background: #fafafa;">
+                                <th style="padding: 6px; border-bottom: 1px solid #ddd; text-align: left;">Brutto</th>
+                                <th style="padding: 6px; border-bottom: 1px solid #ddd; text-align: left;">Leergut</th>
+                                <th style="padding: 6px; border-bottom: 1px solid #ddd; text-align: right;">Netto (Soll)</th>
+                                <th style="padding: 6px; border-bottom: 1px solid #ddd; text-align: right;">Netto (Ist)</th>
+                                <th style="padding: 6px; border-bottom: 1px solid #ddd; text-align: right;">Differenz</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+        g.entries.forEach(entry => {
+            let lgCounts = entry.leergutCounts || {e2:0, h1:0};
+            let lgStr = [];
+            if (lgCounts.e2 > 0) lgStr.push(`${lgCounts.e2} E2`);
+            if (lgCounts.h1 > 0) lgStr.push(`${lgCounts.h1} H1`);
+            let diff = entry.nettoIst - (entry.nettoScan || 0);
+            let diffColor = Math.abs(diff) > 0.1 ? '#c62828' : '#2e7d32';
+            if (entry.nettoScan === 0) diffColor = '#555';
+
+            html += `<tr>
+                        <td style="padding: 6px; border-bottom: 1px solid #eee;">${entry.brutto.toFixed(2)} kg</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #eee;">${lgStr.join(', ') || '-'}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #eee; text-align: right;">${(entry.nettoScan || 0).toFixed(2)} kg</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #eee; text-align: right;">${entry.nettoIst.toFixed(2)} kg</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold; color: ${diffColor};">${diff.toFixed(2)} kg</td>
+                     </tr>`;
+        });
+
+        let totalDiff = g.nettoIstSum - g.nettoSollSum;
+        let totalDiffColor = Math.abs(totalDiff) > (g.count * 0.1) ? '#c62828' : '#1b5e20';
+        if (g.nettoSollSum === 0) totalDiffColor = '#1b5e20';
+
+        html += `       </tbody>
+                    </table>
+                    <div style="background: #e8f5e9; padding: 10px; font-size: 14px; page-break-inside: avoid;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 14px;"><tbody><tr><td style="padding: 4px; font-weight: bold;">Summe Netto (Soll):</td><td style="padding: 4px; font-weight: bold; color: #555; text-align: right;">${g.nettoSollSum.toFixed(2)} kg</td></tr><tr><td style="padding: 4px; font-weight: bold;">Summe Netto (Ist):</td><td style="padding: 4px; font-weight: bold; color: #1b5e20; text-align: right;">${g.nettoIstSum.toFixed(2)} kg</td></tr><tr><td style="padding: 4px; font-weight: bold; border-top: 1px solid #ccc;">Gesamtdifferenz:</td><td style="padding: 4px; font-weight: bold; color: ${totalDiffColor}; text-align: right; border-top: 1px solid #ccc;">${totalDiff.toFixed(2)} kg</td></tr></tbody></table>
+                    </div>
+                 </div>`;
+    }
+
+    html += `<div style="background: #fff3e0; padding: 15px; border-radius: 8px; border: 1px solid #ffe0b2; margin-top: 20px; page-break-inside: avoid;"><div style="font-weight: bold; margin-bottom: 10px; text-align: center; text-transform: uppercase; font-size: 14px; color: #e65100;">Gesamt-Leergut</div><div style="display:flex; justify-content:space-around; font-size: 16px;"><span><b>E2 Kisten:</b> ${totalE2}</span><span><b>H1 Paletten:</b> ${totalH1}</span></div></div>`;
+    html += `<div style="font-size: 10px; color: #777; text-align: center; margin-top: 50px;">Gedruckt mit Kombi-App (Beta)</div></div>`;
+    
+    printArea.innerHTML = html;
+    if(typeof forcePrint === 'function') { forcePrint('WE_Brandenburg_' + dateStr.replace(/\./g, '')); }
+}

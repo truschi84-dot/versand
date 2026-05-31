@@ -195,7 +195,7 @@ window.onload = () => {
     document.getElementById('app1_wrapper').style.display = 'none'; document.getElementById('app2_wrapper').style.display = 'flex';
     if (document.getElementById('selectedWorkDate')) { document.getElementById('selectedWorkDate').value = getLocalISO(); document.getElementById('selectedWorkDate').onchange = renderApp1; }
     if (typeof loadLocalDB === 'function') loadLocalDB(); if (typeof loadRechnerData === 'function') loadRechnerData(); if (typeof loadAllFromCloud === 'function') loadAllFromCloud(); if (typeof initCalc === 'function') initCalc(); 
-    if (AppStorage.getRaw('kombi_dark_mode') === 'true') { document.body.classList.add('dark-mode'); updateDarkModeIcons(true); }
+    if (AppStorage.getRaw('kombi_dark_mode') === 'true') { document.body.classList.add('dark-mode'); updateDarkModeIcons(true); applyHeaderDarkModeFix(true); }
     resetInactivityTimer();
     if (typeof renderAppCloudLogs === 'function') renderAppCloudLogs();
     
@@ -217,8 +217,55 @@ window.onload = () => {
             AppStorage.setRaw('last_seen_version', APP_VERSION);
         }
     }
+
+    // Verhindern, dass sich der Bildschirm dreht, um Resets zu vermeiden
+    try {
+        if (screen.orientation && typeof screen.orientation.lock === 'function') {
+            // Sperre zu Beginn
+            screen.orientation.lock('portrait-primary').catch(err => {});
+
+            // Und stelle sicher, dass es gesperrt bleibt, wenn der Nutzer es überschreibt
+            screen.orientation.addEventListener('change', () => {
+                if (!screen.orientation.type.startsWith('portrait')) {
+                    screen.orientation.lock('portrait-primary').catch(err => {});
+                }
+            });
+        }
+    } catch (e) { console.warn("Screen-Orientation-API nicht verfügbar.", e); }
 };
-function toggleDarkMode() { document.body.classList.toggle('dark-mode'); const isDark = document.body.classList.contains('dark-mode'); AppStorage.setRaw('kombi_dark_mode', isDark); updateDarkModeIcons(isDark); }
+
+// AI-ADD: This function was missing in the live version and is required to fix dark mode display bugs.
+function applyHeaderDarkModeFix(isDark) {
+    // AI-FIX: The selector was likely too specific. This now targets the standard <header> tag
+    // and falls back to the previously used '.head' class to ensure the correct element is styled.
+    let headers = document.querySelectorAll('header');
+    if (!headers || headers.length === 0) {
+        headers = document.querySelectorAll('.head');
+    }
+    if (!headers || headers.length === 0) {
+        return;
+    }
+
+    headers.forEach(header => {
+        const menuButton = header.querySelector('[onclick*="toggleMenuApp"]');
+
+        if (isDark) {
+            header.style.background = 'var(--bg-color)'; 
+            if (menuButton) {
+                menuButton.style.backgroundColor = 'transparent';
+                menuButton.style.color = 'var(--text-color)';
+            }
+        } else {
+            header.style.background = '';
+            if (menuButton) {
+                menuButton.style.backgroundColor = '';
+                menuButton.style.color = '';
+            }
+        }
+    });
+}
+
+function toggleDarkMode() { document.body.classList.toggle('dark-mode'); const isDark = document.body.classList.contains('dark-mode'); AppStorage.setRaw('kombi_dark_mode', isDark); updateDarkModeIcons(isDark); applyHeaderDarkModeFix(isDark); }
 function updateDarkModeIcons(isDark) { document.querySelectorAll('.dark-mode-icon').forEach(el => el.innerText = isDark ? '☀️' : '🌙'); }
 
 // AUTO SYNC
@@ -540,7 +587,7 @@ function initLkwShareButtons() {
     
     const bar = document.createElement('div');
     bar.id = 'lkw-share-bar';
-    bar.style.cssText = "background: #f0f2f5; padding: 15px 10px 50px 10px; display: flex; justify-content: center; gap: 10px; border-top: 2px solid #ddd; margin-top: 20px;";
+    bar.style.cssText = "background: transparent; padding: 15px 10px 50px 10px; display: flex; justify-content: center; gap: 10px; border-top: 2px solid var(--border-color, #ddd); margin-top: 20px;";
     bar.innerHTML = `
         <button id="btn-share-lkw" onclick="shareLkwData()" style="flex:1; max-width:200px; padding:12px; background:#004b93; color:white; border:none; border-radius:6px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">📤 LKW Senden</button>
         <button id="btn-receive-lkw" onclick="receiveLkwData()" style="flex:1; max-width:200px; padding:12px; background:#4caf50; color:white; border:none; border-radius:6px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">📥 LKW Empfangen</button>

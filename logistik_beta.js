@@ -199,22 +199,22 @@ function renderApp1() {
 
     if(document.getElementById('supList')) {
         document.getElementById('supList').innerHTML = suppliers.map((s,i) => `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #eee; background: white;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid var(--border-color, #eee); background: var(--bg-card, white);">
             <div style="font-size: 16px; font-weight: bold; color: #333;">${s}</div>
             <div style="display: flex; gap: 8px;">
-                <button onclick="openEditSupModal('${s}')" style="background: #e3f2fd; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px;">✏️</button>
-                <button onclick="deleteSupplier('${s}')" style="background: #ffebee; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px;">🗑️</button>
+                <button onclick="openEditSupModal('${s}')" style="background: var(--info-bg, #e3f2fd); border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px;">✏️</button>
+                <button onclick="deleteSupplier('${s}')" style="background: var(--danger-bg, #ffebee); border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px;">🗑️</button>
             </div>
         </div>`).join('');
     }
 
     if(document.getElementById('custList')) {
         document.getElementById('custList').innerHTML = customers.map((c,i) => `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #eee; background: white;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid var(--border-color, #eee); background: var(--bg-card, white);">
             <div style="font-size: 16px; font-weight: bold; color: #333;">${c}</div>
             <div style="display: flex; gap: 8px;">
-                <button onclick="openEditCustModal('${c}')" style="background: #e3f2fd; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px;">✏️</button>
-                <button onclick="deleteCustomer('${c}')" style="background: #ffebee; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px;">🗑️</button>
+                <button onclick="openEditCustModal('${c}')" style="background: var(--info-bg, #e3f2fd); border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px;">✏️</button>
+                <button onclick="deleteCustomer('${c}')" style="background: var(--danger-bg, #ffebee); border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px;">🗑️</button>
             </div>
         </div>`).join('');
     }
@@ -234,9 +234,9 @@ function renderApp1() {
     if(jCont) jCont.innerHTML = ""; if(sBody) sBody.innerHTML = "";
     sorted.forEach(d => {
         const p = parseFloat(dailyStaff[d]) || 0; const tot = grouped[d].kg; const avg = p > 0 ? Math.round(tot/p) : 0;
-        let rows = grouped[d].items.map(i => `<tr><td style="padding:8px 0; border-bottom:1px solid #eee;"><b>${i.name}</b><br>${(i.workerShares || []).map(ws => `<span class="worker-tag" style="background:${getWColor(ws.name)}">${ws.name} (${ws.kg})</span>`).join('')}</td><td style="text-align:right; padding:8px 0; border-bottom:1px solid #eee;">${i.kg.toLocaleString()} kg</td></tr>`).join('');
-        if(jCont) jCont.innerHTML += `<div style="margin-top:10px; font-weight:bold; font-size:12px; color:#555;">📅 ${new Date(d).toLocaleDateString()}</div><div class="day-summary-card" onclick="openDayModal('${d}')"><div class="stat-box"><label style="font-size:10px;">Pers</label><b>${p}</b></div><div class="stat-box"><label style="font-size:10px;">Ø/Kopf</label><b>${avg}</b></div><div class="stat-box"><label style="font-size:10px;">Gesamt</label><b>${tot.toLocaleString()}</b></div></div><table style="width:100%; border-collapse:collapse; font-size:12px;">${rows}</table>`;
-        if(sBody) sBody.innerHTML += `<tr onclick="navTo('today'); document.getElementById('selectedWorkDate').value='${d}'; renderApp1();" style="cursor:pointer;"><td style="padding:10px; border-bottom:1px solid #eee;">${new Date(d).toLocaleDateString()}</td><td align="center" style="border-bottom:1px solid #eee;">${p}</td><td align="center" style="border-bottom:1px solid #eee;">${avg}</td><td align="right" style="padding:10px; border-bottom:1px solid #eee;">${tot.toLocaleString()} kg</td></tr>`;
+        let rows = grouped[d].items.map(i => `<tr><td style="padding:8px 0; border-bottom:1px solid var(--border-color, #eee);"><b>${i.name}</b><br>${(i.workerShares || []).map(ws => `<span class="worker-tag" style="background:${getWColor(ws.name)}">${ws.name} (${ws.kg})</span>`).join('')}</td><td style="text-align:right; padding:8px 0; border-bottom:1px solid var(--border-color, #eee);">${i.kg.toLocaleString()} kg</td></tr>`).join('');
+        if(jCont) jCont.innerHTML += `<div style="margin-top:10px; font-weight:bold; font-size:12px; color:var(--text-color-secondary, #555);">📅 ${new Date(d).toLocaleDateString()}</div><div class="day-summary-card" onclick="openDayModal('${d}')"><div class="stat-box"><label style="font-size:10px;">Pers</label><b>${p}</b></div><div class="stat-box"><label style="font-size:10px;">Ø/Kopf</label><b>${avg}</b></div><div class="stat-box"><label style="font-size:10px;">Gesamt</label><b>${tot.toLocaleString()}</b></div></div><table style="width:100%; border-collapse:collapse; font-size:12px;">${rows}</table>`;
+        if(sBody) sBody.innerHTML += `<tr onclick="navTo('today'); document.getElementById('selectedWorkDate').value='${d}'; renderApp1();" style="cursor:pointer;"><td style="padding:10px; border-bottom:1px solid var(--border-color, #eee);">${new Date(d).toLocaleDateString()}</td><td align="center" style="border-bottom:1px solid var(--border-color, #eee);">${p}</td><td align="center" style="border-bottom:1px solid var(--border-color, #eee);">${avg}</td><td align="right" style="padding:10px; border-bottom:1px solid var(--border-color, #eee);">${tot.toLocaleString()} kg</td></tr>`;
     });
 
     const openDeliveries = deliveries.filter(d => {
@@ -361,8 +361,8 @@ function updateShareList() {
     const openKg = parseFloat((e.kg - dist).toFixed(2));
     document.getElementById('openKgLabel').innerText = openKg.toLocaleString('de-DE', {minimumFractionDigits:0, maximumFractionDigits:2});
     document.getElementById('shareList').innerHTML = shares.map((s,i) => {
-        let dateHtml = s.date && s.date !== e.date ? `<br><small style="color:#888;">(Sortiert: ${new Date(s.date).toLocaleDateString('de-DE')})</small>` : '';
-        return `<div style="display:flex; justify-content:space-between; align-items:center; background:#f0f0f0; padding:10px; margin-bottom:5px; border-radius:5px; color:${getWColor(s.name)}"><div><b>${s.name}</b>${dateHtml}</div><div><b>${s.kg} kg</b> <span onclick="removeShare(${i})" style="color:red; font-size:20px; cursor:pointer; margin-left:10px;">×</span></div></div>`;
+        let dateHtml = s.date && s.date !== e.date ? `<br><small style="color:var(--text-color-secondary, #888);">(Sortiert: ${new Date(s.date).toLocaleDateString('de-DE')})</small>` : '';
+        return `<div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-color-2, #f0f0f0); padding:10px; margin-bottom:5px; border-radius:5px; color:${getWColor(s.name)}"><div><b>${s.name}</b>${dateHtml}</div><div><b>${s.kg} kg</b> <span onclick="removeShare(${i})" style="color:red; font-size:20px; cursor:pointer; margin-left:10px;">×</span></div></div>`;
     }).join('');
     const kgInput = document.getElementById('modalKgInput');
     if(kgInput) { kgInput.value = (openKg > 0 && !e.isFullySorted) ? parseFloat(openKg.toFixed(2)) : ''; }
@@ -400,7 +400,7 @@ function openDayModal(d) {
     curDate = d; let att = dailyAttendance[d] || {}; let html = '';
     workers.forEach(w => {
         let val = att[w] !== undefined ? att[w] : 0;
-        html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid #eee;"><span style="font-weight:bold; color:${getWColor(w)}; cursor:pointer; padding:5px 0;" onclick="toggleAtt('${w}')" title="Anwesenheit umschalten">● ${w}</span><select class="att-select" data-worker="${w}" onchange="calcAttTotal()" style="width:140px; margin-bottom:0; padding:8px; border-radius:6px; border:1px solid #ccc;"><option value="0" ${val==0?'selected':''}>Nicht da</option><option value="0.25" ${val==0.25?'selected':''}>0.25 (Viertel)</option><option value="0.5" ${val==0.5?'selected':''}>0.5 (Halb)</option><option value="0.75" ${val==0.75?'selected':''}>0.75 (Dreiviertel)</option><option value="1" ${val==1?'selected':''}>1.0 (Voll)</option></select></div>`;
+        html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--border-color, #eee);"><span style="font-weight:bold; color:${getWColor(w)}; cursor:pointer; padding:5px 0;" onclick="toggleAtt('${w}')" title="Anwesenheit umschalten">● ${w}</span><select class="att-select" data-worker="${w}" onchange="calcAttTotal()" style="width:140px; margin-bottom:0; padding:8px; border-radius:6px; border:1px solid #ccc;"><option value="0" ${val==0?'selected':''}>Nicht da</option><option value="0.25" ${val==0.25?'selected':''}>0.25 (Viertel)</option><option value="0.5" ${val==0.5?'selected':''}>0.5 (Halb)</option><option value="0.75" ${val==0.75?'selected':''}>0.75 (Dreiviertel)</option><option value="1" ${val==1?'selected':''}>1.0 (Voll)</option></select></div>`;
     });
     document.getElementById('attendanceList').innerHTML = html; calcAttTotal(); document.getElementById('dayInfoModal').style.display="flex"; 
 }
@@ -466,8 +466,8 @@ function loadCloudReklamationen() {
                             <span style="font-size:13px;"><b>LS:</b> ${r.ls || '-'}</span>
                         </div>
                         <div style="display:flex; gap:8px;">
-                            <button onclick="editCloudReklamation('${key}')" style="background:#e3f2fd; color:#1565c0; border:1px solid #bbdefb; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">✏️</button>
-                            <button onclick="deleteCloudReklamation('${key}')" style="background:#ffebee; color:#c62828; border:1px solid #ffcdd2; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">🗑️</button>
+                            <button onclick="editCloudReklamation('${key}')" style="background:var(--info-bg, #e3f2fd); color:#1565c0; border:1px solid var(--info-border, #bbdefb); padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">✏️</button>
+                            <button onclick="deleteCloudReklamation('${key}')" style="background:var(--danger-bg, #ffebee); color:#c62828; border:1px solid var(--danger-border, #ffcdd2); padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">🗑️</button>
                         </div>
                     </div>
                 </div>`;
@@ -519,7 +519,7 @@ function editCloudReklamation(key) {
     
     const preview = document.getElementById('rek-foto-preview');
     if (r.photoBase64) {
-        preview.innerHTML = `<img src="${r.photoBase64}" style="max-height: 100px; border-radius: 6px; border: 1px solid #ccc; margin-top: 5px;"><br><small style="color:#666;">(Aktuelles Foto. Ein neues Foto überschreibt dieses)</small>`;
+        preview.innerHTML = `<img src="${r.photoBase64}" style="max-height: 100px; border-radius: 6px; border: 1px solid var(--border-color, #ccc); margin-top: 5px;"><br><small style="color:var(--text-color-secondary, #666);">(Aktuelles Foto. Ein neues Foto überschreibt dieses)</small>`;
         preview.style.display = 'block';
     } else {
         preview.innerHTML = '';
@@ -601,8 +601,8 @@ function renderV10Table() {
     if (activeV10Tab === 'todo') {
         html = todo.map(art => {
             if ((art.fertigNr || '').includes(s) || (art.name || '').toUpperCase().includes(s)) {
-                return `<div style="background:#fff; border-radius:12px; padding:15px; margin-bottom:12px; box-shadow:0 4px 10px rgba(0,0,0,0.06); border-left:6px solid #d32f2f; border-right:1px solid #eee; border-top:1px solid #eee; border-bottom:1px solid #eee;">
-                    <div style="font-size:15px; margin-bottom:12px;"><strong style="color:#d32f2f;">${art.fertigNr}</strong> <span style="color:#444; font-weight:600;">- ${art.name}</span></div>
+                return `<div style="background:var(--bg-card, #fff); border-radius:12px; padding:15px; margin-bottom:12px; box-shadow:var(--card-shadow, 0 4px 10px rgba(0,0,0,0.06)); border-left:6px solid #d32f2f; border-right:1px solid var(--border-color, #eee); border-top:1px solid var(--border-color, #eee); border-bottom:1px solid var(--border-color, #eee);">
+                    <div style="font-size:15px; margin-bottom:12px;"><strong style="color:#d32f2f;">${art.fertigNr}</strong> <span style="color:var(--text-color, #444); font-weight:600;">- ${art.name}</span></div>
                     <div style="display:flex; flex-wrap:wrap; gap:6px;">
                         <button class="c-btn" style="background:#ffc107; color:#000; padding:10px; border-radius:8px; font-weight:bold; flex:1; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="toLose('${art.fertigNr}')">🍔 Lose</button>
                         <button class="c-btn" style="background:#28a745; color:white; padding:10px; border-radius:8px; font-weight:bold; flex:1; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="openModal('${art.fertigNr}')">✅ OK</button>
@@ -615,8 +615,8 @@ function renderV10Table() {
     } else if (activeV10Tab === 'later') {
         html = later.map(art => {
             if ((art.fertigNr || '').includes(s) || (art.name || '').toUpperCase().includes(s)) {
-                return `<div style="background:#fff; border-radius:12px; padding:15px; margin-bottom:12px; box-shadow:0 4px 10px rgba(0,0,0,0.06); border-left:6px solid #17a2b8; border-right:1px solid #eee; border-top:1px solid #eee; border-bottom:1px solid #eee;">
-                    <div style="font-size:15px; margin-bottom:12px;"><strong style="color:#17a2b8;">${art.fertigNr}</strong> <span style="color:#444; font-weight:600;">- ${art.name}</span></div>
+                return `<div style="background:var(--bg-card, #fff); border-radius:12px; padding:15px; margin-bottom:12px; box-shadow:var(--card-shadow, 0 4px 10px rgba(0,0,0,0.06)); border-left:6px solid #17a2b8; border-right:1px solid var(--border-color, #eee); border-top:1px solid var(--border-color, #eee); border-bottom:1px solid var(--border-color, #eee);">
+                    <div style="font-size:15px; margin-bottom:12px;"><strong style="color:#17a2b8;">${art.fertigNr}</strong> <span style="color:var(--text-color, #444); font-weight:600;">- ${art.name}</span></div>
                     <div style="display:flex; gap:6px;">
                         <button class="c-btn" style="background:#0056b3; color:white; padding:10px; border-radius:8px; font-weight:bold; flex:1; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="restoreFromPool('${art.fertigNr}', 'later')">🔄 Bearbeiten</button>
                         <button class="c-btn" style="background:#dc3545; color:white; padding:10px; border-radius:8px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="deleteArticle('${art.fertigNr}', 'later')">🗑️</button>
@@ -627,10 +627,10 @@ function renderV10Table() {
     } else if (activeV10Tab === 'done') {
         html = articles.map((art, i) => {
             if ((art.nr || '').includes(s) || (art.name || '').toUpperCase().includes(s) || (art.fertigNr || '').includes(s)) {
-                const origName = art.originalName ? `<br><small style="color:#888; font-weight:normal;">Original: ${art.originalName}</small>` : '';
-                return `<div style="background:#fff; border-radius:12px; padding:15px; margin-bottom:12px; box-shadow:0 4px 10px rgba(0,0,0,0.06); border-left:6px solid #28a745; border-right:1px solid #eee; border-top:1px solid #eee; border-bottom:1px solid #eee;">
+                const origName = art.originalName ? `<br><small style="color:var(--text-color-secondary, #888); font-weight:normal;">Original: ${art.originalName}</small>` : '';
+                return `<div style="background:var(--bg-card, #fff); border-radius:12px; padding:15px; margin-bottom:12px; box-shadow:var(--card-shadow, 0 4px 10px rgba(0,0,0,0.06)); border-left:6px solid #28a745; border-right:1px solid var(--border-color, #eee); border-top:1px solid var(--border-color, #eee); border-bottom:1px solid var(--border-color, #eee);">
                     <div style="font-size:15px; font-weight:bold; color:var(--success); margin-bottom:4px;">Lose-Nr: ${art.nr || 'Fehlt'}</div>
-                    <div style="font-size:15px; font-weight:600; color:#333; margin-bottom:12px;">${art.name}${origName}</div>
+                    <div style="font-size:15px; font-weight:600; color:var(--text-color, #333); margin-bottom:12px;">${art.name}${origName}</div>
                     <div style="display:flex; gap:6px;">
                         <button class="c-btn" style="background:#17a2b8; color:white; padding:10px; border-radius:8px; font-weight:bold; flex:1; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="openEditFertigModal(${i})">✏️ Bearbeiten</button>
                         <button class="c-btn" style="background:#dc3545; color:white; padding:10px; border-radius:8px; font-weight:bold; flex:1; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="unassign(${i})">❌ Aufheben</button>
@@ -641,8 +641,8 @@ function renderV10Table() {
     } else if (activeV10Tab === 'hidden') {
         html = hidden.map(art => {
             if ((art.fertigNr || '').includes(s) || (art.name || '').toUpperCase().includes(s)) {
-                return `<div style="background:#fff; border-radius:12px; padding:15px; margin-bottom:12px; box-shadow:0 4px 10px rgba(0,0,0,0.06); border-left:6px solid #999; border-right:1px solid #eee; border-top:1px solid #eee; border-bottom:1px solid #eee;">
-                    <div style="font-size:15px; margin-bottom:12px;"><strong style="color:#999;">${art.fertigNr}</strong> <span style="color:#888; font-weight:600;">- ${art.name}</span></div>
+                return `<div style="background:var(--bg-card, #fff); border-radius:12px; padding:15px; margin-bottom:12px; box-shadow:var(--card-shadow, 0 4px 10px rgba(0,0,0,0.06)); border-left:6px solid #999; border-right:1px solid var(--border-color, #eee); border-top:1px solid var(--border-color, #eee); border-bottom:1px solid var(--border-color, #eee);">
+                    <div style="font-size:15px; margin-bottom:12px;"><strong style="color:var(--text-color-secondary, #999);">${art.fertigNr}</strong> <span style="color:var(--text-color-secondary, #888); font-weight:600;">- ${art.name}</span></div>
                     <div style="display:flex; gap:6px;">
                         <button class="c-btn" style="background:#0056b3; color:white; padding:10px; border-radius:8px; font-weight:bold; flex:1; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="restoreFromPool('${art.fertigNr}', 'hidden')">👁️ Einblenden</button>
                         <button class="c-btn" style="background:#dc3545; color:white; padding:10px; border-radius:8px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="deleteArticle('${art.fertigNr}', 'hidden')">🗑️</button>
@@ -651,7 +651,7 @@ function renderV10Table() {
             } return '';
         }).join('');
     }
-    if(!html) html = '<div style="text-align:center; padding:30px; color:#999; font-size:15px; background:#fafafa; border-radius:12px; border:1px dashed #ddd;">Keine Einträge gefunden.</div>';
+    if(!html) html = '<div style="text-align:center; padding:30px; color:var(--text-color-secondary, #999); font-size:15px; background:var(--bg-color-2, #fafafa); border-radius:12px; border:1px dashed var(--border-color, #ddd);">Keine Einträge gefunden.</div>';
     list.innerHTML = html; updateV10Stats();
 }
 
@@ -711,8 +711,8 @@ function renderLosePool() {
     lose.forEach(a => {
         if ((a.fertigNr || '').toLowerCase().includes(s) || (a.name || '').toLowerCase().includes(s)) {
             const d = document.createElement('div');
-            d.style.cssText = "background:#fff; border-radius:10px; padding:12px; margin-bottom:10px; border-left:5px solid #ffc107; border-right:1px solid #eee; border-top:1px solid #eee; border-bottom:1px solid #eee; box-shadow:0 2px 5px rgba(0,0,0,0.05);";
-            d.innerHTML = `<div style="font-size:14px; margin-bottom:8px;"><strong style="color:#b38600;">${a.fertigNr}</strong> - <span style="color:#444; font-weight:600;">${a.name}</span></div><div style="display:flex; gap:6px;"><button class="c-btn" style="background:var(--primary); color:white; flex:1; padding:8px; font-size:12px; border-radius:6px; font-weight:bold;" onclick="restoreFromPool('${a.fertigNr}', 'lose')">↩ Zurück</button><button class="c-btn" style="background:#dc3545; color:white; padding:8px; font-size:12px; border-radius:6px; font-weight:bold;" onclick="deleteArticle('${a.fertigNr}', 'lose')">🗑️</button></div>`;
+            d.style.cssText = "background:var(--bg-card, #fff); border-radius:10px; padding:12px; margin-bottom:10px; border-left:5px solid #ffc107; border-right:1px solid var(--border-color, #eee); border-top:1px solid var(--border-color, #eee); border-bottom:1px solid var(--border-color, #eee); box-shadow:var(--card-shadow-sm, 0 2px 5px rgba(0,0,0,0.05));";
+            d.innerHTML = `<div style="font-size:14px; margin-bottom:8px;"><strong style="color:#b38600;">${a.fertigNr}</strong> - <span style="color:var(--text-color, #444); font-weight:600;">${a.name}</span></div><div style="display:flex; gap:6px;"><button class="c-btn" style="background:var(--primary); color:white; flex:1; padding:8px; font-size:12px; border-radius:6px; font-weight:bold;" onclick="restoreFromPool('${a.fertigNr}', 'lose')">↩ Zurück</button><button class="c-btn" style="background:#dc3545; color:white; padding:8px; font-size:12px; border-radius:6px; font-weight:bold;" onclick="deleteArticle('${a.fertigNr}', 'lose')">🗑️</button></div>`;
             lc.appendChild(d);
         }
     }); updateV10Stats();
@@ -737,10 +737,10 @@ function renderModalList() {
     scoredList.forEach(art => {
         if ((art.fertigNr || '').toLowerCase().includes(s) || (art.name || '').toLowerCase().includes(s)) {
             const div = document.createElement('div');
-            div.style.cssText = "background:#fff; border-radius:10px; padding:12px 15px; margin-bottom:8px; cursor:pointer; border:1px solid #eee; box-shadow:0 2px 4px rgba(0,0,0,0.03); transition:all 0.2s; display:flex; align-items:center; justify-content:space-between;";
+            div.style.cssText = "background:var(--bg-card, #fff); border-radius:10px; padding:12px 15px; margin-bottom:8px; cursor:pointer; border:1px solid var(--border-color, #eee); box-shadow:var(--card-shadow-sm, 0 2px 4px rgba(0,0,0,0.03)); transition:all 0.2s; display:flex; align-items:center; justify-content:space-between;";
             let badge = (art.score > 0 && !hasBestMatch) ? `<span style="background:#28a745; color:white; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:bold; box-shadow:0 2px 4px rgba(40,167,69,0.2);">⭐ Bester Treffer</span>` : '';
-            if (art.score > 0 && !hasBestMatch) { hasBestMatch = true; div.style.borderLeft = "5px solid #28a745"; div.style.backgroundColor = "#f0fff4"; div.style.borderColor = "#c6f6d5"; }
-            div.innerHTML = `<div><strong style="color:var(--primary);">${art.fertigNr}</strong> <span style="color:#444; font-weight:600;">- ${art.name}</span></div> ${badge}`; 
+            if (art.score > 0 && !hasBestMatch) { hasBestMatch = true; div.style.borderLeft = "5px solid #28a745"; div.style.backgroundColor = "var(--success-bg, #f0fff4)"; div.style.borderColor = "var(--success-border, #c6f6d5)"; }
+            div.innerHTML = `<div><strong style="color:var(--primary);">${art.fertigNr}</strong> <span style="color:var(--text-color, #444); font-weight:600;">- ${art.name}</span></div> ${badge}`; 
             div.onclick = () => confirmAssign(art.fertigNr); c.appendChild(div);
         }
     });
@@ -784,23 +784,23 @@ function setAssignMode(m) { assignMode = m; assignSelectedTarget = null; documen
 
 function renderAssignLeft() {
     const q = document.getElementById('assign-left-search').value.toLowerCase(); let h = '';
-    if(assignMode === 'art') { articles.forEach((a, i) => { if((a.name||'').toLowerCase().includes(q) || (a.nr && a.nr.includes(q))) h += `<div style="padding:12px 15px; margin-bottom:8px; border-radius:10px; cursor:pointer; font-size:14px; border:1px solid ${assignSelectedTarget===i?'#90caf9':'#eee'}; background:${assignSelectedTarget===i?'#e3f2fd':'#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.03); transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="selectAssign(${i})"><span style="color:#444;"><b>${a.nr || '??'}</b> - <span style="font-weight:600;">${a.name}</span></span>${assignSelectedTarget===i?'<span style="color:#1565c0; font-weight:bold;">➔</span>':''}</div>`; }); }
-    else { suppliers.sort().forEach(s => { if(s.toLowerCase().includes(q)) h += `<div style="padding:12px 15px; margin-bottom:8px; border-radius:10px; cursor:pointer; font-size:14px; font-weight:600; border:1px solid ${assignSelectedTarget===s?'#90caf9':'#eee'}; background:${assignSelectedTarget===s?'#e3f2fd':'#fff'}; color:#444; box-shadow:0 2px 4px rgba(0,0,0,0.03); transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="selectAssign('${s}')"><span>${s}</span>${assignSelectedTarget===s?'<span style="color:#1565c0; font-weight:bold;">➔</span>':''}</div>`; }); }
+    if(assignMode === 'art') { articles.forEach((a, i) => { if((a.name||'').toLowerCase().includes(q) || (a.nr && a.nr.includes(q))) h += `<div style="padding:12px 15px; margin-bottom:8px; border-radius:10px; cursor:pointer; font-size:14px; border:1px solid ${assignSelectedTarget===i?'var(--info-border, #90caf9)':'var(--border-color, #eee)'}; background:${assignSelectedTarget===i?'var(--info-bg, #e3f2fd)':'var(--bg-card, #fff)'}; box-shadow:var(--card-shadow-sm, 0 2px 4px rgba(0,0,0,0.03)); transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="selectAssign(${i})"><span style="color:var(--text-color, #444);"><b>${a.nr || '??'}</b> - <span style="font-weight:600;">${a.name}</span></span>${assignSelectedTarget===i?'<span style="color:#1565c0; font-weight:bold;">➔</span>':''}</div>`; }); }
+    else { suppliers.sort().forEach(s => { if(s.toLowerCase().includes(q)) h += `<div style="padding:12px 15px; margin-bottom:8px; border-radius:10px; cursor:pointer; font-size:14px; font-weight:600; border:1px solid ${assignSelectedTarget===s?'var(--info-border, #90caf9)':'var(--border-color, #eee)'}; background:${assignSelectedTarget===s?'var(--info-bg, #e3f2fd)':'var(--bg-card, #fff)'}; color:var(--text-color, #444); box-shadow:var(--card-shadow-sm, 0 2px 4px rgba(0,0,0,0.03)); transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="selectAssign('${s}')"><span>${s}</span>${assignSelectedTarget===s?'<span style="color:#1565c0; font-weight:bold;">➔</span>':''}</div>`; }); }
     document.getElementById('assign-left-list').innerHTML = h;
 }
 function selectAssign(t) { assignSelectedTarget = t; renderAssignRight(); renderAssignLeft(); }
 
 function renderAssignRight() {
     const q = document.getElementById('assign-right-search').value.toLowerCase(); const onlyAssigned = document.getElementById('filter-assigned-only').checked; const list = document.getElementById('assign-right-list');
-    if(assignSelectedTarget === null) { list.innerHTML = '<div style="padding:30px; text-align:center; color:#999; font-size:14px; background:#fafafa; border-radius:12px; border:1px dashed #ccc;">Bitte wähle zuerst links einen Eintrag aus.</div>'; return; }
+    if(assignSelectedTarget === null) { list.innerHTML = '<div style="padding:30px; text-align:center; color:var(--text-color-secondary, #999); font-size:14px; background:var(--bg-color-2, #fafafa); border-radius:12px; border:1px dashed var(--border-color, #ccc);">Bitte wähle zuerst links einen Eintrag aus.</div>'; return; }
     let h = '';
     if(assignMode === 'art') {
         const ass = articles[assignSelectedTarget].suppliers || [];
-        suppliers.sort().forEach(s => { const isLinked = ass.includes(s); if(onlyAssigned && !isLinked) return; if(s.toLowerCase().includes(q)) h += `<label style="display:flex; align-items:center; padding:12px 15px; margin-bottom:8px; border-radius:10px; border:1px solid ${isLinked?'#a5d6a7':'#eee'}; background:${isLinked?'#f0fff4':'#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.03); cursor:pointer; transition:all 0.2s;"><input type="checkbox" style="margin-right:12px; width:22px; height:22px; accent-color:#2e7d32; cursor:pointer;" ${isLinked?'checked':''} onchange="toggleLink('${s}')"> <span style="font-size:15px; color:${isLinked?'#2e7d32':'#444'}; font-weight:${isLinked?'bold':'600'};">${s}</span></label>`; });
+        suppliers.sort().forEach(s => { const isLinked = ass.includes(s); if(onlyAssigned && !isLinked) return; if(s.toLowerCase().includes(q)) h += `<label style="display:flex; align-items:center; padding:12px 15px; margin-bottom:8px; border-radius:10px; border:1px solid ${isLinked?'var(--success-border, #a5d6a7)':'var(--border-color, #eee)'}; background:${isLinked?'var(--success-bg, #f0fff4)':'var(--bg-card, #fff)'}; box-shadow:var(--card-shadow-sm, 0 2px 4px rgba(0,0,0,0.03)); cursor:pointer; transition:all 0.2s;"><input type="checkbox" style="margin-right:12px; width:22px; height:22px; accent-color:#2e7d32; cursor:pointer;" ${isLinked?'checked':''} onchange="toggleLink('${s}')"> <span style="font-size:15px; color:${isLinked?'#2e7d32':'var(--text-color, #444)'}; font-weight:${isLinked?'bold':'600'};">${s}</span></label>`; });
     } else {
-        articles.forEach((a, i) => { const isLinked = (a.suppliers||[]).includes(assignSelectedTarget); if(onlyAssigned && !isLinked) return; if((a.name||'').toLowerCase().includes(q) || (a.nr && a.nr.includes(q))) h += `<label style="display:flex; align-items:center; padding:12px 15px; margin-bottom:8px; border-radius:10px; border:1px solid ${isLinked?'#a5d6a7':'#eee'}; background:${isLinked?'#f0fff4':'#fff'}; box-shadow:0 2px 4px rgba(0,0,0,0.03); cursor:pointer; transition:all 0.2s;"><input type="checkbox" style="margin-right:12px; width:22px; height:22px; accent-color:#2e7d32; cursor:pointer;" ${isLinked?'checked':''} onchange="toggleLink(${i})"> <span style="font-size:14px; color:${isLinked?'#2e7d32':'#444'}; font-weight:${isLinked?'bold':'600'};"><b>${a.nr || '??'}</b> - ${a.name}</span></label>`; });
+        articles.forEach((a, i) => { const isLinked = (a.suppliers||[]).includes(assignSelectedTarget); if(onlyAssigned && !isLinked) return; if((a.name||'').toLowerCase().includes(q) || (a.nr && a.nr.includes(q))) h += `<label style="display:flex; align-items:center; padding:12px 15px; margin-bottom:8px; border-radius:10px; border:1px solid ${isLinked?'var(--success-border, #a5d6a7)':'var(--border-color, #eee)'}; background:${isLinked?'var(--success-bg, #f0fff4)':'var(--bg-card, #fff)'}; box-shadow:var(--card-shadow-sm, 0 2px 4px rgba(0,0,0,0.03)); cursor:pointer; transition:all 0.2s;"><input type="checkbox" style="margin-right:12px; width:22px; height:22px; accent-color:#2e7d32; cursor:pointer;" ${isLinked?'checked':''} onchange="toggleLink(${i})"> <span style="font-size:14px; color:${isLinked?'#2e7d32':'var(--text-color, #444)'}; font-weight:${isLinked?'bold':'600'};"><b>${a.nr || '??'}</b> - ${a.name}</span></label>`; });
     }
-    list.innerHTML = h || '<div style="padding:30px; color:#999; text-align:center; background:#fafafa; border-radius:12px; border:1px dashed #ccc;">Keine Treffer gefunden.</div>';
+    list.innerHTML = h || '<div style="padding:30px; color:var(--text-color-secondary, #999); text-align:center; background:var(--bg-color-2, #fafafa); border-radius:12px; border:1px dashed var(--border-color, #ccc);">Keine Treffer gefunden.</div>';
 }
 
 function toggleLink(v) {
