@@ -24,7 +24,7 @@ function Copy-WebAssets($projectRoot, $assetsRel) {
     $dest = Join-Path $projectRoot ($assetsRel -replace "/", "\")
     if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
 
-    $includeExt = @(".html", ".js", ".css", ".json", ".png", ".jpg", ".svg", ".ico", ".webp", ".woff", ".woff2")
+    $includeExt = @(".html", ".js", ".css", ".json", ".webmanifest", ".png", ".jpg", ".svg", ".ico", ".webp", ".woff", ".woff2")
     $excludeNames = @(
         "deploy.config.json", "deploy.config.example.json",
         "server.js", "control test.html", "test-checklist.html",
@@ -41,6 +41,16 @@ function Copy-WebAssets($projectRoot, $assetsRel) {
         Copy-Item -Path $_.FullName -Destination (Join-Path $dest $_.Name) -Force
         Write-Host "  + $($_.Name)"
         $count++
+    }
+    $iconsSrc = Join-Path $Root "icons"
+    if (Test-Path $iconsSrc) {
+        $iconsDest = Join-Path $dest "icons"
+        New-Item -ItemType Directory -Path $iconsDest -Force | Out-Null
+        Get-ChildItem -Path $iconsSrc -File | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination (Join-Path $iconsDest $_.Name) -Force
+            Write-Host "  + icons/$($_.Name)"
+            $count++
+        }
     }
     if ($count -eq 0) { throw "Keine Dateien kopiert - Quellordner pruefen." }
 }

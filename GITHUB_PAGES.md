@@ -25,7 +25,9 @@ Optional Version erhöhen (script.js + index.html + app-version.json):
 powershell -File scripts\publish-github.ps1 -BumpVersion -Message "App Update 90"
 ```
 
-Nach `git push` wartest du **1–2 Minuten**, dann lädt die App von GitHub (wenn kein Büro-WLAN erreichbar ist).
+Nach `git push` wartest du **1–2 Minuten**. Kollegen: Menü **„App-Update prüfen“** – **kein** Abruf beim Neustart, nur auf Knopf.
+
+**APK:** Startet aus eingebauter Version; GitHub/Büro-Laptop nur nach **App-Update prüfen** → **Jetzt installieren**. Gelegentlich `deploy-android.ps1`, damit die eingebaute Version nicht zu alt wird.
 
 ---
 

@@ -1,4 +1,4 @@
-// =========================================================================
+﻿// =========================================================================
 // ZENTRALE KONFIGURATION (CLOUD)
 // =========================================================================
 const APP_CONFIG = {
@@ -8,20 +8,20 @@ const APP_CONFIG = {
 };
 
 const APP_VERSION = "7.1";
-/** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 85;
-/** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
+/** Muss mit app-version.json webVersion Ã¼bereinstimmen (publish-ota.ps1). */
+const WEB_BUILD_VERSION = 90;
+/** BÃ¼ro-WLAN â€“ IP bei Bedarf anpassen (muss zu app-shell.json passen). */
 const OFFICE_LAN_URL = 'http://192.168.2.204:8080';
 let pendingOtaUpdate = null;
-const APP_CHANGELOG = "<b>Was ist neu in 7.1?</b><br><br>• 📲 <b>OTA-Updates:</b> App kann sich von eurem Web-Server aktualisieren – keine neue APK für jedes HTML/JS-Update.<br>• 🎨 <b>Handy-Layout:</b> Scrollen und Safe-Area in der APK verbessert.";
-/** Fallback wenn App aus APK (file://). Bei HTTPS-Hosting: gleicher Server + /app-update.json */
-const OTA_CONFIG_URL = "https://tresch-versand-default-rtdb.firebaseio.com/app_config.json";
+const APP_CHANGELOG = "<b>Was ist neu in 7.1?</b><br><br>â€¢ ðŸ“² <b>OTA-Updates:</b> App kann sich von eurem Web-Server aktualisieren â€“ keine neue APK fÃ¼r jedes HTML/JS-Update.<br>â€¢ ðŸŽ¨ <b>Handy-Layout:</b> Scrollen und Safe-Area in der APK verbessert.";
+/** APK (file://): Update-Config nur bei manueller PrÃ¼fung â€“ nicht beim Start. */
+const OTA_REMOTE_CONFIG_URL = "https://truschi84-dot.github.io/versand/app-update.json";
 
 function getOtaConfigUrl() {
     if (location.protocol === 'https:' || location.protocol === 'http:') {
         return location.origin + '/app-update.json';
     }
-    return OTA_CONFIG_URL;
+    return OTA_REMOTE_CONFIG_URL;
 }
 
 const AppStorage = {
@@ -40,7 +40,7 @@ function getAppSetting(key, defaultVal) {
 
 const DEFAULT_LEERGUT_CONFIG = "E2:2.0, Herta:2.5, H1:18.0, Euro:21.0";
 
-/** WK2 nur in control test.html – in der Kombi-App wieder Herta-Standard */
+/** WK2 nur in control test.html â€“ in der Kombi-App wieder Herta-Standard */
 function sanitizeCompanyLeergut(company) {
     if (!company || typeof company.leergut !== 'string') return false;
     const raw = company.leergut.trim();
@@ -97,7 +97,7 @@ function runDataMigration() {
         return;
     }
 
-    console.log("Führe Daten-Migration aus: Bereinige Daten-Schlüssel...");
+    console.log("FÃ¼hre Daten-Migration aus: Bereinige Daten-SchlÃ¼ssel...");
     let lDb = AppStorage.get('kombi_logistik_db', {});
     if (!lDb || Object.keys(lDb).length === 0) {
         AppStorage.setRaw(migrationKey, 'done');
@@ -221,12 +221,12 @@ function showPinProtection() {
                 emailBtn.innerText = "Admin kontaktieren"; emailBtn.style.background = "#4285F4";
                 emailBtn.onclick = () => {
                     showToast("Sende E-Mail an Admin...", "warning");
-                    emailBtn.disabled = true; emailBtn.innerText = "⏳ Sende...";
+                    emailBtn.disabled = true; emailBtn.innerText = "â³ Sende...";
                     fetch(getAppSetting('notificationUrl', APP_CONFIG.NOTIFICATION_URL), { 
                         method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                        body: JSON.stringify({ Betreff: "🚨 PUK Benötigt!", Nachricht: "App gesperrt.", PUK: activePuk, Zeit: new Date().toLocaleString('de-DE') })
+                        body: JSON.stringify({ Betreff: "ðŸš¨ PUK BenÃ¶tigt!", Nachricht: "App gesperrt.", PUK: activePuk, Zeit: new Date().toLocaleString('de-DE') })
                     }).then(res => {
-                        if (res.ok) { showToast("Admin benachrichtigt!", "success"); emailBtn.innerText = "Benachrichtigt ✓"; emailBtn.style.background = "var(--success)"; } 
+                        if (res.ok) { showToast("Admin benachrichtigt!", "success"); emailBtn.innerText = "Benachrichtigt âœ“"; emailBtn.style.background = "var(--success)"; } 
                         else { showToast("Fehler beim Versand.", "error"); emailBtn.disabled = false; emailBtn.innerText = "Erneut versuchen"; }
                     }).catch(() => { showToast("Netzwerkfehler.", "error"); emailBtn.disabled = false; emailBtn.innerText = "Erneut versuchen"; });
                 };
@@ -246,7 +246,7 @@ function showPinProtection() {
             if (pinInput.value === activePuk) {
                 failedAttempts = 0; AppStorage.setRaw('logistik_pin_fails', '0'); AppStorage.remove('logistik_current_puk');
                 sessionStorage.setItem('logistik_authenticated', 'true'); pinInput.value = '';
-                sendNotification("🔓 Entsperrt", "App wurde mit PUK entsperrt.");
+                sendNotification("ðŸ”“ Entsperrt", "App wurde mit PUK entsperrt.");
                 updateUI(); overlay.style.display = 'none'; resetInactivityTimer(); switchApp(1); showToast("Erfolgreich entsperrt!", "success");
             } else { showToast("PUK falsch!", "error"); pinInput.value = ""; pinInput.focus(); }
             return;
@@ -255,7 +255,7 @@ function showPinProtection() {
         const validPin = getAppSetting('logistikPin', APP_CONFIG.LOGISTIK_PIN);
         if (pinInput.value === validPin) {
             failedAttempts = 0; AppStorage.setRaw('logistik_pin_fails', '0'); sessionStorage.setItem('logistik_authenticated', 'true');
-            pinInput.value = ''; sendNotification("✅ Login", "Erfolgreicher PIN Login."); updateUI();
+            pinInput.value = ''; sendNotification("âœ… Login", "Erfolgreicher PIN Login."); updateUI();
             overlay.style.display = 'none'; resetInactivityTimer(); switchApp(1);
         } else {
             failedAttempts++; AppStorage.setRaw('logistik_pin_fails', failedAttempts.toString());
@@ -283,7 +283,7 @@ window.saveCustomCloudUrl = function() {
 let swipeStartX = 0; let swipeStartY = 0; let isSwiping = false; let currentSwipedEl = null;
 document.addEventListener('pointerdown', (e) => { 
     const swipeable = e.target.closest('.swipeable'); 
-    if (e.target.closest('.swipe-bg')) return; // Klicks auf den Lösch-Button nicht durch den Swipe-Reset blockieren
+    if (e.target.closest('.swipe-bg')) return; // Klicks auf den LÃ¶sch-Button nicht durch den Swipe-Reset blockieren
     
     if (currentSwipedEl && currentSwipedEl !== swipeable) { currentSwipedEl.style.transform = 'translateX(0)'; currentSwipedEl = null; } 
     if (!swipeable || e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return; 
@@ -334,9 +334,9 @@ function switchApp(appNum) {
         document.getElementById('app1_wrapper').style.display = 'none'; document.getElementById('app2_wrapper').style.display = 'flex'; if(typeof toggleMenuApp1 === 'function') toggleMenuApp1(false);
     }
 }
-function logoutLogistik(auto = false) { sessionStorage.removeItem('logistik_authenticated'); if(typeof toggleMenuApp1 === 'function') toggleMenuApp1(false); switchApp(2); if (auto === true) showToast("Automatisch gesperrt (Inaktivität).", "warning"); else showToast("Erfolgreich gesperrt.", "success"); }
+function logoutLogistik(auto = false) { sessionStorage.removeItem('logistik_authenticated'); if(typeof toggleMenuApp1 === 'function') toggleMenuApp1(false); switchApp(2); if (auto === true) showToast("Automatisch gesperrt (InaktivitÃ¤t).", "warning"); else showToast("Erfolgreich gesperrt.", "success"); }
 
-/** Entfernt Service Worker + Cache API – Ursache fuer "Speicher voll" bei Server-Betrieb. */
+/** Entfernt Service Worker + Cache API â€“ Ursache fuer "Speicher voll" bei Server-Betrieb. */
 function initLeanStorageHygiene() {
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then((regs) => {
@@ -372,7 +372,7 @@ async function clearAppBrowserCache() {
             AndroidApp.clearWebViewCache();
         }
     } catch (_) {}
-    showToast('App-Cache geleert. Seite wird neu geladen …', 'success');
+    showToast('App-Cache geleert. Seite wird neu geladen â€¦', 'success');
     setTimeout(() => location.reload(true), 600);
 }
 
@@ -380,7 +380,7 @@ async function clearAppBrowserCache() {
 window.onload = () => { 
     initLeanStorageHygiene();
 
-    // HARD-CACHE PURGE V7 (BETA MERGE): Zwingt Browser/Tablets, alte Beta-Dateien und fehlerhafte Versionen endgültig zu verwerfen.
+    // HARD-CACHE PURGE V7 (BETA MERGE): Zwingt Browser/Tablets, alte Beta-Dateien und fehlerhafte Versionen endgÃ¼ltig zu verwerfen.
     if (AppStorage.getRaw('hard_purge_v70') !== 'done') {
         if ('caches' in window) {
             caches.keys().then(names => {
@@ -434,7 +434,7 @@ window.onload = () => {
     }
 };
 
-/** Läuft in der nativen APK (WebView + JavascriptInterface „AndroidApp“)? */
+/** LÃ¤uft in der nativen APK (WebView + JavascriptInterface â€žAndroidAppâ€œ)? */
 function isNativeAndroidApp() {
     return typeof AndroidApp !== 'undefined';
 }
@@ -485,14 +485,8 @@ function recordInstalledWebVersion(ver) {
     }
 }
 
-async function recordInstalledWebVersionFromPage() {
-    let v = WEB_BUILD_VERSION;
-    if (location.protocol === 'http:' || location.protocol === 'https:') {
-        try {
-            const local = await fetch(location.origin + '/app-version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
-            v = Math.max(v, Number(local?.webVersion || 0));
-        } catch (_) {}
-    }
+function recordInstalledWebVersionFromPage() {
+    const v = getInstalledWebVersion() || WEB_BUILD_VERSION;
     recordInstalledWebVersion(v);
     updateVersionSubtitle(v);
 }
@@ -500,7 +494,7 @@ async function recordInstalledWebVersionFromPage() {
 function updateVersionSubtitle(installedVer) {
     const sub = document.querySelector('#app2_wrapper .head-subtitle');
     if (sub && /Layout v\d+|WLAN v\d+/.test(sub.textContent)) {
-        sub.textContent = 'Version ' + installedVer + ' · Produktion & Touren';
+        sub.textContent = 'Version ' + installedVer + ' Â· Produktion & Touren';
     }
 }
 
@@ -523,29 +517,35 @@ function openOtaUpdatePrompt() {
     if (pendingOtaUpdate) {
         showOtaUpdateModal(pendingOtaUpdate.remoteVer, pendingOtaUpdate.remoteBase);
     } else {
-        checkForWebUpdate();
+        checkForWebUpdate(true);
     }
 }
 
-/** Prüft Laptop/GitHub auf neuere Version – Popup + Hinweis oben. */
+/** Kein Server-Abruf beim Start â€“ nur lokaler Versionsstand (GitHub nur per Knopf). */
 function initOtaUpdateWatch() {
-    checkForWebUpdate().finally(() => recordInstalledWebVersionFromPage());
-    setInterval(checkForWebUpdate, 2 * 60 * 1000);
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) checkForWebUpdate();
-    });
+    if (!AppStorage.getRaw('installed_web_version')) {
+        recordInstalledWebVersion(WEB_BUILD_VERSION);
+    }
+    recordInstalledWebVersionFromPage();
 }
 
-/** Rechner-Menü: Update manuell vom Laptop im WLAN laden. */
+/** MenÃ¼: einmal online prÃ¼fen, ob eine neuere webVersion da ist. */
+function checkForWebUpdateManual() {
+    if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
+    showToast('PrÃ¼fe auf App-Update â€¦', 'info');
+    checkForWebUpdate(true);
+}
+
+/** Rechner-MenÃ¼: Update manuell vom Laptop im WLAN laden. */
 function loadWlanUpdateNow() {
     if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
     const base = (AppStorage.getRaw('last_office_lan_url') || OFFICE_LAN_URL).replace(/\/$/, '');
     if (!navigator.onLine) {
-        showToast('Kein Netz – bitte WLAN prüfen.', 'error');
+        showToast('Kein Netz â€“ bitte WLAN prÃ¼fen.', 'error');
         return;
     }
     AppStorage.remove('ota_banner_dismissed');
-    showToast('Lade Update vom Laptop …', 'info');
+    showToast('Lade Update vom Laptop â€¦', 'info');
     location.href = base + '/index.html?t=' + Date.now();
 }
 
@@ -608,12 +608,13 @@ async function fetchRemoteUpdateVersion() {
     return { remoteVer, remoteBase };
 }
 
-async function checkForWebUpdate() {
+async function checkForWebUpdate(manual) {
     if (!document.getElementById('ota-update-modal')) return;
     if (!navigator.onLine) {
         hideOtaUpdateModal();
         setUpdateAvailableUI(false);
         pendingOtaUpdate = null;
+        if (manual) showToast('Kein Netz â€“ Update-PrÃ¼fung nicht mÃ¶glich.', 'error');
         return;
     }
 
@@ -623,6 +624,7 @@ async function checkForWebUpdate() {
         hideOtaUpdateModal();
         setUpdateAvailableUI(false);
         pendingOtaUpdate = null;
+        if (manual) showToast('Update-Server nicht erreichbar.', 'error');
         return;
     }
 
@@ -631,26 +633,23 @@ async function checkForWebUpdate() {
         hideOtaUpdateModal();
         setUpdateAvailableUI(false);
         pendingOtaUpdate = null;
+        if (manual) showToast('App ist aktuell (v' + installedVer + ').', 'success');
         return;
     }
 
     pendingOtaUpdate = { remoteVer, remoteBase };
     setUpdateAvailableUI(true, remoteVer);
 
-    if (dismissed >= remoteVer) {
+    if (!manual && dismissed >= remoteVer) {
         hideOtaUpdateModal();
         return;
     }
 
-    const toastKey = 'ota_toast_' + remoteVer;
-    if (!sessionStorage.getItem(toastKey)) {
-        showToast('Neues App-Update v' + remoteVer + ' verfügbar!', 'warning');
-        sessionStorage.setItem(toastKey, '1');
-    }
+    if (manual) showToast('Neues Update v' + remoteVer + ' verfÃ¼gbar.', 'warning');
     showOtaUpdateModal(remoteVer, remoteBase);
 }
 
-/** APK: Statusleiste, Zurück-Taste, Portrait – siehe ANDROID_APK.md */
+/** APK: Statusleiste, ZurÃ¼ck-Taste, Portrait â€“ siehe ANDROID_APK.md */
 function initAndroidApkBridge() {
     document.documentElement.classList.add('is-android-app');
     document.body.classList.add('is-android-app');
@@ -669,7 +668,7 @@ function applyAndroidSafeAreaInsets() {
 
 /**
  * Von der APK bei hardware back aufgerufen (WebView.evaluateJavascript).
- * @returns {boolean} true = Web-App hat zurück verarbeitet, Activity nicht beenden
+ * @returns {boolean} true = Web-App hat zurÃ¼ck verarbeitet, Activity nicht beenden
  */
 function handleAndroidBackPress() {
     const pin = document.getElementById('pin-protection-overlay');
@@ -787,12 +786,12 @@ function applyHeaderDarkModeFix(isDark) {
 }
 
 function toggleDarkMode() { document.body.classList.toggle('dark-mode'); const isDark = document.body.classList.contains('dark-mode'); AppStorage.setRaw('kombi_dark_mode', isDark); updateDarkModeIcons(isDark); applyHeaderDarkModeFix(isDark); }
-function updateDarkModeIcons(isDark) { document.querySelectorAll('.dark-mode-icon').forEach(el => el.innerText = isDark ? '☀️' : '🌙'); }
+function updateDarkModeIcons(isDark) { document.querySelectorAll('.dark-mode-icon').forEach(el => el.innerText = isDark ? 'â˜€ï¸' : 'ðŸŒ™'); }
 
 // CLOUD SYNC
-// Logistik Pro: komplette kombi_logistik_db + Nölke-Produktliste hoch/runter
-// Rechner: nur Lieferanten, Sorten (articles), Nölke-Produkte – Tageslisten bleiben lokal
-// LKW-Rechner-Liste: nur über „LKW Senden“ / „LKW Empfangen“ (_shared_lkw.json)
+// Logistik Pro: komplette kombi_logistik_db + NÃ¶lke-Produktliste hoch/runter
+// Rechner: nur Lieferanten, Sorten (articles), NÃ¶lke-Produkte â€“ Tageslisten bleiben lokal
+// LKW-Rechner-Liste: nur Ã¼ber â€žLKW Sendenâ€œ / â€žLKW Empfangenâ€œ (_shared_lkw.json)
 
 function getLogistikFullCloudPayload() {
     const lData = AppStorage.get('kombi_logistik_db', {});
@@ -958,20 +957,20 @@ function silentCloudSync() {
             if (applyLogistikFullFromCloud(cloudData)) {
                 if (typeof loadLocalDB === 'function') loadLocalDB();
                 if (typeof addAppCloudLog === 'function') addAppCloudLog("AUTO-SYNC: Logistik empfangen [OK]");
-                showToast("🔄 Logistik aus Cloud aktualisiert!", "success");
+                showToast("ðŸ”„ Logistik aus Cloud aktualisiert!", "success");
             }
         } else if (applyRechnerStammdatenFromCloud(cloudData)) {
             if (typeof loadLocalDB === 'function') loadLocalDB();
             if (typeof loadRechnerData === 'function') loadRechnerData();
             if (typeof addAppCloudLog === 'function') addAppCloudLog("AUTO-SYNC: Stammdaten empfangen [OK]");
-            showToast("🔄 Stammdaten aus Cloud aktualisiert!", "success");
+            showToast("ðŸ”„ Stammdaten aus Cloud aktualisiert!", "success");
         }
     }).catch(() => {
         if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Auto-Sync Download fehlgeschlagen");
     });
 }
 
-// Automatischen 3-Minuten-Sync deaktiviert (nur noch manuell über 🔄 Button)
+// Automatischen 3-Minuten-Sync deaktiviert (nur noch manuell Ã¼ber ðŸ”„ Button)
 // setInterval(silentCloudSync, 3 * 60 * 1000);
 
 // UNIVERSAL DRUCKER & PDF WORKAROUND
@@ -1028,7 +1027,7 @@ window.currentVoiceTarget = null;
 function startVoiceRecognition(targetId) {
     window.currentVoiceTarget = targetId;
     
-    // 1. Prüfen, ob wir in der nativen Android-App sind
+    // 1. PrÃ¼fen, ob wir in der nativen Android-App sind
     if (typeof AndroidApp !== 'undefined') { 
         showToast("Mikrofon wird geladen...", "warning");
         AndroidApp.startVoiceInput();
@@ -1040,7 +1039,7 @@ function startVoiceRecognition(targetId) {
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
 
-        recognition.onstart = function() { showToast("🎤 Bitte jetzt Gewicht sprechen...", "warning"); };
+        recognition.onstart = function() { showToast("ðŸŽ¤ Bitte jetzt Gewicht sprechen...", "warning"); };
         recognition.onresult = function(event) { 
             const transcript = event.results[0][0].transcript; 
             setVoiceInputResult(transcript); 
@@ -1049,7 +1048,7 @@ function startVoiceRecognition(targetId) {
         
         recognition.start();
     } else {
-        showToast("Dein Browser unterstützt leider keine Spracherkennung.", "error");
+        showToast("Dein Browser unterstÃ¼tzt leider keine Spracherkennung.", "error");
     }
 }
 
@@ -1064,33 +1063,33 @@ function shareLkwData() {
     }
     
     const shareBtn = document.getElementById('btn-share-lkw');
-    if(shareBtn) shareBtn.innerText = "⏳ Sende...";
+    if(shareBtn) shareBtn.innerText = "â³ Sende...";
     
     fetch(APP_CONFIG.CLOUD_URL + "_shared_lkw.json", {
         method: 'PUT',
         body: JSON.stringify({ entries: rDb.entries, timestamp: Date.now() }),
         headers: { 'Content-Type': 'application/json' }
     }).then(res => {
-        if(shareBtn) shareBtn.innerHTML = "📤 LKW Senden";
+        if(shareBtn) shareBtn.innerHTML = "ðŸ“¤ LKW Senden";
         if (res.ok) {
             showToast("LKW-Liste an Kollege gesendet!", "success");
         } else {
             showToast("Fehler beim Senden.", "error");
         }
     }).catch(e => {
-        if(shareBtn) shareBtn.innerHTML = "📤 LKW Senden";
+        if(shareBtn) shareBtn.innerHTML = "ðŸ“¤ LKW Senden";
         showToast("Netzwerkfehler.", "error");
     });
 }
 
 function receiveLkwData() {
     const recBtn = document.getElementById('btn-receive-lkw');
-    if(recBtn) recBtn.innerText = "⏳ Lade...";
+    if(recBtn) recBtn.innerText = "â³ Lade...";
     
     fetch(APP_CONFIG.CLOUD_URL + "_shared_lkw.json?t=" + Date.now())
     .then(res => res.json())
     .then(data => {
-        if(recBtn) recBtn.innerHTML = "📥 LKW Empfangen";
+        if(recBtn) recBtn.innerHTML = "ðŸ“¥ LKW Empfangen";
         if (!data || !data.entries) {
             showToast("Keine geteilten Daten gefunden.", "warning");
             return;
@@ -1099,14 +1098,14 @@ function receiveLkwData() {
         const ageMins = Math.round((Date.now() - (data.timestamp || 0)) / 60000);
         let ageText = ageMins === 0 ? "Gerade eben" : `Vor ${ageMins} Minute(n)`;
         
-        customConfirm(`LKW-Liste vom Kollegen laden?\n(Geteilt: ${ageText})\n\nDie geteilten Paletten werden deiner aktuellen Liste hinzugefügt.`, () => {
+        customConfirm(`LKW-Liste vom Kollegen laden?\n(Geteilt: ${ageText})\n\nDie geteilten Paletten werden deiner aktuellen Liste hinzugefÃ¼gt.`, () => {
             let rDb = AppStorage.get('kombi_rechner_db', {});
             if (!rDb.entries) rDb.entries = [];
             
             let addedCount = 0;
             const existingIds = new Set(rDb.entries.map(e => e.id));
             
-            // Original-IDs beibehalten und nur komplett neue Paletten hinzufügen
+            // Original-IDs beibehalten und nur komplett neue Paletten hinzufÃ¼gen
             data.entries.forEach(e => {
                 if (!existingIds.has(e.id)) {
                     rDb.entries.push(e);
@@ -1117,11 +1116,11 @@ function receiveLkwData() {
             
             AppStorage.set('kombi_rechner_db', rDb);
             if (typeof loadRechnerData === 'function') loadRechnerData();
-            showToast(`${addedCount} neue Paletten ergänzt!`, "success");
+            showToast(`${addedCount} neue Paletten ergÃ¤nzt!`, "success");
         });
     })
     .catch(e => {
-        if(recBtn) recBtn.innerHTML = "📥 LKW Empfangen";
+        if(recBtn) recBtn.innerHTML = "ðŸ“¥ LKW Empfangen";
         showToast("Fehler beim Laden.", "error");
     });
 }
@@ -1130,12 +1129,12 @@ function initLkwShareButtons() {
     if(document.getElementById('lkw-share-bar')) return;
     
     // Wir suchen gezielt nach dem LKW-Tab, damit die Buttons nur dort erscheinen.
-    // HINWEIS: Bitte passe 'tab-lkw' an die echte ID deines LKW-Tabs in der HTML an, falls er anders heißt!
+    // HINWEIS: Bitte passe 'tab-lkw' an die echte ID deines LKW-Tabs in der HTML an, falls er anders heiÃŸt!
     let targetContainer = document.getElementById('tab-lkw') || document.getElementById('lkw-tab') || document.getElementById('lkw-container');
     
     if(!targetContainer) {
         // AI-FIX: Fallback entfernt. Wenn der LKW-Tab nicht gefunden wird,
-        // sollen die Buttons nicht an den Haupt-Wrapper angehängt werden,
+        // sollen die Buttons nicht an den Haupt-Wrapper angehÃ¤ngt werden,
         // da sie sonst auf allen Seiten erscheinen.
         return;
     }
@@ -1144,8 +1143,8 @@ function initLkwShareButtons() {
     bar.id = 'lkw-share-bar';
     bar.style.cssText = "background: transparent; padding: 15px 10px 50px 10px; display: flex; justify-content: center; gap: 10px; border-top: 2px solid var(--border-color, #ddd); margin-top: 20px;";
     bar.innerHTML = `
-        <button id="btn-share-lkw" onclick="shareLkwData()" style="flex:1; max-width:200px; padding:12px; background:#004b93; color:white; border:none; border-radius:6px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">📤 LKW Senden</button>
-        <button id="btn-receive-lkw" onclick="receiveLkwData()" style="flex:1; max-width:200px; padding:12px; background:#4caf50; color:white; border:none; border-radius:6px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">📥 LKW Empfangen</button>
+        <button id="btn-share-lkw" onclick="shareLkwData()" style="flex:1; max-width:200px; padding:12px; background:#004b93; color:white; border:none; border-radius:6px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">ðŸ“¤ LKW Senden</button>
+        <button id="btn-receive-lkw" onclick="receiveLkwData()" style="flex:1; max-width:200px; padding:12px; background:#4caf50; color:white; border:none; border-radius:6px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">ðŸ“¥ LKW Empfangen</button>
     `;
     targetContainer.appendChild(bar);
 }
@@ -1167,7 +1166,7 @@ function setVoiceInputResult(text) {
         const inputEl = document.getElementById(window.currentVoiceTarget);
         if (inputEl) {
             inputEl.value = numberMatch[0];
-            inputEl.dispatchEvent(new Event('input', { bubbles: true })); // Löst automatische Berechnungen aus!
+            inputEl.dispatchEvent(new Event('input', { bubbles: true })); // LÃ¶st automatische Berechnungen aus!
         }
         showToast("Gewicht erkannt: " + numberMatch[0] + " kg", "success");
     } else {

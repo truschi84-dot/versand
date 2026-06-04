@@ -54,7 +54,7 @@ try {
     git add app-shell.json app-update.json app-version.json app-config.example.json
     git add deploy.config.example.json manifest.webmanifest firebase.json .firebaserc
     git add server.js scripts/
-    git add index.html script.js style.css logistik.js rechner.js rechner_scanner.js sw.js
+    git add index.html script.js style.css logistik.js rechner.js rechner_scanner.js sw.js manifest.webmanifest icons/
     git add -u
 
     $status = git status --porcelain

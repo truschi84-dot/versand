@@ -8,8 +8,8 @@ Die **APK gibt es nur für Android**. Auf dem iPhone nutzt ihr **dieselbe Web-Ap
 
 ## Einmal pro iPhone (Kollegen)
 
-1. Link öffnen in **Safari** (nicht nur Chrome), z. B.:
-   - **GitHub Pages:** `https://DEIN-USER.github.io/DEIN-REPO/index.html` (empfohlen, HTTPS)
+1. Link öffnen in **Safari** (nicht nur Chrome):
+   - **GitHub Pages:** https://truschi84-dot.github.io/versand/index.html (empfohlen, HTTPS)
    - oder in der Firma im WLAN: `http://LAPTOP-IP:8080/index.html`
 
 2. Unten **Teilen** (Viereck mit Pfeil) → **„Zum Home-Bildschirm“** / **„Zum Bildschirm“**.
@@ -27,7 +27,7 @@ Die **APK gibt es nur für Android**. Auf dem iPhone nutzt ihr **dieselbe Web-Ap
 | Wo du bist | Was du tust | iPhones |
 |------------|-------------|---------|
 | **Firma + WLAN** | `start-buero-server.ps1` | Kollegen: Icon öffnen (lädt vom Laptop, wenn `app-update.json` / GitHub-Config passt) |
-| **Unterwegs** | `git push` → GitHub | Kollegen: App schließen → Icon neu öffnen |
+| **Unterwegs** | `git push` → GitHub | Kollegen: Menü ☰ → **App-Update prüfen** → ggf. **Jetzt installieren** |
 
 Android: APK/WLAN. iPhone: **keine APK** – nur Web-Update über dieselbe URL.
 
@@ -60,10 +60,12 @@ Nur `http://192.168…` im Büro geht oft auch, ist aber weniger zuverlässig al
 
 ## Kurz-Anleitung für Kollegen (zum Weiterleiten)
 
-> 1. Link in **Safari** öffnen.  
-> 2. **Teilen** → **Zum Home-Bildschirm**.  
-> 3. Fertig – App steht wie eine normale App.  
-> 4. Bei „Neues Update“-Fenster: **Jetzt installieren** tippen.
+Fertiger Text: siehe **`IPHONE_KOLLEGEN.md`**
+
+> 1. https://truschi84-dot.github.io/versand/index.html in **Safari** öffnen.  
+> 2. **Teilen** → **Zum Home-Bildschirm** → Name „Kombi App“.  
+> 3. App nur noch über das **Icon** starten.  
+> 4. Bei Update vom Büro: Menü ☰ → **App-Update prüfen** → **Jetzt installieren**.
 
 ---
 
