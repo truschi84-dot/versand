@@ -48,7 +48,7 @@ try {
     }
     if (-not $Message) { $Message = "App Update $(Get-Date -Format 'yyyy-MM-dd HH:mm')" }
 
-    git add .gitignore GITHUB_PAGES.md HYBRID_UPDATE.md OTA_UPDATE.md IPHONE_SETUP.md
+    git add .gitignore .nojekyll GITHUB_PAGES.md HYBRID_UPDATE.md OTA_UPDATE.md IPHONE_SETUP.md
     git add TEST_WLAN_UPDATE.md UPDATE_HOSTING_ALTERNATIVEN.md FIREBASE_OTA_EINRICHTUNG.md
     git add ANDROID_APK.md ANDROID_DEPLOY.md WAS-DU-NOCH-TUN-MUSST.md
     git add app-shell.json app-update.json app-version.json app-config.example.json
