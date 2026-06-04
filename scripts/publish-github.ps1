@@ -6,6 +6,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
+$Utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
+function Write-Utf8NoBom([string]$Path, [string]$Content) {
+    [System.IO.File]::WriteAllText($Path, $Content, $Utf8NoBom)
+}
 
 function Bump-WebVersion {
     $verFile = Join-Path $Root "app-version.json"
@@ -14,28 +19,28 @@ function Bump-WebVersion {
     $newVer = [int]$ver.webVersion + 1
     $ver.webVersion = $newVer
     $ver.publishedAt = (Get-Date -Format "yyyy-MM-dd HH:mm")
-    $ver | ConvertTo-Json | Set-Content $verFile -Encoding UTF8
+    Write-Utf8NoBom $verFile (($ver | ConvertTo-Json) + "`n")
     Write-Host "app-version.json -> webVersion $newVer"
 
     $scriptPath = Join-Path $Root "script.js"
-    $js = Get-Content $scriptPath -Raw
+    $js = [System.IO.File]::ReadAllText($scriptPath, $Utf8NoBom)
     $js = $js -replace 'const WEB_BUILD_VERSION = \d+;', "const WEB_BUILD_VERSION = $newVer;"
-    Set-Content $scriptPath $js -Encoding UTF8 -NoNewline
+    Write-Utf8NoBom $scriptPath $js
     Write-Host "script.js -> WEB_BUILD_VERSION $newVer"
 
     $updatePath = Join-Path $Root "app-update.json"
     if (Test-Path $updatePath) {
         $upd = Get-Content $updatePath -Raw | ConvertFrom-Json
         $upd.webVersion = $newVer
-        $upd | ConvertTo-Json -Depth 5 | Set-Content $updatePath -Encoding UTF8
+        Write-Utf8NoBom $updatePath (($upd | ConvertTo-Json -Depth 5) + "`n")
         Write-Host "app-update.json -> webVersion $newVer"
     }
 
     $indexPath = Join-Path $Root "index.html"
-    $idx = Get-Content $indexPath -Raw
+    $idx = [System.IO.File]::ReadAllText($indexPath, $Utf8NoBom)
     $idx = $idx -replace 'style\.css\?v=\d+', "style.css?v=$newVer"
     $idx = $idx -replace 'script\.js\?v=\d+', "script.js?v=$newVer"
-    Set-Content $indexPath $idx -Encoding UTF8 -NoNewline
+    Write-Utf8NoBom $indexPath $idx
     Write-Host "index.html -> ?v=$newVer"
     return $newVer
 }

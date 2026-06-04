@@ -2,6 +2,11 @@
 # Voraussetzung: Firebase CLI (npm i -g firebase-tools), einmal: firebase login
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
+$Utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
+function Write-Utf8NoBom([string]$Path, [string]$Content) {
+    [System.IO.File]::WriteAllText($Path, $Content, $Utf8NoBom)
+}
 
 function Get-Config {
     $cfgFile = Join-Path $Root "deploy.config.json"
@@ -15,22 +20,20 @@ $ver = Get-Content $verFile -Raw | ConvertFrom-Json
 $newVer = [int]$ver.webVersion + 1
 $ver.webVersion = $newVer
 $ver.publishedAt = (Get-Date -Format "yyyy-MM-dd HH:mm")
-$ver | ConvertTo-Json | Set-Content $verFile -Encoding UTF8
+Write-Utf8NoBom $verFile (($ver | ConvertTo-Json) + "`n")
 Write-Host "app-version.json -> webVersion $newVer"
 
-# script.js WEB_BUILD_VERSION anpassen
 $scriptPath = Join-Path $Root "script.js"
-$js = Get-Content $scriptPath -Raw
+$js = [System.IO.File]::ReadAllText($scriptPath, $Utf8NoBom)
 $js = $js -replace 'const WEB_BUILD_VERSION = \d+;', "const WEB_BUILD_VERSION = $newVer;"
-Set-Content $scriptPath $js -Encoding UTF8 -NoNewline
+Write-Utf8NoBom $scriptPath $js
 Write-Host "script.js -> WEB_BUILD_VERSION $newVer"
 
-# index.html ?v= fuer CSS/JS (Hauptbundle)
 $indexPath = Join-Path $Root "index.html"
-$idx = Get-Content $indexPath -Raw
+$idx = [System.IO.File]::ReadAllText($indexPath, $Utf8NoBom)
 $idx = $idx -replace 'style\.css\?v=\d+', "style.css?v=$newVer"
 $idx = $idx -replace 'script\.js\?v=\d+', "script.js?v=$newVer"
-Set-Content $indexPath $idx -Encoding UTF8 -NoNewline
+Write-Utf8NoBom $indexPath $idx
 Write-Host "index.html -> style/script ?v=$newVer"
 
 $cfg = Get-Config
