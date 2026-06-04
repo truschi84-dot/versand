@@ -12,17 +12,26 @@ Repo: https://github.com/truschi84-dot/versand
 
 ---
 
-## Update online stellen (unterwegs / ohne Büro-Server)
+## Wichtig: erst testen, dann GitHub
+
+**Nicht** sofort pushen – sonst haben alle Handys/iPhones die halbfertige Version.
 
 ```powershell
-cd C:\Users\Trusc\Desktop\assets
-powershell -File scripts\publish-github.ps1 -Message "App Update 90"
+# 1) Lokal + WLAN testen (kein Push)
+powershell -File scripts\restart-buero-server.ps1
+# Handy: http://192.168.2.204:8080 oder Menü „App-Update prüfen“ (nur wenn app-update.json schon höher ist)
+
+# 2) APK mit aktuellem Stand (optional, für Scanner offline in der APK)
+powershell -File scripts\deploy-android.ps1
+
+# 3) Erst wenn alles auf DEINEM Handy OK:
+powershell -File scripts\publish-github.ps1 -PushToGitHub -Message "App Update 93"
 ```
 
-Optional Version erhöhen (script.js + index.html + app-version.json):
+Version nur lokal erhöhen (ohne GitHub):
 
 ```powershell
-powershell -File scripts\publish-github.ps1 -BumpVersion -Message "App Update 90"
+powershell -File scripts\publish-github.ps1 -BumpVersion
 ```
 
 Nach `git push` wartest du **1–2 Minuten**. Kollegen: Menü **„App-Update prüfen“** – **kein** Abruf beim Neustart, nur auf Knopf.
