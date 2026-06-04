@@ -32,11 +32,24 @@
             padding-bottom: calc(80px + var(--safe-bottom));
         }
         header {
+            position: relative;
             background: linear-gradient(135deg, var(--primary-dark), var(--primary));
             color: #fff;
-            padding: 20px 16px 18px;
+            padding: 28px 12px 18px;
             text-align: center;
             box-shadow: 0 4px 20px rgba(30, 80, 40, 0.25);
+        }
+        .header-credit {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            max-width: 46%;
+            text-align: right;
+            font-size: 0.65rem;
+            line-height: 1.25;
+            font-weight: 600;
+            opacity: 0.92;
+            letter-spacing: 0.02em;
         }
         header h1 { margin: 0 0 6px; font-size: 1.35rem; font-weight: 800; }
         header p { margin: 0; font-size: 0.9rem; opacity: 0.92; }
@@ -251,19 +264,74 @@
         code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; word-break: break-all; }
         .open-hint { border-color: #90caf9; background: #e3f2fd; }
         .open-hint h2 { color: #1565c0; }
-        .credits {
-            text-align: center;
-            font-size: 0.78rem;
-            color: var(--muted);
-            padding: 8px 12px 6px;
-            margin: 0;
+        .dash-card { border-width: 2px; }
+        .dash-card.unclear-days { border-color: #ffcc80; background: #fff8e1; }
+        .dash-card.unclear-days h2 { color: #e65100; }
+        .dash-card.ok-days { border-color: #a5d6a7; background: #f1f8f4; }
+        .dash-card.ok-days h2 { color: #2e7d32; }
+        .gap-list { list-style: none; padding: 0; margin: 0; }
+        .gap-list li {
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.85);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
         }
-        .credits strong { color: var(--primary-dark); font-weight: 800; }
+        .gap-list li button { padding: 8px 12px; font-size: 0.8rem; flex-shrink: 0; }
+        .gap-empty { font-size: 0.88rem; color: var(--muted); font-style: italic; margin: 0; }
+        .day-btn.day-needs { border-color: #ef5350; background: #ffebee; }
+        .day-btn.day-needs .num { color: #c62828; }
+        .day-btn.day-unclear { border-color: #ffb74d; background: #fff8e1; }
+        .day-btn.day-ok { border-color: #43a047; background: #e8f5e9; }
+        .day-btn .feeder-name {
+            font-size: 0.58rem;
+            font-weight: 800;
+            color: var(--primary-dark);
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+        .day-btn .feeder-name.missing { color: #c62828; }
+        .my-days-list { list-style: none; padding: 0; margin: 0 0 10px; }
+        .my-days-list li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9rem;
+        }
+        .my-days-list li:last-child { border-bottom: none; }
+        .btn-remove-day { background: #ffebee; color: #c62828; padding: 8px 12px; font-size: 0.8rem; }
+        .btn-claim { background: var(--primary); color: #fff; padding: 8px 12px; font-size: 0.8rem; width: 100%; margin-top: 8px; }
+        .btn-claim.active { background: #1b5e20; }
+        .overview-list li.day-gap { background: #ffebee; margin: 0 -8px; padding: 10px 8px; border-radius: 8px; }
+        .overview-list li.day-unclear { background: #fff8e1; }
+        .overview-list li.day-ok { background: #e8f5e9; }
+        .feeder-badge {
+            display: inline-block;
+            background: var(--primary);
+            color: #fff;
+            font-size: 0.75rem;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 4px;
+        }
     </style>
 </head>
 <body>
 
 <header>
+    <span class="header-credit">Programmiert von Robert Trusch</span>
     <h1>🐰 Kaninchen-Futterplan</h1>
     <p>1. Juli – 29. Juli 2026 · Eintragen &amp; abstimmen</p>
 </header>
@@ -279,47 +347,55 @@
     </section>
     <div id="sync-status" class="status-bar" role="status"></div>
 
+    <section class="card dash-card unclear-days" id="card-unclear" hidden>
+        <h2 id="unclear-title">❓ Noch klären</h2>
+        <p class="hint">Mehrere Personen können – wer übernimmt? Abstimmen oder „Ich füttere“ wählen.</p>
+        <ul id="list-unclear" class="gap-list"></ul>
+    </section>
+
     <section class="card">
         <h2>Dein Name</h2>
-        <p class="hint">Einmal eintragen – dann kannst du Tage markieren und für andere abstimmen.</p>
+        <p class="hint">Name jederzeit ändern und erneut <strong>Name speichern</strong> tippen. Tage unten oder im Kalender an- und abwählen.</p>
         <label for="user-name">Name</label>
         <input type="text" id="user-name" placeholder="z. B. Max Mustermann" maxlength="40" autocomplete="name">
         <div class="row">
-            <button type="button" class="btn-primary" id="save-name">Name speichern</button>
+            <button type="button" class="btn-primary" id="save-name">Name speichern / ändern</button>
         </div>
+    </section>
+
+    <section class="card" id="my-entries-card" hidden>
+        <h2>Deine Einträge bearbeiten</h2>
+        <p class="hint">Einzelne Tage abmelden oder alle auf einmal.</p>
+        <ul id="my-days-list" class="my-days-list"></ul>
+        <button type="button" class="btn-remove-day" id="clear-all-days" style="width:100%">Alle meine Tage abmelden</button>
     </section>
 
     <section class="card">
         <h2>Kalender</h2>
-        <p class="hint">Tippe auf einen Tag: <strong>Ich kann füttern</strong> an- oder abwählen. Grüner Rand = mindestens eine Person eingetragen.</p>
+        <p class="hint">Rot = noch niemand · Gelb = unklar · Grün = Fütterer steht fest. Tippen zum Bearbeiten.</p>
         <div id="calendar" class="calendar" aria-label="Kalender Juli 2026"></div>
         <div class="legend">
-            <span><i style="background:#e8f5e9;border:2px solid var(--primary)"></i> Du bist eingetragen</span>
-            <span><i style="background:#fff;border:2px solid #81c784"></i> Andere eingetragen</span>
+            <span><i style="background:#ffebee;border:2px solid #ef5350"></i> Offen</span>
+            <span><i style="background:#fff8e1;border:2px solid #ffb74d"></i> Unklar</span>
+            <span><i style="background:#e8f5e9;border:2px solid #43a047"></i> Besetzt</span>
+            <span><i style="background:#e8f5e9;border:2px solid var(--primary)"></i> Du bist dabei</span>
         </div>
     </section>
 
-    <section class="card">
-        <h2>Übersicht</h2>
-        <p class="hint">Pro Tag: wer sich gemeldet hat und wer die meisten Stimmen hat.</p>
-        <ul id="overview" class="overview-list"></ul>
+    <section class="card dash-card ok-days" id="card-ok">
+        <h2 id="ok-title">✓ Wer füttert wann</h2>
+        <p class="hint">Für alle sichtbar: feste Zuständigkeit pro Tag.</p>
+        <ul id="list-ok" class="gap-list"></ul>
+        <p id="ok-empty" class="gap-empty" hidden>Noch keine Tage komplett besetzt.</p>
     </section>
 
     <section class="card">
         <details class="help">
-            <summary>Hilfe &amp; Technik</summary>
-            <p style="margin-top:10px">Die Seite speichert alle Einträge online (Firebase), damit alle dieselbe Liste sehen. Link per WhatsApp teilen – alle öffnen dieselbe URL.</p>
-            <p>Falls „Synchronisation fehlgeschlagen“ erscheint: In der Firebase-Konsole unter Realtime Database → Regeln ergänzen:</p>
-            <pre style="background:#f5f5f5;padding:10px;border-radius:8px;overflow:auto;font-size:0.72rem"><code>"kaninchen_futter_2026": {
-  ".read": true,
-  ".write": true
-}</code></pre>
-            <p style="margin-top:8px">Online stellen ohne die Kombi-App zu ändern: siehe <strong>KANINCHEN_ONLINE.md</strong> im Projektordner (Skript <code>publish-kaninchen.ps1</code>).</p>
-            <p>WhatsApp-Link nach Veröffentlichung:<br><code id="public-url-hint">https://truschi84-dot.github.io/versand/kaninchen.html</code></p>
+            <summary>Kurzanleitung</summary>
+            <p style="margin-top:10px">1. Name speichern · 2. Im Kalender Tage antippen · 3. Bei mehreren Kandidaten abstimmen oder „Ich füttere“ wählen · 4. Unten „Wer füttert wann“ prüfen.</p>
+            <p>Link zum Teilen:<br><code id="public-url-hint">https://truschi84-dot.github.io/versand/kaninchen.html</code></p>
         </details>
     </section>
-
-    <p class="credits">Programmiert bei <strong>Robert Trusch</strong> · © Robert Trusch</p>
 </div>
 
 <footer class="share-bar">
@@ -344,6 +420,7 @@
 
 <script>
 (function () {
+    const LIVE_URL = 'https://truschi84-dot.github.io/versand/kaninchen.html';
     const FIREBASE_URL = 'https://tresch-versand-default-rtdb.firebaseio.com/kaninchen_futter_2026.json';
     const STORAGE_ID = 'kaninchen_user_id';
     const STORAGE_NAME = 'kaninchen_user_name';
@@ -374,7 +451,6 @@
         name: document.getElementById('user-name'),
         saveName: document.getElementById('save-name'),
         calendar: document.getElementById('calendar'),
-        overview: document.getElementById('overview'),
         syncStatus: document.getElementById('sync-status'),
         overlay: document.getElementById('day-overlay'),
         sheetTitle: document.getElementById('sheet-title'),
@@ -385,7 +461,16 @@
         shareWa: document.getElementById('share-wa'),
         copyLink: document.getElementById('copy-link'),
         refreshBtn: document.getElementById('refresh-btn'),
-        publicUrlHint: document.getElementById('public-url-hint')
+        publicUrlHint: document.getElementById('public-url-hint'),
+        listUnclear: document.getElementById('list-unclear'),
+        listOk: document.getElementById('list-ok'),
+        cardUnclear: document.getElementById('card-unclear'),
+        okEmpty: document.getElementById('ok-empty'),
+        unclearTitle: document.getElementById('unclear-title'),
+        okTitle: document.getElementById('ok-title'),
+        myEntriesCard: document.getElementById('my-entries-card'),
+        myDaysList: document.getElementById('my-days-list'),
+        clearAllDays: document.getElementById('clear-all-days')
     };
 
     function dateKey(day) {
@@ -433,7 +518,7 @@
     }
 
     function getShareUrl() {
-        return window.location.href.split('#')[0];
+        return LIVE_URL;
     }
 
     function normalizeState(raw) {
@@ -446,11 +531,112 @@
 
     function dayData(key) {
         const d = state.days[key];
-        if (!d || typeof d !== 'object') return { volunteers: [], votes: {} };
+        if (!d || typeof d !== 'object') return { volunteers: [], votes: {}, feeder: null };
         return {
             volunteers: Array.isArray(d.volunteers) ? d.volunteers.slice() : [],
-            votes: d.votes && typeof d.votes === 'object' ? { ...d.votes } : {}
+            votes: d.votes && typeof d.votes === 'object' ? { ...d.votes } : {},
+            feeder: d.feeder && typeof d.feeder === 'string' ? d.feeder : null
         };
+    }
+
+    function writeDay(key, day) {
+        if (!day.volunteers.length && !day.feeder) {
+            delete state.days[key];
+        } else {
+            state.days[key] = day;
+        }
+    }
+
+    /** offen | unclear | ok */
+    function dayStatus(key) {
+        const day = dayData(key);
+        if (!day.volunteers.length) return 'offen';
+        const feeder = getFeederId(key);
+        if (feeder) return 'ok';
+        return 'unclear';
+    }
+
+    function getFeederId(key) {
+        const day = dayData(key);
+        if (day.feeder && day.volunteers.includes(day.feeder)) return day.feeder;
+        if (day.volunteers.length === 1) return day.volunteers[0];
+        const top = topVotedPerson(key);
+        if (top && top.count > 0) return top.id;
+        return null;
+    }
+
+    function getFeederName(key) {
+        const id = getFeederId(key);
+        return id ? getPersonName(id) : null;
+    }
+
+    function setExplicitFeeder(dateKeyStr, pid) {
+        const day = dayData(dateKeyStr);
+        if (!day.volunteers.includes(pid)) return;
+        day.feeder = pid;
+        writeDay(dateKeyStr, day);
+        saveState().then(function () {
+            renderAll();
+            if (selectedDate === dateKeyStr) openDaySheet(selectedDate);
+        });
+    }
+
+    function clearExplicitFeeder(dateKeyStr) {
+        const day = dayData(dateKeyStr);
+        day.feeder = null;
+        writeDay(dateKeyStr, day);
+        saveState().then(function () {
+            renderAll();
+            if (selectedDate === dateKeyStr) openDaySheet(selectedDate);
+        });
+    }
+
+    function removeMyDay(dateKeyStr) {
+        const id = ensureUserId();
+        const day = dayData(dateKeyStr);
+        const idx = day.volunteers.indexOf(id);
+        if (idx >= 0) day.volunteers.splice(idx, 1);
+        delete day.votes[id];
+        if (day.feeder === id) day.feeder = null;
+        const voterKey = 'voter_' + id;
+        if (day.votes[voterKey]) {
+            const prev = day.votes[voterKey];
+            if (day.votes[prev]) {
+                day.votes[prev] = Math.max(0, (day.votes[prev] || 0) - 1);
+                if (day.votes[prev] === 0) delete day.votes[prev];
+            }
+            delete day.votes[voterKey];
+        }
+        writeDay(dateKeyStr, day);
+        saveState().then(function () { renderAll(); });
+    }
+
+    function clearAllMyDays() {
+        const id = ensureUserId();
+        if (!id) return;
+        let changed = false;
+        for (let d = DAY_START; d <= DAY_END; d++) {
+            const key = dateKey(d);
+            const info = dayData(key);
+            if (!info.volunteers.includes(id)) continue;
+            changed = true;
+            const idx = info.volunteers.indexOf(id);
+            info.volunteers.splice(idx, 1);
+            delete info.votes[id];
+            if (info.feeder === id) info.feeder = null;
+            const voterKey = 'voter_' + id;
+            if (info.votes[voterKey]) {
+                const prev = info.votes[voterKey];
+                if (info.votes[prev]) {
+                    info.votes[prev] = Math.max(0, (info.votes[prev] || 0) - 1);
+                    if (info.votes[prev] === 0) delete info.votes[prev];
+                }
+                delete info.votes[voterKey];
+            }
+            writeDay(key, info);
+        }
+        if (!changed) alert('Du bist an keinem Tag eingetragen.');
+        else saveState().then(function () { renderAll(); });
     }
 
     function loadLocalState() {
@@ -486,9 +672,12 @@
         if (!dismissed && location.hostname === 'localhost') {
             if (el.openHintText) {
                 el.openHintText.textContent =
-                    'Du siehst die Seite lokal – zum Testen reicht das. Zum Teilen per WhatsApp später auf GitHub veröffentlichen (siehe Hilfe unten).';
+                    'Lokale Vorschau. Der WhatsApp-Button teilt bereits den Online-Link.';
             }
             if (el.openHint) el.openHint.hidden = false;
+        }
+        if (location.hostname.indexOf('github.io') >= 0 && el.openHint) {
+            el.openHint.hidden = true;
         }
     }
 
@@ -577,10 +766,11 @@
         if (idx >= 0) {
             day.volunteers.splice(idx, 1);
             delete day.votes[id];
+            if (day.feeder === id) day.feeder = null;
         } else {
             day.volunteers.push(id);
         }
-        state.days[dateKeyStr] = day;
+        writeDay(dateKeyStr, day);
         saveState().then(() => renderAll());
     }
 
@@ -606,7 +796,7 @@
         day.votes[targetId] = (day.votes[targetId] || 0) + 1;
         day.votes[voterKey] = targetId;
 
-        state.days[dateKeyStr] = day;
+        writeDay(dateKeyStr, day);
         saveState().then(() => {
             renderAll();
             if (selectedDate === dateKeyStr) openDaySheet(selectedDate);
@@ -633,6 +823,80 @@
         return bestCount > 0 ? { id: best, count: bestCount, name: getPersonName(best) } : null;
     }
 
+    function dayLabelShort(day) {
+        const dt = new Date(YEAR, MONTH, day);
+        return WEEKDAYS[dt.getDay()] + ' ' + day + '.7.';
+    }
+
+    function renderDashboard() {
+        const unclearDays = [];
+        const okDays = [];
+        for (let day = DAY_START; day <= DAY_END; day++) {
+            const key = dateKey(day);
+            const st = dayStatus(key);
+            const item = { day: day, key: key, label: dayLabelShort(day) };
+            if (st === 'unclear') unclearDays.push(item);
+            else if (st === 'ok') okDays.push(item);
+        }
+
+        if (el.unclearTitle) el.unclearTitle.textContent = '❓ Noch klären (' + unclearDays.length + ')';
+        if (el.okTitle) el.okTitle.textContent = '✓ Wer füttert wann (' + okDays.length + ')';
+
+        if (el.cardUnclear) el.cardUnclear.hidden = unclearDays.length === 0;
+        if (el.listUnclear) {
+            el.listUnclear.innerHTML = '';
+            unclearDays.forEach(function (item) {
+                const info = dayData(item.key);
+                const names = info.volunteers.map(function (id) { return getPersonName(id); }).join(', ');
+                const li = document.createElement('li');
+                li.innerHTML = '<span><strong>' + escapeHtml(item.label) + '</strong><br><small>Können: ' + escapeHtml(names) + '</small></span>';
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'btn-ghost';
+                b.textContent = 'Klärung';
+                b.addEventListener('click', function () { openDaySheet(item.key); });
+                li.appendChild(b);
+                el.listUnclear.appendChild(li);
+            });
+        }
+
+        if (el.listOk) {
+            el.listOk.innerHTML = '';
+            if (el.okEmpty) el.okEmpty.hidden = okDays.length > 0;
+            okDays.forEach(function (item) {
+                const feeder = getFeederName(item.key);
+                const li = document.createElement('li');
+                li.innerHTML = '<span><strong>' + escapeHtml(item.label) + '</strong> · Füttert: <span class="feeder-badge">' + escapeHtml(feeder || '?') + '</span></span>';
+                el.listOk.appendChild(li);
+            });
+        }
+    }
+
+    function renderMyEntries() {
+        const id = userId;
+        if (!id || !el.myDaysList) return;
+        const myDays = [];
+        for (let day = DAY_START; day <= DAY_END; day++) {
+            const key = dateKey(day);
+            if (dayData(key).volunteers.includes(id)) myDays.push({ day: day, key: key });
+        }
+        if (el.myEntriesCard) el.myEntriesCard.hidden = myDays.length === 0;
+        el.myDaysList.innerHTML = '';
+        myDays.forEach(function (item) {
+            const li = document.createElement('li');
+            const feeder = getFeederId(item.key) === id;
+            li.innerHTML = '<span>' + escapeHtml(dayLabelShort(item.day)) +
+                (feeder ? ' <span class="feeder-badge">Du fütterst</span>' : '') + '</span>';
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'btn-remove-day';
+            b.textContent = 'Abmelden';
+            b.addEventListener('click', function () { removeMyDay(item.key); });
+            li.appendChild(b);
+            el.myDaysList.appendChild(li);
+        });
+    }
+
     function renderCalendar() {
         el.calendar.innerHTML = '';
         for (let day = DAY_START; day <= DAY_END; day++) {
@@ -640,49 +904,34 @@
             const dt = new Date(YEAR, MONTH, day);
             const dayInfo = dayData(key);
             const mine = userId && dayInfo.volunteers.includes(userId);
+            const st = dayStatus(key);
+            const feederName = getFeederName(key);
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'day-btn' + (dt.getDay() === 0 || dt.getDay() === 6 ? ' weekend' : '');
+            if (st === 'offen') btn.classList.add('day-needs');
+            else if (st === 'unclear') btn.classList.add('day-unclear');
+            else btn.classList.add('day-ok');
             if (mine) btn.classList.add('mine');
-            if (dayInfo.volunteers.length) btn.classList.add('has-people');
 
-            const dots = document.createElement('div');
-            dots.className = 'dots';
-            dayInfo.volunteers.slice(0, 5).forEach(function (pid) {
-                const dot = document.createElement('span');
-                dot.className = 'dot';
-                dot.style.background = colorForId(pid);
-                dot.title = getPersonName(pid);
-                dots.appendChild(dot);
-            });
+            const feederSpan = document.createElement('span');
+            feederSpan.className = 'feeder-name' + (st === 'offen' ? ' missing' : '');
+            if (st === 'offen') feederSpan.textContent = 'offen';
+            else if (st === 'unclear') feederSpan.textContent = 'unklar';
+            else feederSpan.textContent = feederName ? feederName.split(' ')[0] : '?';
 
             const mini = dayInfo.volunteers.length
-                ? dayInfo.volunteers.length + (dayInfo.volunteers.length === 1 ? ' Person' : ' Personen')
-                : '—';
+                ? dayInfo.volunteers.length + (dayInfo.volunteers.length === 1 ? ' Meld.' : ' Meld.')
+                : 'leer';
 
-            btn.innerHTML = '<span class="dow">' + WEEKDAYS[dt.getDay()] + '</span><span class="num">' + day + '</span><span class="mini">' + mini + '</span>';
-            btn.appendChild(dots);
+            btn.innerHTML = '<span class="dow">' + WEEKDAYS[dt.getDay()] + '</span><span class="num">' + day + '</span>';
+            btn.appendChild(feederSpan);
+            const miniEl = document.createElement('span');
+            miniEl.className = 'mini';
+            miniEl.textContent = mini;
+            btn.appendChild(miniEl);
             btn.addEventListener('click', function () { openDaySheet(key); });
             el.calendar.appendChild(btn);
-        }
-    }
-
-    function renderOverview() {
-        el.overview.innerHTML = '';
-        for (let day = DAY_START; day <= DAY_END; day++) {
-            const key = dateKey(day);
-            const info = dayData(key);
-            const li = document.createElement('li');
-            if (!info.volunteers.length) {
-                li.innerHTML = '<strong>' + day + '.7.</strong> <span class="empty-day">noch niemand</span>';
-            } else {
-                const names = info.volunteers.map(function (id) { return getPersonName(id); }).join(', ');
-                const top = topVotedPerson(key);
-                let extra = '';
-                if (top) extra = ' · <span class="winner">★ ' + escapeHtml(top.name) + ' (' + top.count + ' Stimme' + (top.count === 1 ? '' : 'n') + ')</span>';
-                li.innerHTML = '<strong>' + day + '.7.</strong> ' + escapeHtml(names) + extra;
-            }
-            el.overview.appendChild(li);
         }
     }
 
@@ -699,20 +948,43 @@
         const info = dayData(key);
         const mine = userId && info.volunteers.includes(userId);
 
+        const st = dayStatus(key);
+        const feederId = getFeederId(key);
+
         el.sheetTitle.textContent = formatDateLabel(day);
-        el.sheetSub.textContent = info.volunteers.length
-            ? info.volunteers.length + ' Person(en) können füttern'
-            : 'Noch keine Meldung – sei die erste Person!';
+        if (st === 'offen') {
+            el.sheetSub.textContent = '⚠️ Noch niemand für diesen Tag – bitte eintragen!';
+        } else if (st === 'unclear') {
+            el.sheetSub.textContent = '❓ Mehrere können – abstimmen oder „Ich füttere“ wählen.';
+        } else {
+            el.sheetSub.textContent = '✓ Füttert: ' + getFeederName(key) + ' (für alle sichtbar)';
+        }
 
         el.toggleSelf.textContent = mine
-            ? '✓ Ich bin eingetragen – tippen zum Abmelden'
+            ? '✓ Gemeldet – tippen zum Abmelden (Eintrag bearbeiten)'
             : 'Ich kann an diesem Tag füttern';
         el.toggleSelf.className = 'btn-toggle' + (mine ? '' : ' off');
 
         el.sheetPeople.innerHTML = '';
         if (!info.volunteers.length) {
-            el.sheetPeople.innerHTML = '<p class="hint" style="margin-top:12px">Melde dich oben an, wenn du an diesem Tag füttern kannst. Andere können dann abstimmen, wer es übernimmt.</p>';
+            el.sheetPeople.innerHTML = '<p class="hint" style="margin-top:12px">Melde dich an, wenn du an diesem Tag füttern kannst.</p>';
         } else {
+            if (mine) {
+                const claimBtn = document.createElement('button');
+                claimBtn.type = 'button';
+                claimBtn.className = 'btn-claim' + (feederId === userId ? ' active' : '');
+                claimBtn.textContent = feederId === userId
+                    ? '✓ Du bist als Fütterer eingetragen'
+                    : 'Ich füttere an diesem Tag (übernehmen)';
+                claimBtn.addEventListener('click', function () {
+                    if (feederId === userId && dayData(key).feeder === userId) {
+                        clearExplicitFeeder(key);
+                    } else {
+                        setExplicitFeeder(key, userId);
+                    }
+                });
+                el.sheetPeople.appendChild(claimBtn);
+            }
             const myVote = myVoteForDay(key);
             info.volunteers.forEach(function (pid) {
                 const votes = info.votes[pid] || 0;
@@ -724,8 +996,12 @@
                 av.textContent = initials(getPersonName(pid));
                 const infoDiv = document.createElement('div');
                 infoDiv.className = 'person-info';
-                infoDiv.innerHTML = '<b>' + escapeHtml(getPersonName(pid)) + '</b><small>' +
-                    (pid === userId ? 'Das bist du' : (myVote === pid ? 'Deine Stimme' : 'Abstimmen')) + '</small>';
+                let role = '';
+                if (pid === feederId) role = '★ Füttert diesen Tag';
+                else if (pid === userId) role = 'Das bist du';
+                else if (myVote === pid) role = 'Deine Stimme';
+                else role = 'Kann füttern';
+                infoDiv.innerHTML = '<b>' + escapeHtml(getPersonName(pid)) + '</b><small>' + role + '</small>';
                 const chip = document.createElement('span');
                 chip.className = 'vote-chip';
                 chip.textContent = votes;
@@ -758,8 +1034,9 @@
     }
 
     function renderAll() {
+        renderDashboard();
+        renderMyEntries();
         renderCalendar();
-        renderOverview();
     }
 
     el.saveName.addEventListener('click', function () {
@@ -791,7 +1068,7 @@
 
     el.shareWa.addEventListener('click', function () {
         const url = getShareUrl();
-        const text = 'Hallo! 🐰 Wer kann im Juli die Kaninchen füttern (1.7.–29.7.)? Hier eintragen und abstimmen:\n' + url;
+        const text = 'Hallo! 🐰 Kaninchen-Futterplan Juli (1.7.–29.7.): Hier eintragen, wer wann füttert:\n' + url;
         window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
     });
 
@@ -811,9 +1088,15 @@
 
     el.refreshBtn.addEventListener('click', loadState);
 
+    if (el.clearAllDays) {
+        el.clearAllDays.addEventListener('click', function () {
+            if (confirm('Alle deine gemeldeten Tage wirklich abmelden?')) clearAllMyDays();
+        });
+    }
+
     el.name.value = userName;
     if (el.publicUrlHint) {
-        el.publicUrlHint.textContent = 'https://truschi84-dot.github.io/versand/kaninchen.html';
+        el.publicUrlHint.textContent = LIVE_URL;
     }
 
     if (el.openHintDismiss) {
