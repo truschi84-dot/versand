@@ -10,7 +10,7 @@
     <meta name="theme-color" content="#2e7d32">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
-    <meta name="kaninchen-build" content="5">
+    <meta name="kaninchen-build" content="6">
     <style>
         :root {
             --primary: #2e7d32;
@@ -313,12 +313,38 @@
             border-radius: 12px;
             margin-left: 4px;
         }
+        .btn-print { background: #e3f2fd; color: #1565c0; flex: 1; }
+        .btn-cal { background: #fff3e0; color: #e65100; flex: 1; }
+        #printArea { display: none; }
+        @media print {
+            @page { size: A4 portrait; margin: 12mm; }
+            body { background: #fff; padding: 0; }
+            header, .wrap, .overlay, .status-row { display: none !important; }
+            #printArea {
+                display: block !important;
+                font-size: 11pt;
+                color: #000;
+            }
+            #printArea h1 { font-size: 18pt; margin: 0 0 4px; }
+            #printArea .print-meta { font-size: 10pt; color: #333; margin-bottom: 12px; }
+            #printArea table { width: 100%; border-collapse: collapse; }
+            #printArea th, #printArea td {
+                border: 1px solid #333;
+                padding: 5px 8px;
+                text-align: left;
+                vertical-align: top;
+            }
+            #printArea th { background: #e8f5e9; font-size: 10pt; }
+            #printArea tr.offen td { background: #ffebee; }
+            #printArea tr.unclear td { background: #fff8e1; }
+            #printArea tr.ok td { background: #f1f8f4; }
+        }
     </style>
 </head>
 <body>
 
 <header>
-    <span class="header-credit">Programmiert von Robert Trusch · v5</span>
+    <span class="header-credit">Programmiert von Robert Trusch · v6</span>
     <h1>🐰 Kaninchen-Futterplan</h1>
     <p>1. Juli – 29. Juli 2026 · Eintragen &amp; abstimmen</p>
 </header>
@@ -372,12 +398,23 @@
     </section>
 
     <section class="card">
+        <h2>Drucken &amp; Erinnerung</h2>
+        <p class="hint">Übersicht ausdrucken oder nur <strong>deine</strong> Fütter-Tage in Handy-Kalender (Google, Apple, Outlook).</p>
+        <div class="row">
+            <button type="button" class="btn-print" id="btn-print">🖨️ Übersicht drucken</button>
+            <button type="button" class="btn-cal" id="btn-calendar">📅 Meine Termine speichern</button>
+        </div>
+    </section>
+
+    <section class="card">
         <details class="help">
             <summary>Kurzanleitung</summary>
-            <p style="margin-top:10px">Name speichern → Tag im Kalender → <strong>Ich kann füttern</strong> → fertig. Ändern unter „Deine Einträge bearbeiten“.</p>
+            <p style="margin-top:10px">Name speichern → Tag → <strong>Ich kann füttern</strong>. Drucken: Gesamtübersicht. Kalender: nur deine Termine (.ics Datei öffnen).</p>
         </details>
     </section>
 </div>
+
+<div id="printArea" aria-hidden="true"></div>
 
 <div id="day-overlay" class="overlay" aria-hidden="true">
     <div class="sheet" role="dialog" aria-labelledby="sheet-title">
@@ -391,7 +428,7 @@
 
 <script>
 (function () {
-    const APP_VERSION = 5;
+    const APP_VERSION = 6;
     const FIREBASE_URL = 'https://tresch-versand-default-rtdb.firebaseio.com/kaninchen_futter_2026.json';
     const STORAGE_ID = 'kaninchen_user_id';
     const STORAGE_NAME = 'kaninchen_user_name';
@@ -433,7 +470,10 @@
         okTitle: document.getElementById('ok-title'),
         myEntriesCard: document.getElementById('my-entries-card'),
         myDaysList: document.getElementById('my-days-list'),
-        clearAllDays: document.getElementById('clear-all-days')
+        clearAllDays: document.getElementById('clear-all-days'),
+        printArea: document.getElementById('printArea'),
+        btnPrint: document.getElementById('btn-print'),
+        btnCalendar: document.getElementById('btn-calendar')
     };
 
     function dateKey(day) {
@@ -650,7 +690,7 @@
             state = normalizeState(data);
             syncUserIdentity();
             useLocalOnly = false;
-            showStatus('Liste aktuell (Version ' + APP_VERSION + '). Zum Bearbeiten: Name speichern, dann „Deine Einträge“.', 'ok');
+            showStatus('Liste aktuell (v' + APP_VERSION + '). Drucken & Kalender unten.', 'ok');
             renderAll();
             return true;
         } catch (e) {
@@ -882,6 +922,13 @@
             remove.textContent = 'Abmelden';
             remove.addEventListener('click', function () { removeMyDay(item.key); });
             actions.appendChild(remove);
+            const calBtn = document.createElement('button');
+            calBtn.type = 'button';
+            calBtn.className = 'btn-cal';
+            calBtn.textContent = '📅';
+            calBtn.title = 'In meinen Kalender';
+            calBtn.addEventListener('click', function () { saveSingleDayToCalendar(item.day); });
+            actions.appendChild(calBtn);
             li.appendChild(label);
             li.appendChild(actions);
             el.myDaysList.appendChild(li);
@@ -932,6 +979,156 @@
         return d.innerHTML;
     }
 
+    function formatIcsDate(day) {
+        const m = String(MONTH + 1).padStart(2, '0');
+        const d = String(day).padStart(2, '0');
+        return '' + YEAR + m + d;
+    }
+
+    function icsStamp() {
+        return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z/, 'Z');
+    }
+
+    function foldIcsLine(line) {
+        return line.replace(/\r?\n/g, '\\n');
+    }
+
+    function buildPrintOverview() {
+        let rows = '';
+        for (let day = DAY_START; day <= DAY_END; day++) {
+            const key = dateKey(day);
+            const st = dayStatus(key);
+            const info = dayData(key);
+            const feeder = getFeederName(key);
+            const candidates = info.volunteers.map(function (id) { return getPersonName(id); }).join(', ');
+            let status = 'Offen';
+            let wer = '—';
+            if (st === 'ok') {
+                status = 'Besetzt';
+                wer = feeder || '—';
+            } else if (st === 'unclear') {
+                status = 'Unklar';
+                wer = candidates || '—';
+            }
+            rows += '<tr class="' + st + '"><td>' + escapeHtml(dayLabelShort(day)) + '</td><td><strong>' +
+                escapeHtml(wer) + '</strong></td><td>' + escapeHtml(status) + '</td><td>' +
+                escapeHtml(candidates || '—') + '</td></tr>';
+        }
+        const now = new Date().toLocaleString('de-DE');
+        return '<h1>🐰 Kaninchen-Futterplan Juli ' + YEAR + '</h1>' +
+            '<p class="print-meta">1.7.–29.7.' + YEAR + ' · Stand: ' + escapeHtml(now) + '</p>' +
+            '<table><thead><tr><th>Tag</th><th>Füttert</th><th>Status</th><th>Gemeldet</th></tr></thead><tbody>' +
+            rows + '</tbody></table>' +
+            '<p class="print-meta" style="margin-top:10px">Programmiert von Robert Trusch</p>';
+    }
+
+    function printOverview() {
+        if (!el.printArea) return;
+        el.printArea.innerHTML = buildPrintOverview();
+        window.print();
+    }
+
+    function getMyFeedingDays() {
+        syncUserIdentity();
+        const id = userId;
+        if (!id) return [];
+        const list = [];
+        for (let day = DAY_START; day <= DAY_END; day++) {
+            const key = dateKey(day);
+            if (getFeederId(key) === id) list.push(day);
+        }
+        return list;
+    }
+
+    function buildIcsForDays(days, titlePrefix) {
+        const lines = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//Robert Trusch//Kaninchen-Futterplan//DE',
+            'CALSCALE:GREGORIAN',
+            'METHOD:PUBLISH'
+        ];
+        const stamp = icsStamp();
+        days.forEach(function (day) {
+            const uid = 'kaninchen-' + YEAR + '-' + day + '-' + (userId || 'x') + '@tresch';
+            const start = formatIcsDate(day);
+            const endDay = day + 1;
+            const endM = MONTH;
+            const endY = YEAR;
+            let endD = endDay;
+            let endMo = endM;
+            if (endD > DAY_END) {
+                endD = DAY_END + 1;
+                endMo = endM + 1;
+            }
+            const end = '' + endY + String(endMo + 1).padStart(2, '0') + String(endD).padStart(2, '0');
+            const label = formatDateLabel(day);
+            lines.push('BEGIN:VEVENT');
+            lines.push('UID:' + uid);
+            lines.push('DTSTAMP:' + stamp);
+            lines.push('DTSTART;VALUE=DATE:' + start);
+            lines.push('DTEND;VALUE=DATE:' + end);
+            lines.push('SUMMARY:' + foldIcsLine(titlePrefix + ' – ' + label));
+            lines.push('DESCRIPTION:' + foldIcsLine('Kaninchen füttern (Futterplan Juli ' + YEAR + ')'));
+            lines.push('TRANSP:TRANSPARENT');
+            lines.push('BEGIN:VALARM');
+            lines.push('TRIGGER:-PT9H');
+            lines.push('ACTION:DISPLAY');
+            lines.push('DESCRIPTION:Kaninchen füttern');
+            lines.push('END:VALARM');
+            lines.push('END:VEVENT');
+        });
+        lines.push('END:VCALENDAR');
+        return lines.join('\r\n');
+    }
+
+    function downloadIcs(filename, content) {
+        const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function saveMyDaysToCalendar() {
+        if (!userName.trim()) {
+            alert('Bitte zuerst deinen Namen speichern.');
+            el.name.focus();
+            return;
+        }
+        syncUserIdentity();
+        const days = getMyFeedingDays();
+        if (!days.length) {
+            const volDays = [];
+            for (let d = DAY_START; d <= DAY_END; d++) {
+                const key = dateKey(d);
+                if (dayData(key).volunteers.includes(userId)) volDays.push(d);
+            }
+            if (!volDays.length) {
+                alert('Du bist noch an keinem Tag als Fütterer eingetragen.\n\nTipp: Im Kalender „Ich kann füttern“ und ggf. „Ich füttere“ wählen.');
+                return;
+            }
+            if (!confirm('Du bist noch nicht überall als Fütterer eingetragen.\n\nSollen alle deine gemeldeten Tage (' + volDays.length + ') in den Kalender?')) return;
+            const ics = buildIcsForDays(volDays, 'Kaninchen (gemeldet)');
+            downloadIcs('kaninchen-meine-tage.ics', ics);
+            showStatus(volDays.length + ' Termine gespeichert – Datei öffnen → In Kalender importieren.', 'ok');
+            return;
+        }
+        const ics = buildIcsForDays(days, 'Kaninchen füttern');
+        downloadIcs('kaninchen-futter-' + YEAR + '.ics', ics);
+        showStatus(days.length + ' Erinnerung(en) – Datei öffnen und „Zum Kalender hinzufügen“ wählen.', 'ok');
+    }
+
+    function saveSingleDayToCalendar(day) {
+        const ics = buildIcsForDays([day], 'Kaninchen füttern');
+        downloadIcs('kaninchen-' + day + '-7.ics', ics);
+        showStatus('Termin gespeichert – Datei öffnen → Kalender.', 'ok');
+    }
+
     function openDaySheet(key) {
         selectedDate = key;
         const parts = key.split('-');
@@ -956,6 +1153,19 @@
 
         if (el.sheetExtra) {
             el.sheetExtra.innerHTML = '';
+            if (mine) {
+                const calRow = document.createElement('button');
+                calRow.type = 'button';
+                calRow.className = 'btn-cal';
+                calRow.style.width = '100%';
+                calRow.style.marginTop = '10px';
+                calRow.textContent = '📅 Diesen Tag in meinen Kalender';
+                calRow.addEventListener('click', function () {
+                    saveSingleDayToCalendar(day);
+                    closeSheet();
+                });
+                el.sheetExtra.appendChild(calRow);
+            }
             if (st === 'unclear' && info.volunteers.length > 0) {
                 const wrap = document.createElement('details');
                 wrap.style.marginTop = '12px';
@@ -1049,6 +1259,8 @@
     });
 
     if (el.refreshBtn) el.refreshBtn.addEventListener('click', loadState);
+    if (el.btnPrint) el.btnPrint.addEventListener('click', printOverview);
+    if (el.btnCalendar) el.btnCalendar.addEventListener('click', saveMyDaysToCalendar);
 
     if (el.clearAllDays) {
         el.clearAllDays.addEventListener('click', function () {
