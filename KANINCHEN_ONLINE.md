@@ -4,9 +4,9 @@
 
 | Thema | Kombi-App (Logistik/Rechner) | Kaninchen-Seite |
 |--------|------------------------------|-----------------|
-| Datei | `index.html`, `script.js`, … | nur `kaninchen.html` (~30 KB) |
+| Datei | `index.html`, `script.js`, … | `kaninchen/` (eigener Ordner, getrennte PWA) |
 | App-Update / Version | `app-update.json`, `app-version.json` | **wird nicht angefasst** |
-| Handy-Cache / Service Worker | `sw.js` | eigener `kaninchen-sw.js` (nur Netzwerk, **löscht keine Daten**) |
+| Handy-Cache / Service Worker | `sw.js` | `kaninchen/sw.js` (eigener Scope, **löscht keine Daten**) |
 | Firebase | `/backup` (Lieferdaten) | `/kaninchen_futter_2026` (eigener Pfad) |
 | Traffic / „Volumen“ | nur wenn jemand die App öffnet | nur wenn jemand den Kaninchen-Link öffnet |
 
@@ -18,7 +18,7 @@ Die Kombi-App läuft weiter wie bisher. Eine extra HTML-Datei im gleichen GitHub
 
 **URL nach dem Upload:**
 
-https://truschi84-dot.github.io/versand/kaninchen.html
+https://truschi84-dot.github.io/versand/kaninchen/
 
 **Nur die Kaninchen-Seite hochladen** (ohne `-BumpVersion`, ohne `publish-github.ps1`):
 
@@ -42,7 +42,7 @@ WhatsApp-Link zum Teilen: dieselbe URL oben.
 - **Nicht** `kaninchen.html` in `index.html` einbinden  
   → die Kombi-App lädt sie nicht mit.
 - **Nicht** Kaninchen in `sw.js` (Kombi) einbauen  
-  → stattdessen nur `kaninchen-sw.js` (kein Cache-Löschen, Firebase/localStorage unberührt).
+  → eigener Ordner `kaninchen/` mit eigenem Manifest & SW (getrenntes App-Icon vom Firmenlogo).
 - **Nicht** den Kaninchen-Pfad unter `/backup` speichern  
   → eigener Pfad `kaninchen_futter_2026` (siehe unten).
 

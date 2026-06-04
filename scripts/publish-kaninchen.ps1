@@ -9,7 +9,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 
 Push-Location $Root
 try {
-    $files = @("kaninchen.html", "kaninchen.webmanifest", "kaninchen-sw.js", "KANINCHEN_ONLINE.md")
+    $files = @("kaninchen.html", "kaninchen/index.html", "kaninchen/manifest.webmanifest", "kaninchen/sw.js", "KANINCHEN_ONLINE.md")
     foreach ($f in $files) {
         if (-not (Test-Path (Join-Path $Root $f))) {
             throw "Fehlt: $f"
@@ -19,17 +19,17 @@ try {
     if (-not $PushToGitHub) {
         Write-Host ""
         Write-Host "=== Kaninchen - nur lokal / Vorschau ==="
-        Write-Host "Browser: http://localhost:8080/kaninchen.html"
+        Write-Host "Browser: http://localhost:8080/kaninchen/"
         Write-Host ""
         Write-Host "Online:"
         Write-Host '  publish-kaninchen.ps1 -PushToGitHub -Message "Kaninchen online"'
         Write-Host ""
         Write-Host "Live-URL:"
-        Write-Host "  https://truschi84-dot.github.io/versand/kaninchen.html"
+        Write-Host "  https://truschi84-dot.github.io/versand/kaninchen/"
         exit 0
     }
 
-    git add kaninchen.html kaninchen.webmanifest kaninchen-sw.js KANINCHEN_ONLINE.md scripts/publish-kaninchen.ps1 scripts/generate-kaninchen-icons.ps1 icons/kaninchen-icon-*.png
+    git add kaninchen.html kaninchen/ KANINCHEN_ONLINE.md scripts/publish-kaninchen.ps1 scripts/generate-kaninchen-icons.ps1 icons/kaninchen-icon-*.png manifest.webmanifest index.html
     $status = git status --porcelain
     if (-not $status) {
         Write-Host "Nichts zu committen."
@@ -42,7 +42,7 @@ try {
     git push origin main
     Write-Host ""
     Write-Host "WhatsApp-Link:"
-    Write-Host "  https://truschi84-dot.github.io/versand/kaninchen.html"
+    Write-Host "  https://truschi84-dot.github.io/versand/kaninchen/"
     Write-Host "Kombi-App bleibt unveraendert."
 } finally {
     Pop-Location
