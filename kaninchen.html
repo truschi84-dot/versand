@@ -8,6 +8,9 @@
     <meta property="og:title" content="Kaninchen-Futterplan Juli">
     <meta property="og:description" content="Eintragen und abstimmen: Wer füttert die Kaninchen?">
     <meta name="theme-color" content="#2e7d32">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta name="kaninchen-build" content="4">
     <style>
         :root {
             --primary: #2e7d32;
@@ -315,7 +318,7 @@
 <body>
 
 <header>
-    <span class="header-credit">Programmiert von Robert Trusch</span>
+    <span class="header-credit">Programmiert von Robert Trusch · v4</span>
     <h1>🐰 Kaninchen-Futterplan</h1>
     <p>1. Juli – 29. Juli 2026 · Eintragen &amp; abstimmen</p>
 </header>
@@ -342,7 +345,7 @@
         </div>
     </section>
 
-    <section class="card" id="my-entries-card" hidden>
+    <section class="card" id="my-entries-card">
         <h2>Deine Einträge bearbeiten</h2>
         <p class="hint">Nur deine eigenen Meldungen – jeder sieht alle, ändert aber nur das Seine.</p>
         <ul id="my-days-list" class="my-days-list"></ul>
@@ -388,6 +391,7 @@
 
 <script>
 (function () {
+    const APP_VERSION = 4;
     const FIREBASE_URL = 'https://tresch-versand-default-rtdb.firebaseio.com/kaninchen_futter_2026.json';
     const STORAGE_ID = 'kaninchen_user_id';
     const STORAGE_NAME = 'kaninchen_user_name';
@@ -468,9 +472,34 @@
         el.syncStatus.className = 'status-bar show ' + (type || 'ok');
     }
 
+    function normalizeName(name) {
+        return name.trim().toLowerCase()
+            .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss');
+    }
+
+    function findPersonIdByName(name) {
+        const target = normalizeName(name);
+        if (!target) return null;
+        const people = state.people || {};
+        for (const id in people) {
+            if (people[id].name && normalizeName(people[id].name) === target) return id;
+        }
+        return null;
+    }
+
+    function syncUserIdentity() {
+        if (!userName.trim()) return;
+        const existing = findPersonIdByName(userName);
+        if (existing) {
+            userId = existing;
+            localStorage.setItem(STORAGE_ID, userId);
+        }
+    }
+
     function ensureUserId() {
         if (!userId) {
-            userId = 'u_' + Math.random().toString(36).slice(2, 12);
+            const byName = userName ? findPersonIdByName(userName) : null;
+            userId = byName || ('u_' + Math.random().toString(36).slice(2, 12));
             localStorage.setItem(STORAGE_ID, userId);
         }
         return userId;
@@ -619,13 +648,15 @@
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             state = normalizeState(data);
+            syncUserIdentity();
             useLocalOnly = false;
-            showStatus('Liste ist aktuell (alle sehen dieselben Daten).', 'ok');
+            showStatus('Liste aktuell (Version ' + APP_VERSION + '). Zum Bearbeiten: Name speichern, dann „Deine Einträge“.', 'ok');
             renderAll();
             return true;
         } catch (e) {
             useLocalOnly = true;
             state = loadLocalState();
+            syncUserIdentity();
             showStatus('Offline – nur auf diesem Gerät. Bitte Internet prüfen und ↻ tippen.', 'warn');
             renderAll();
             return false;
@@ -658,13 +689,19 @@
     }
 
     function registerPerson(name) {
-        const id = ensureUserId();
         const trimmed = name.trim();
         if (!trimmed) return null;
-        state.people[id] = { name: trimmed, updated: Date.now() };
+        const existing = findPersonIdByName(trimmed);
+        if (existing) {
+            userId = existing;
+            localStorage.setItem(STORAGE_ID, userId);
+        } else {
+            ensureUserId();
+        }
+        state.people[userId] = { name: trimmed, updated: Date.now() };
         userName = trimmed;
         localStorage.setItem(STORAGE_NAME, userName);
-        return id;
+        return userId;
     }
 
     function getPersonName(id) {
@@ -784,20 +821,32 @@
             if (el.okEmpty) el.okEmpty.hidden = okDays.length > 0;
             okDays.forEach(function (item) {
                 const feeder = getFeederName(item.key);
+                const mine = userId && dayData(item.key).volunteers.includes(userId);
                 const li = document.createElement('li');
-                li.innerHTML = '<span><strong>' + escapeHtml(item.label) + '</strong> · Füttert: <span class="feeder-badge">' + escapeHtml(feeder || '?') + '</span></span>';
+                const span = document.createElement('span');
+                span.innerHTML = '<strong>' + escapeHtml(item.label) + '</strong> · Füttert: <span class="feeder-badge">' + escapeHtml(feeder || '?') + '</span>';
+                li.appendChild(span);
+                if (mine) {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'btn-ghost';
+                    b.textContent = 'Bearbeiten';
+                    b.addEventListener('click', function () { openDaySheet(item.key); });
+                    li.appendChild(b);
+                }
                 el.listOk.appendChild(li);
             });
         }
     }
 
     function renderMyEntries() {
-        const id = ensureUserId();
         if (!el.myDaysList || !el.myEntriesCard) return;
         if (!userName.trim()) {
             el.myEntriesCard.hidden = true;
             return;
         }
+        syncUserIdentity();
+        const id = ensureUserId();
         el.myEntriesCard.hidden = false;
         const myDays = [];
         for (let day = DAY_START; day <= DAY_END; day++) {
@@ -1026,9 +1075,7 @@
     }
 
     el.name.value = userName;
-    el.name.addEventListener('input', function () {
-        if (userName.trim() && el.myEntriesCard) el.myEntriesCard.hidden = false;
-    });
+    if (userName.trim() && el.myEntriesCard) el.myEntriesCard.hidden = false;
 
     loadState();
     if (location.protocol !== 'file:') {
