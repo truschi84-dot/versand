@@ -6,7 +6,7 @@
 |--------|------------------------------|-----------------|
 | Datei | `index.html`, `script.js`, … | nur `kaninchen.html` (~30 KB) |
 | App-Update / Version | `app-update.json`, `app-version.json` | **wird nicht angefasst** |
-| Handy-Cache / Service Worker | `sw.js` | **kein** Service Worker |
+| Handy-Cache / Service Worker | `sw.js` | eigener `kaninchen-sw.js` (nur Netzwerk, **löscht keine Daten**) |
 | Firebase | `/backup` (Lieferdaten) | `/kaninchen_futter_2026` (eigener Pfad) |
 | Traffic / „Volumen“ | nur wenn jemand die App öffnet | nur wenn jemand den Kaninchen-Link öffnet |
 
@@ -31,14 +31,18 @@ Das Skript committet **nur** `kaninchen.html` und `KANINCHEN_ONLINE.md` – **ni
 
 WhatsApp-Link zum Teilen: dieselbe URL oben.
 
+**App installieren:** In der Seite unten „App aufs Handy“ – Android: „App installieren“; iPhone: Safari → Teilen → Zum Home-Bildschirm. **Einträge in der Cloud bleiben** beim Installieren.
+
 ---
 
 ## Was ihr NICHT tun solltet (damit die App ruhig bleibt)
 
 - **Nicht** `publish-github.ps1 -BumpVersion` nur wegen der Kaninchen-Seite  
   → sonst steigt `webVersion` und Kollegen bekommen ein App-Update angeboten.
-- **Nicht** `kaninchen.html` in `sw.js` oder `index.html` einbinden  
+- **Nicht** `kaninchen.html` in `index.html` einbinden  
   → die Kombi-App lädt sie nicht mit.
+- **Nicht** Kaninchen in `sw.js` (Kombi) einbauen  
+  → stattdessen nur `kaninchen-sw.js` (kein Cache-Löschen, Firebase/localStorage unberührt).
 - **Nicht** den Kaninchen-Pfad unter `/backup` speichern  
   → eigener Pfad `kaninchen_futter_2026` (siehe unten).
 

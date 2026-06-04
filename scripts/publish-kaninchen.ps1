@@ -9,7 +9,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 
 Push-Location $Root
 try {
-    $files = @("kaninchen.html", "KANINCHEN_ONLINE.md")
+    $files = @("kaninchen.html", "kaninchen.webmanifest", "kaninchen-sw.js", "KANINCHEN_ONLINE.md")
     foreach ($f in $files) {
         if (-not (Test-Path (Join-Path $Root $f))) {
             throw "Fehlt: $f"
@@ -29,7 +29,7 @@ try {
         exit 0
     }
 
-    git add kaninchen.html KANINCHEN_ONLINE.md scripts/publish-kaninchen.ps1
+    git add kaninchen.html kaninchen.webmanifest kaninchen-sw.js KANINCHEN_ONLINE.md scripts/publish-kaninchen.ps1
     $status = git status --porcelain
     if (-not $status) {
         Write-Host "Nichts zu committen."
