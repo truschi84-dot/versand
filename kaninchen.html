@@ -17,7 +17,7 @@
     <link rel="apple-touch-icon" href="icons/app-icon-180.png">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
-    <meta name="kaninchen-build" content="7">
+    <meta name="kaninchen-build" content="8">
     <style>
         :root {
             --primary: #2e7d32;
@@ -271,6 +271,20 @@
         }
         #pwa-install-btn { width: 100%; margin-top: 10px; background: var(--accent); color: #fff; }
         #pwa-install-btn[hidden] { display: none !important; }
+        .news-sheet .news-list { margin: 12px 0 16px; padding-left: 1.15rem; font-size: 0.9rem; }
+        .news-sheet .news-list li { margin-bottom: 10px; }
+        .news-sheet .news-badge {
+            display: inline-block;
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            letter-spacing: 0.03em;
+        }
+        .btn-news-ok { width: 100%; background: var(--primary); color: #fff; padding: 14px; font-size: 1rem; }
         code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; word-break: break-all; }
         .open-hint { border-color: #90caf9; background: #e3f2fd; }
         .open-hint h2 { color: #1565c0; }
@@ -367,7 +381,7 @@
 <body>
 
 <header>
-    <span class="header-credit">Programmiert von Robert Trusch · v7</span>
+    <span class="header-credit">Programmiert von Robert Trusch · v8</span>
     <h1>🐰 Kaninchen-Futterplan</h1>
     <p>1. Juli – 29. Juli 2026 · Eintragen &amp; abstimmen</p>
 </header>
@@ -472,9 +486,24 @@
     </div>
 </div>
 
+<div id="news-overlay" class="overlay" aria-hidden="true">
+    <div class="sheet news-sheet" role="dialog" aria-labelledby="news-title">
+        <span class="news-badge">NEU · Version 8</span>
+        <h3 id="news-title">🐰 Was ist neu?</h3>
+        <p class="sub">Dieses Fenster erscheint nur einmal pro Gerät.</p>
+        <ul class="news-list">
+            <li><strong>App aufs Handy:</strong> Android kann die Seite als eigene App installieren; iPhone über Safari → Zum Home-Bildschirm.</li>
+            <li><strong>Deine Daten bleiben:</strong> Alle Einträge in der Cloud und dein Name auf dem Handy gehen beim Installieren <em>nicht</em> verloren.</li>
+            <li><strong>Anleitung in der App:</strong> Unten der Abschnitt „App aufs Handy“ mit Schritt-für-Schritt für Android &amp; iPhone.</li>
+        </ul>
+        <button type="button" class="btn-news-ok" id="news-ok">Alles klar</button>
+    </div>
+</div>
+
 <script>
 (function () {
-    const APP_VERSION = 7;
+    const APP_VERSION = 8;
+    const NEWS_SEEN_KEY = 'kaninchen_news_seen_' + APP_VERSION;
     const FIREBASE_URL = 'https://tresch-versand-default-rtdb.firebaseio.com/kaninchen_futter_2026.json';
     const STORAGE_ID = 'kaninchen_user_id';
     const STORAGE_NAME = 'kaninchen_user_name';
@@ -1361,8 +1390,39 @@
         }
     }
 
+    function closeNewsPopup() {
+        var ov = document.getElementById('news-overlay');
+        if (!ov) return;
+        ov.classList.remove('open');
+        ov.setAttribute('aria-hidden', 'true');
+    }
+
+    function initNewsPopupOnce() {
+        if (localStorage.getItem(NEWS_SEEN_KEY)) return;
+        var ov = document.getElementById('news-overlay');
+        var okBtn = document.getElementById('news-ok');
+        if (!ov || !okBtn) return;
+
+        function dismiss() {
+            localStorage.setItem(NEWS_SEEN_KEY, '1');
+            closeNewsPopup();
+        }
+
+        okBtn.addEventListener('click', dismiss);
+        ov.addEventListener('click', function (e) {
+            if (e.target === ov) dismiss();
+        });
+
+        setTimeout(function () {
+            if (localStorage.getItem(NEWS_SEEN_KEY)) return;
+            ov.classList.add('open');
+            ov.setAttribute('aria-hidden', 'false');
+        }, 400);
+    }
+
     loadState();
     initPwaInstall();
+    initNewsPopupOnce();
     if (location.protocol !== 'file:') {
         pollTimer = setInterval(loadState, 8000);
     }
