@@ -10,7 +10,7 @@
     <meta name="theme-color" content="#2e7d32">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
-    <meta name="kaninchen-build" content="4">
+    <meta name="kaninchen-build" content="5">
     <style>
         :root {
             --primary: #2e7d32;
@@ -318,7 +318,7 @@
 <body>
 
 <header>
-    <span class="header-credit">Programmiert von Robert Trusch · v4</span>
+    <span class="header-credit">Programmiert von Robert Trusch · v5</span>
     <h1>🐰 Kaninchen-Futterplan</h1>
     <p>1. Juli – 29. Juli 2026 · Eintragen &amp; abstimmen</p>
 </header>
@@ -354,7 +354,7 @@
 
     <section class="card">
         <h2>Kalender</h2>
-        <p class="hint">Rot = noch niemand · Gelb = unklar · Grün = Fütterer steht fest. Tippen zum Bearbeiten.</p>
+        <p class="hint">Tag antippen → <strong>Ich kann füttern</strong> → fertig (Fenster schließt von selbst).</p>
         <div id="calendar" class="calendar" aria-label="Kalender Juli 2026"></div>
         <div class="legend">
             <span><i style="background:#ffebee;border:2px solid #ef5350"></i> Offen</span>
@@ -374,7 +374,7 @@
     <section class="card">
         <details class="help">
             <summary>Kurzanleitung</summary>
-            <p style="margin-top:10px">Name speichern → Kalender antippen → bei Bedarf „Ich füttere“ oder abstimmen → unten „Wer füttert wann“ prüfen. Änderungen jederzeit unter „Deine Einträge bearbeiten“.</p>
+            <p style="margin-top:10px">Name speichern → Tag im Kalender → <strong>Ich kann füttern</strong> → fertig. Ändern unter „Deine Einträge bearbeiten“.</p>
         </details>
     </section>
 </div>
@@ -384,14 +384,14 @@
         <button type="button" class="sheet-close" id="close-sheet" aria-label="Schließen">×</button>
         <h3 id="sheet-title">Tag</h3>
         <p class="sub" id="sheet-sub"></p>
-        <button type="button" class="btn-toggle" id="toggle-self">Ich kann an diesem Tag füttern</button>
-        <div id="sheet-people"></div>
+        <button type="button" class="btn-toggle" id="toggle-self">Ich kann füttern</button>
+        <div id="sheet-extra"></div>
     </div>
 </div>
 
 <script>
 (function () {
-    const APP_VERSION = 4;
+    const APP_VERSION = 5;
     const FIREBASE_URL = 'https://tresch-versand-default-rtdb.firebaseio.com/kaninchen_futter_2026.json';
     const STORAGE_ID = 'kaninchen_user_id';
     const STORAGE_NAME = 'kaninchen_user_name';
@@ -421,7 +421,7 @@
         overlay: document.getElementById('day-overlay'),
         sheetTitle: document.getElementById('sheet-title'),
         sheetSub: document.getElementById('sheet-sub'),
-        sheetPeople: document.getElementById('sheet-people'),
+        sheetExtra: document.getElementById('sheet-extra'),
         toggleSelf: document.getElementById('toggle-self'),
         closeSheet: document.getElementById('close-sheet'),
         refreshBtn: document.getElementById('refresh-btn'),
@@ -711,11 +711,6 @@
 
     function toggleVolunteer(dateKeyStr) {
         const id = ensureUserId();
-        if (!userName.trim()) {
-            alert('Bitte zuerst deinen Namen speichern.');
-            el.name.focus();
-            return;
-        }
         registerPerson(userName);
         const day = dayData(dateKeyStr);
         const idx = day.volunteers.indexOf(id);
@@ -727,7 +722,7 @@
             day.volunteers.push(id);
         }
         writeDay(dateKeyStr, day);
-        saveState().then(() => renderAll());
+        return saveState().then(function () { renderAll(); });
     }
 
     function voteFor(dateKeyStr, targetId) {
@@ -753,10 +748,7 @@
         day.votes[voterKey] = targetId;
 
         writeDay(dateKeyStr, day);
-        saveState().then(() => {
-            renderAll();
-            if (selectedDate === dateKeyStr) openDaySheet(selectedDate);
-        });
+        return saveState().then(function () { renderAll(); });
     }
 
     function myVoteForDay(dateKeyStr) {
@@ -945,81 +937,65 @@
         const parts = key.split('-');
         const day = parseInt(parts[2], 10);
         const info = dayData(key);
+        syncUserIdentity();
         const mine = userId && info.volunteers.includes(userId);
-
         const st = dayStatus(key);
         const feederId = getFeederId(key);
 
         el.sheetTitle.textContent = formatDateLabel(day);
-        if (st === 'offen') {
-            el.sheetSub.textContent = '⚠️ Noch niemand für diesen Tag – bitte eintragen!';
+        if (st === 'ok') {
+            el.sheetSub.textContent = 'Füttert: ' + getFeederName(key);
         } else if (st === 'unclear') {
-            el.sheetSub.textContent = '❓ Mehrere können – abstimmen oder „Ich füttere“ wählen.';
+            el.sheetSub.textContent = 'Mehrere können – unten optional abstimmen.';
         } else {
-            el.sheetSub.textContent = '✓ Füttert: ' + getFeederName(key) + ' (für alle sichtbar)';
+            el.sheetSub.textContent = 'Noch niemand – einfach „Ich kann füttern“ tippen.';
         }
 
-        el.toggleSelf.textContent = mine
-            ? '✓ Gemeldet – tippen zum Abmelden (Eintrag bearbeiten)'
-            : 'Ich kann an diesem Tag füttern';
-        el.toggleSelf.className = 'btn-toggle' + (mine ? '' : ' off');
+        el.toggleSelf.textContent = mine ? 'Abmelden' : 'Ich kann füttern';
+        el.toggleSelf.className = 'btn-toggle' + (mine ? ' off' : '');
 
-        el.sheetPeople.innerHTML = '';
-        if (!info.volunteers.length) {
-            el.sheetPeople.innerHTML = '<p class="hint" style="margin-top:12px">Melde dich an, wenn du an diesem Tag füttern kannst.</p>';
-        } else {
-            if (mine) {
-                const claimBtn = document.createElement('button');
-                claimBtn.type = 'button';
-                claimBtn.className = 'btn-claim' + (feederId === userId ? ' active' : '');
-                claimBtn.textContent = feederId === userId
-                    ? '✓ Du bist als Fütterer eingetragen'
-                    : 'Ich füttere an diesem Tag (übernehmen)';
-                claimBtn.addEventListener('click', function () {
-                    if (feederId === userId && dayData(key).feeder === userId) {
-                        clearExplicitFeeder(key);
-                    } else {
-                        setExplicitFeeder(key, userId);
-                    }
+        if (el.sheetExtra) {
+            el.sheetExtra.innerHTML = '';
+            if (st === 'unclear' && info.volunteers.length > 0) {
+                const wrap = document.createElement('details');
+                wrap.style.marginTop = '12px';
+                wrap.innerHTML = '<summary style="cursor:pointer;font-weight:700;font-size:0.85rem">Wer kann sonst? (Abstimmen)</summary>';
+                const box = document.createElement('div');
+                box.style.marginTop = '8px';
+                const myVote = myVoteForDay(key);
+                info.volunteers.forEach(function (pid) {
+                    if (pid === userId) return;
+                    const row = document.createElement('div');
+                    row.className = 'person-row';
+                    row.innerHTML = '<div class="person-info"><b>' + escapeHtml(getPersonName(pid)) + '</b></div>';
+                    const voteBtn = document.createElement('button');
+                    voteBtn.type = 'button';
+                    voteBtn.className = 'btn-vote';
+                    voteBtn.textContent = myVote === pid ? '✓ Stimme' : 'Stimme';
+                    voteBtn.disabled = myVote === pid;
+                    voteBtn.addEventListener('click', function () {
+                        voteFor(key, pid).then(function () { closeSheet(); });
+                    });
+                    row.appendChild(voteBtn);
+                    box.appendChild(row);
                 });
-                el.sheetPeople.appendChild(claimBtn);
-            }
-            const myVote = myVoteForDay(key);
-            info.volunteers.forEach(function (pid) {
-                const votes = info.votes[pid] || 0;
-                const row = document.createElement('div');
-                row.className = 'person-row';
-                const av = document.createElement('div');
-                av.className = 'avatar';
-                av.style.background = colorForId(pid);
-                av.textContent = initials(getPersonName(pid));
-                const infoDiv = document.createElement('div');
-                infoDiv.className = 'person-info';
-                let role = '';
-                if (pid === feederId) role = '★ Füttert diesen Tag';
-                else if (pid === userId) role = 'Das bist du';
-                else if (myVote === pid) role = 'Deine Stimme';
-                else role = 'Kann füttern';
-                infoDiv.innerHTML = '<b>' + escapeHtml(getPersonName(pid)) + '</b><small>' + role + '</small>';
-                const chip = document.createElement('span');
-                chip.className = 'vote-chip';
-                chip.textContent = votes;
-                const voteBtn = document.createElement('button');
-                voteBtn.type = 'button';
-                voteBtn.className = 'btn-vote';
-                voteBtn.textContent = 'Stimme';
-                voteBtn.disabled = pid === userId;
-                if (myVote === pid) {
-                    voteBtn.textContent = '✓ Gewählt';
-                    voteBtn.disabled = true;
+                if (mine) {
+                    const claimBtn = document.createElement('button');
+                    claimBtn.type = 'button';
+                    claimBtn.className = 'btn-claim' + (feederId === userId ? ' active' : '');
+                    claimBtn.textContent = feederId === userId ? '✓ Du fütterst' : 'Ich füttere (übernehmen)';
+                    claimBtn.addEventListener('click', function () {
+                        if (feederId === userId && dayData(key).feeder === userId) {
+                            clearExplicitFeeder(key);
+                        } else {
+                            setExplicitFeeder(key, userId);
+                        }
+                    });
+                    box.insertBefore(claimBtn, box.firstChild);
                 }
-                voteBtn.addEventListener('click', function () { voteFor(key, pid); });
-                row.appendChild(av);
-                row.appendChild(infoDiv);
-                row.appendChild(chip);
-                if (pid !== userId) row.appendChild(voteBtn);
-                el.sheetPeople.appendChild(row);
-            });
+                wrap.appendChild(box);
+                el.sheetExtra.appendChild(wrap);
+            }
         }
 
         el.overlay.classList.add('open');
@@ -1054,11 +1030,17 @@
     });
 
     el.toggleSelf.addEventListener('click', function () {
+        if (!userName.trim()) {
+            alert('Bitte zuerst oben deinen Namen speichern.');
+            closeSheet();
+            el.name.focus();
+            return;
+        }
         if (!selectedDate) return;
-        toggleVolunteer(selectedDate);
-        setTimeout(function () {
-            if (selectedDate) openDaySheet(selectedDate);
-        }, 400);
+        const key = selectedDate;
+        toggleVolunteer(key).then(function () {
+            closeSheet();
+        });
     });
 
     el.closeSheet.addEventListener('click', closeSheet);
