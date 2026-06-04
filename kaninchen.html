@@ -13,11 +13,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Kaninchen">
     <link rel="manifest" href="kaninchen.webmanifest">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/app-icon-192.png">
-    <link rel="apple-touch-icon" href="icons/app-icon-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/kaninchen-icon-192.png">
+    <link rel="apple-touch-icon" href="icons/kaninchen-icon-180.png">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
-    <meta name="kaninchen-build" content="8">
+    <meta name="kaninchen-build" content="9">
     <style>
         :root {
             --primary: #2e7d32;
@@ -381,7 +381,7 @@
 <body>
 
 <header>
-    <span class="header-credit">Programmiert von Robert Trusch · v8</span>
+    <span class="header-credit">Programmiert von Robert Trusch · v9</span>
     <h1>🐰 Kaninchen-Futterplan</h1>
     <p>1. Juli – 29. Juli 2026 · Eintragen &amp; abstimmen</p>
 </header>
@@ -454,7 +454,7 @@
             <ol class="install-steps">
                 <li>Seite in <strong>Chrome</strong> öffnen (Link aus WhatsApp).</li>
                 <li>Oben auf <strong>„App installieren“</strong> tippen – oder Menü ⋮ → <strong>App installieren</strong> / <strong>Zum Startbildschirm hinzufügen</strong>.</li>
-                <li>App über das neue Icon starten (grünes Kaninchen-Symbol).</li>
+                <li>App über das neue <strong>Kaninchen-Icon</strong> starten (grüner Hintergrund mit Hase).</li>
             </ol>
             <p style="margin:10px 0 6px;font-weight:700;color:var(--primary-dark)">iPhone (Safari)</p>
             <ol class="install-steps">
@@ -502,7 +502,7 @@
 
 <script>
 (function () {
-    const APP_VERSION = 8;
+    const APP_VERSION = 9;
     const NEWS_SEEN_KEY = 'kaninchen_news_seen_' + APP_VERSION;
     const FIREBASE_URL = 'https://tresch-versand-default-rtdb.firebaseio.com/kaninchen_futter_2026.json';
     const STORAGE_ID = 'kaninchen_user_id';

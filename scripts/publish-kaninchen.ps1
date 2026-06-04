@@ -29,7 +29,7 @@ try {
         exit 0
     }
 
-    git add kaninchen.html kaninchen.webmanifest kaninchen-sw.js KANINCHEN_ONLINE.md scripts/publish-kaninchen.ps1
+    git add kaninchen.html kaninchen.webmanifest kaninchen-sw.js KANINCHEN_ONLINE.md scripts/publish-kaninchen.ps1 scripts/generate-kaninchen-icons.ps1 icons/kaninchen-icon-*.png
     $status = git status --porcelain
     if (-not $status) {
         Write-Host "Nichts zu committen."
