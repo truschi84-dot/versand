@@ -25,6 +25,7 @@ function Copy-WebAssets($projectRoot, $assetsRel) {
     if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
 
     $includeExt = @(".html", ".js", ".css", ".json", ".webmanifest", ".png", ".jpg", ".svg", ".ico", ".webp", ".woff", ".woff2")
+    $includeRootNames = @("html5-qrcode.min.js")
     $excludeNames = @(
         "deploy.config.json", "deploy.config.example.json",
         "server.js", "control test.html", "test-checklist.html",
@@ -37,7 +38,7 @@ function Copy-WebAssets($projectRoot, $assetsRel) {
     $count = 0
     Get-ChildItem -Path $Root -File | ForEach-Object {
         if ($excludeNames -contains $_.Name) { return }
-        if ($includeExt -notcontains $_.Extension.ToLower()) { return }
+        if ($includeRootNames -notcontains $_.Name -and $includeExt -notcontains $_.Extension.ToLower()) { return }
         Copy-Item -Path $_.FullName -Destination (Join-Path $dest $_.Name) -Force
         Write-Host "  + $($_.Name)"
         $count++

@@ -28,6 +28,12 @@ async function startBarcodeScanner(target = 'noelke', expectedType = null) {
 
     setTimeout(() => {
         try {
+            if (typeof Html5Qrcode === 'undefined') {
+                isScannerStarting = false;
+                showToast('Scanner-Bibliothek fehlt – App-Update prüfen oder Internet.', 'error');
+                stopBarcodeScanner();
+                return;
+            }
             const qrReader = document.getElementById('qr-reader');
             if (qrReader) qrReader.innerHTML = '';
             
