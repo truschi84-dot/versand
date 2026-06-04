@@ -7,8 +7,22 @@ const APP_CONFIG = {
     NOTIFICATION_URL: "https://formspree.io/f/xrejnkgq"
 };
 
-const APP_VERSION = "6.27";
-const APP_CHANGELOG = "<b>Was ist neu in 6.27?</b><br><br>• 📥 <b>Neues Leergutkonto:</b> Erfasse Paletten, Lagen, Einzelgebinde, Euro- und H1-Paletten übersichtlich im neuen Tab.<br>• 📦 <b>Sonderposten in Sortierung:</b> Sonderposten lassen sich jetzt analog zur LKW-Funktion auch in der Sortierung anlegen.<br>• 🔍 <b>Erweiterte Sonderposten:</b> Gemeinsam genutzte Vorlagen und ein neues optionales Feld für die Herkunft ('Von wem?').";
+const APP_VERSION = "7.1";
+/** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
+const WEB_BUILD_VERSION = 85;
+/** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
+const OFFICE_LAN_URL = 'http://192.168.2.204:8080';
+let pendingOtaUpdate = null;
+const APP_CHANGELOG = "<b>Was ist neu in 7.1?</b><br><br>• 📲 <b>OTA-Updates:</b> App kann sich von eurem Web-Server aktualisieren – keine neue APK für jedes HTML/JS-Update.<br>• 🎨 <b>Handy-Layout:</b> Scrollen und Safe-Area in der APK verbessert.";
+/** Fallback wenn App aus APK (file://). Bei HTTPS-Hosting: gleicher Server + /app-update.json */
+const OTA_CONFIG_URL = "https://tresch-versand-default-rtdb.firebaseio.com/app_config.json";
+
+function getOtaConfigUrl() {
+    if (location.protocol === 'https:' || location.protocol === 'http:') {
+        return location.origin + '/app-update.json';
+    }
+    return OTA_CONFIG_URL;
+}
 
 const AppStorage = {
     get: (key, defaultVal) => { try { const val = localStorage.getItem(key); return val ? JSON.parse(val) : defaultVal; } catch(e) { return defaultVal; } },
@@ -24,6 +38,22 @@ function getAppSetting(key, defaultVal) {
     return defaultVal;
 }
 
+const DEFAULT_LEERGUT_CONFIG = "E2:2.0, Herta:2.5, H1:18.0, Euro:21.0";
+
+/** WK2 nur in control test.html – in der Kombi-App wieder Herta-Standard */
+function sanitizeCompanyLeergut(company) {
+    if (!company || typeof company.leergut !== 'string') return false;
+    const raw = company.leergut.trim();
+    if (!/\bWK2\s*:/i.test(raw)) return false;
+    const parts = raw.split(',').map(s => s.trim()).filter(p => p && !/^WK2\s*:/i.test(p));
+    let result = parts.join(', ');
+    if (!/\bHerta\s*:/i.test(result) && /\bE2\s*:/i.test(result) && /\bH1\s*:/i.test(result)) {
+        result = result.replace(/^E2\s*:[^,]+/i, (m) => m + ', Herta:2.5');
+    }
+    company.leergut = result || DEFAULT_LEERGUT_CONFIG;
+    return true;
+}
+
 function getLeergutConfig() {
     try {
         const lDb = AppStorage.get('kombi_logistik_db', {});
@@ -34,12 +64,102 @@ function getLeergutConfig() {
             }).filter(lg => lg && lg.name && lg.weight > 0);
         }
     } catch(e) {}
-    return [
-        { id: 'lg_0', name: 'E2', weight: 2.0 },
-        { id: 'lg_1', name: 'Herta', weight: 2.5 },
-        { id: 'lg_2', name: 'H1', weight: 18.0 },
-        { id: 'lg_3', name: 'Euro', weight: 21.0 }
-    ];
+    return DEFAULT_LEERGUT_CONFIG.split(',').map((s, idx) => {
+        const parts = s.split(':');
+        return { id: 'lg_' + idx, name: parts[0].trim(), weight: parseFloat(parts[1]) || 0 };
+    }).filter(lg => lg.name && lg.weight > 0);
+}
+
+// ======================= DATEN-MIGRATION =======================
+function runDataMigration() {
+    const wk2Key = 'migration_remove_wk2_leergut_v1';
+    if (AppStorage.getRaw(wk2Key) !== 'done') {
+        let wkChanged = false;
+        const lDbWk = AppStorage.get('kombi_logistik_db', {});
+        if (lDbWk.company && sanitizeCompanyLeergut(lDbWk.company)) wkChanged = true;
+        if (wkChanged) AppStorage.set('kombi_logistik_db', lDbWk);
+
+        const rDbWk = AppStorage.get('kombi_rechner_db', {});
+        if (Array.isArray(rDbWk.entries)) {
+            rDbWk.entries.forEach((e) => {
+                if (!e.leergut || e.leergut.WK2 == null) return;
+                e.leergut.Herta = (e.leergut.Herta || 0) + (Number(e.leergut.WK2) || 0);
+                delete e.leergut.WK2;
+                wkChanged = true;
+            });
+            if (wkChanged) AppStorage.set('kombi_rechner_db', rDbWk);
+        }
+        AppStorage.setRaw(wk2Key, 'done');
+    }
+
+    const migrationKey = 'migration_sanitize_keys_v1';
+    if (AppStorage.getRaw(migrationKey) === 'done') {
+        return;
+    }
+
+    console.log("Führe Daten-Migration aus: Bereinige Daten-Schlüssel...");
+    let lDb = AppStorage.get('kombi_logistik_db', {});
+    if (!lDb || Object.keys(lDb).length === 0) {
+        AppStorage.setRaw(migrationKey, 'done');
+        return; // Nichts zu tun
+    }
+    
+    let changed = false;
+    const nameMap = new Map();
+
+    const sanitize = (name) => name.replace(/[.#$\[\]]/g, '').trim();
+
+    // 1. Mitarbeiter bereinigen und Map erstellen
+    if (lDb.workers && Array.isArray(lDb.workers)) {
+        const newWorkers = [];
+        lDb.workers.forEach(w => {
+            const sanitizedName = sanitize(w);
+            if (sanitizedName !== w) { nameMap.set(w, sanitizedName); changed = true; }
+            if (!newWorkers.includes(sanitizedName)) { newWorkers.push(sanitizedName); }
+        });
+        lDb.workers = newWorkers;
+    }
+
+    // 2. Lieferanten bereinigen und Map erstellen
+    if (lDb.suppliers && Array.isArray(lDb.suppliers)) {
+        const newSuppliers = [];
+        lDb.suppliers.forEach(s => {
+            const sanitizedName = sanitize(s);
+            if (sanitizedName !== s) { nameMap.set(s, sanitizedName); changed = true; }
+             if (!newSuppliers.includes(sanitizedName)) { newSuppliers.push(sanitizedName); }
+        });
+        lDb.suppliers = newSuppliers;
+    }
+    
+    if (!changed) { AppStorage.setRaw(migrationKey, 'done'); return; }
+
+    // 3. workerColors aktualisieren
+    if (lDb.workerColors) {
+        const newColors = {};
+        for (const oldName in lDb.workerColors) { newColors[nameMap.get(oldName) || oldName] = lDb.workerColors[oldName]; }
+        lDb.workerColors = newColors;
+    }
+
+    // 4. dailyAttendance aktualisieren
+    if (lDb.dailyAttendance) {
+        const newAttendance = {};
+        for (const date in lDb.dailyAttendance) {
+            newAttendance[date] = {};
+            for (const oldName in lDb.dailyAttendance[date]) { newAttendance[date][nameMap.get(oldName) || oldName] = lDb.dailyAttendance[date][oldName]; }
+        }
+        lDb.dailyAttendance = newAttendance;
+    }
+
+    // 5. deliveries (workerShares & delivery.name) aktualisieren
+    if (lDb.deliveries && Array.isArray(lDb.deliveries)) {
+        lDb.deliveries.forEach(delivery => {
+            if (delivery.workerShares && Array.isArray(delivery.workerShares)) { delivery.workerShares.forEach(share => { share.name = nameMap.get(share.name) || share.name; }); }
+            delivery.name = nameMap.get(delivery.name) || delivery.name;
+        });
+    }
+    
+    AppStorage.set('kombi_logistik_db', lDb); AppStorage.setRaw(migrationKey, 'done');
+    showToast("Datenbank wurde automatisch bereinigt!", "success");
 }
 
 // UI HELPER
@@ -147,12 +267,16 @@ function showPinProtection() {
 
 function promptCustomCloudUrl() {
     const current = localStorage.getItem('custom_cloud_url') || "";
-    const url = prompt("Lokale Server-Datenbank (Firebase URL):\nLeer lassen für den Tresch-Standard.", current);
-    if (url !== null) {
-        if (url.trim() === "") { localStorage.removeItem('custom_cloud_url'); showToast("Standard-Server wiederhergestellt.", "info"); }
-        else { localStorage.setItem('custom_cloud_url', url.trim()); showToast("Neuer Server gespeichert!", "success"); }
-        setTimeout(() => location.reload(), 1000);
-    }
+    document.getElementById('cloud-url-input').value = current;
+    document.getElementById('cloud-url-modal').style.display = 'flex';
+}
+
+window.saveCustomCloudUrl = function() {
+    const url = document.getElementById('cloud-url-input').value.trim();
+    if (url === "") { localStorage.removeItem('custom_cloud_url'); showToast("Standard-Server wiederhergestellt.", "info"); }
+    else { localStorage.setItem('custom_cloud_url', url); showToast("Neuer Server gespeichert!", "success"); }
+    document.getElementById('cloud-url-modal').style.display = 'none';
+    setTimeout(() => location.reload(), 1000);
 }
 
 // SWIPE LOGIK
@@ -165,7 +289,27 @@ document.addEventListener('pointerdown', (e) => {
     if (!swipeable || e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return; 
     isSwiping = true; swipeStartX = e.clientX; swipeStartY = e.clientY; swipeable.style.transition = 'none'; 
 });
-document.addEventListener('pointermove', (e) => { if (!isSwiping) return; const swipeable = e.target.closest('.swipeable'); if (!swipeable) return; const diffX = swipeStartX - e.clientX; const diffY = swipeStartY - e.clientY; if (Math.abs(diffX) > Math.abs(diffY) && diffX > 0) { if (e.cancelable) e.preventDefault(); swipeable.style.transform = `translateX(-${Math.min(diffX, 80)}px)`; } else if (Math.abs(diffY) > Math.abs(diffX)) { isSwiping = false; swipeable.style.transition = 'transform 0.2s ease-out'; swipeable.style.transform = 'translateX(0)'; } });
+document.addEventListener('pointermove', (e) => {
+    if (!isSwiping) return;
+    const swipeable = e.target.closest('.swipeable');
+    if (!swipeable) return;
+    const diffX = swipeStartX - e.clientX;
+    const diffY = swipeStartY - e.clientY;
+    if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 8) {
+        isSwiping = false;
+        swipeable.style.transition = 'transform 0.2s ease-out';
+        swipeable.style.transform = 'translateX(0)';
+        return;
+    }
+    if (Math.abs(diffX) > Math.abs(diffY) && diffX > 0) {
+        if (e.cancelable && !isNativeAndroidApp()) e.preventDefault();
+        swipeable.style.transform = `translateX(-${Math.min(diffX, 80)}px)`;
+    } else if (Math.abs(diffY) > Math.abs(diffX)) {
+        isSwiping = false;
+        swipeable.style.transition = 'transform 0.2s ease-out';
+        swipeable.style.transform = 'translateX(0)';
+    }
+});
 document.addEventListener('pointerup', (e) => { if (!isSwiping) return; isSwiping = false; const swipeable = e.target.closest('.swipeable'); if (!swipeable) return; swipeable.style.transition = 'transform 0.2s ease-out'; if ((swipeStartX - e.clientX) > 40) { swipeable.style.transform = `translateX(-80px)`; currentSwipedEl = swipeable; } else { swipeable.style.transform = `translateX(0)`; if (currentSwipedEl === swipeable) currentSwipedEl = null; } });
 
 // AUTO-LOGOUT
@@ -184,20 +328,86 @@ function switchApp(appNum) {
     if (appNum === 1) {
         if (sessionStorage.getItem('logistik_authenticated') !== 'true') { showPinProtection(); return; }
         document.getElementById('app2_wrapper').style.display = 'none'; document.getElementById('app1_wrapper').style.display = 'block';
+        if (typeof checkBackupReminder === 'function') checkBackupReminder();
+        if (typeof pullLogistikFromCloud === 'function') pullLogistikFromCloud(true);
     } else {
         document.getElementById('app1_wrapper').style.display = 'none'; document.getElementById('app2_wrapper').style.display = 'flex'; if(typeof toggleMenuApp1 === 'function') toggleMenuApp1(false);
     }
 }
 function logoutLogistik(auto = false) { sessionStorage.removeItem('logistik_authenticated'); if(typeof toggleMenuApp1 === 'function') toggleMenuApp1(false); switchApp(2); if (auto === true) showToast("Automatisch gesperrt (Inaktivität).", "warning"); else showToast("Erfolgreich gesperrt.", "success"); }
 
+/** Entfernt Service Worker + Cache API – Ursache fuer "Speicher voll" bei Server-Betrieb. */
+function initLeanStorageHygiene() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+            regs.forEach((r) => r.unregister());
+        });
+    }
+    if ('caches' in window) {
+        caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
+    }
+}
+
+/** Geschaetzte localStorage-Nutzung (nur Anzeige). */
+function getLocalStorageUsedBytes() {
+    let total = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        total += (k ? k.length : 0) + (localStorage.getItem(k) || '').length;
+    }
+    return total * 2;
+}
+
+function formatBytes(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+/** Einstellungen / Konsole: Cache leeren, Daten bleiben in localStorage. */
+async function clearAppBrowserCache() {
+    initLeanStorageHygiene();
+    try {
+        if (typeof AndroidApp !== 'undefined' && AndroidApp.clearWebViewCache) {
+            AndroidApp.clearWebViewCache();
+        }
+    } catch (_) {}
+    showToast('App-Cache geleert. Seite wird neu geladen …', 'success');
+    setTimeout(() => location.reload(true), 600);
+}
+
 // START LOGIK
 window.onload = () => { 
+    initLeanStorageHygiene();
+
+    // HARD-CACHE PURGE V7 (BETA MERGE): Zwingt Browser/Tablets, alte Beta-Dateien und fehlerhafte Versionen endgültig zu verwerfen.
+    if (AppStorage.getRaw('hard_purge_v70') !== 'done') {
+        if ('caches' in window) {
+            caches.keys().then(names => {
+                for (let name of names) caches.delete(name);
+            });
+        }
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for(let registration of registrations) registration.unregister();
+            });
+        }
+        AppStorage.setRaw('hard_purge_v70', 'done');
+        setTimeout(() => window.location.reload(true), 500);
+        return;
+    }
+
+    runDataMigration();
+    initMobileApp();
+    initOtaUpdateWatch();
+
     document.getElementById('app1_wrapper').style.display = 'none'; document.getElementById('app2_wrapper').style.display = 'flex';
     if (document.getElementById('selectedWorkDate')) { document.getElementById('selectedWorkDate').value = getLocalISO(); document.getElementById('selectedWorkDate').onchange = renderApp1; }
     if (typeof loadLocalDB === 'function') loadLocalDB(); if (typeof loadRechnerData === 'function') loadRechnerData(); if (typeof loadAllFromCloud === 'function') loadAllFromCloud(); if (typeof initCalc === 'function') initCalc(); 
     if (AppStorage.getRaw('kombi_dark_mode') === 'true') { document.body.classList.add('dark-mode'); updateDarkModeIcons(true); applyHeaderDarkModeFix(true); }
     resetInactivityTimer();
     if (typeof renderAppCloudLogs === 'function') renderAppCloudLogs();
+    if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
     
     initLkwShareButtons();
 
@@ -218,26 +428,313 @@ window.onload = () => {
         }
     }
 
-    // Verhindern, dass sich der Bildschirm dreht, um Resets zu vermeiden
-    try {
-        if (screen.orientation && typeof screen.orientation.lock === 'function') {
-            // Sperre zu Beginn
-            screen.orientation.lock('portrait-primary').catch(err => {});
+    lockPortraitForApp();
+    if ((location.protocol === 'http:' || location.protocol === 'https:') && /^\d+\.\d+\.\d+\.\d+/.test(location.hostname)) {
+        AppStorage.setRaw('last_office_lan_url', location.origin);
+    }
+};
 
-            // Und stelle sicher, dass es gesperrt bleibt, wenn der Nutzer es überschreibt
+/** Läuft in der nativen APK (WebView + JavascriptInterface „AndroidApp“)? */
+function isNativeAndroidApp() {
+    return typeof AndroidApp !== 'undefined';
+}
+
+function isAppleDevice() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+/** Handy / PWA / APK: Viewport, Tastatur, Touch */
+function initMobileApp() {
+    const root = document.documentElement;
+    const setVH = () => {
+        const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        root.style.setProperty('--vh', (h * 0.01) + 'px');
+    };
+    setVH();
+    window.addEventListener('resize', setVH, { passive: true });
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', setVH, { passive: true });
+    }
+    const coarse = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const narrow = window.matchMedia('(max-width: 768px)').matches;
+    if (coarse || narrow || isNativeAndroidApp()) root.classList.add('is-mobile');
+    if (isAppleDevice()) {
+        root.classList.add('is-ios');
+        document.body.classList.add('is-ios');
+    }
+    if (isNativeAndroidApp()) initAndroidApkBridge();
+    if (!isNativeAndroidApp()) {
+        document.addEventListener('focusin', (e) => {
+            if (!e.target.matches('input, select, textarea')) return;
+            setTimeout(() => {
+                try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+            }, 350);
+        }, { passive: true });
+    }
+}
+
+function getInstalledWebVersion() {
+    return Number(AppStorage.getRaw('installed_web_version') || WEB_BUILD_VERSION);
+}
+
+function recordInstalledWebVersion(ver) {
+    const v = Number(ver) || WEB_BUILD_VERSION;
+    if (v >= getInstalledWebVersion()) {
+        AppStorage.setRaw('installed_web_version', String(v));
+    }
+}
+
+async function recordInstalledWebVersionFromPage() {
+    let v = WEB_BUILD_VERSION;
+    if (location.protocol === 'http:' || location.protocol === 'https:') {
+        try {
+            const local = await fetch(location.origin + '/app-version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
+            v = Math.max(v, Number(local?.webVersion || 0));
+        } catch (_) {}
+    }
+    recordInstalledWebVersion(v);
+    updateVersionSubtitle(v);
+}
+
+function updateVersionSubtitle(installedVer) {
+    const sub = document.querySelector('#app2_wrapper .head-subtitle');
+    if (sub && /Layout v\d+|WLAN v\d+/.test(sub.textContent)) {
+        sub.textContent = 'Version ' + installedVer + ' · Produktion & Touren';
+    }
+}
+
+function setUpdateAvailableUI(visible, remoteVer) {
+    document.querySelectorAll('.header-update-chip').forEach((chip) => {
+        chip.style.display = visible ? 'inline-flex' : 'none';
+        if (visible && remoteVer) chip.textContent = 'UPDATE v' + remoteVer;
+    });
+    document.querySelectorAll('.update-available-chip.menu-chip').forEach((chip) => {
+        chip.style.display = visible ? 'inline-flex' : 'none';
+        if (visible) chip.textContent = 'NEU';
+    });
+    const menuWlan = document.getElementById('menu-wlan-update-item');
+    if (menuWlan) {
+        menuWlan.classList.toggle('has-app-update', !!visible);
+    }
+}
+
+function openOtaUpdatePrompt() {
+    if (pendingOtaUpdate) {
+        showOtaUpdateModal(pendingOtaUpdate.remoteVer, pendingOtaUpdate.remoteBase);
+    } else {
+        checkForWebUpdate();
+    }
+}
+
+/** Prüft Laptop/GitHub auf neuere Version – Popup + Hinweis oben. */
+function initOtaUpdateWatch() {
+    checkForWebUpdate().finally(() => recordInstalledWebVersionFromPage());
+    setInterval(checkForWebUpdate, 2 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) checkForWebUpdate();
+    });
+}
+
+/** Rechner-Menü: Update manuell vom Laptop im WLAN laden. */
+function loadWlanUpdateNow() {
+    if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
+    const base = (AppStorage.getRaw('last_office_lan_url') || OFFICE_LAN_URL).replace(/\/$/, '');
+    if (!navigator.onLine) {
+        showToast('Kein Netz – bitte WLAN prüfen.', 'error');
+        return;
+    }
+    AppStorage.remove('ota_banner_dismissed');
+    showToast('Lade Update vom Laptop …', 'info');
+    location.href = base + '/index.html?t=' + Date.now();
+}
+
+function hideOtaUpdateModal() {
+    const modal = document.getElementById('ota-update-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function applyOtaUpdate(remoteVer, remoteBase) {
+    hideOtaUpdateModal();
+    setUpdateAvailableUI(false);
+    AppStorage.setRaw('ota_banner_dismissed', String(remoteVer));
+    recordInstalledWebVersion(remoteVer);
+    let otherHost = false;
+    try {
+        if (remoteBase) otherHost = location.hostname !== new URL(remoteBase).hostname;
+    } catch (_) {}
+    if (remoteBase && (location.protocol === 'file:' || otherHost)) {
+        location.href = remoteBase + '/index.html?t=' + Date.now();
+    } else {
+        location.reload(true);
+    }
+}
+
+function showOtaUpdateModal(remoteVer, remoteBase) {
+    const modal = document.getElementById('ota-update-modal');
+    const verEl = document.getElementById('ota-update-ver');
+    const confirmBtn = document.getElementById('ota-update-confirm');
+    const laterBtn = document.getElementById('ota-update-later');
+    if (!modal || !confirmBtn) return;
+    pendingOtaUpdate = { remoteVer, remoteBase };
+    if (verEl) verEl.textContent = String(remoteVer);
+    modal.style.display = 'flex';
+    setUpdateAvailableUI(true, remoteVer);
+    confirmBtn.onclick = () => applyOtaUpdate(remoteVer, remoteBase);
+    if (laterBtn) {
+        laterBtn.onclick = () => {
+            AppStorage.setRaw('ota_banner_dismissed', String(remoteVer));
+            hideOtaUpdateModal();
+        };
+    }
+}
+
+async function fetchRemoteUpdateVersion() {
+    let remoteVer = 0;
+    let remoteBase = (AppStorage.getRaw('last_office_lan_url') || OFFICE_LAN_URL).replace(/\/$/, '');
+    const officeVerUrl = remoteBase + '/app-version.json?t=' + Date.now();
+    try {
+        const v = await fetch(officeVerUrl, { cache: 'no-store' }).then(r => r.json());
+        remoteVer = Math.max(remoteVer, Number(v?.webVersion || 0));
+    } catch (_) {}
+    try {
+        const cfg = await fetch(getOtaConfigUrl() + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
+        remoteVer = Math.max(remoteVer, Number(cfg?.webVersion || 0));
+        const office = (cfg?.officeWebBaseUrl || '').replace(/\/$/, '');
+        const web = (cfg?.webBaseUrl || '').replace(/\/$/, '');
+        if (office) remoteBase = office;
+        else if (web) remoteBase = web;
+    } catch (_) {}
+    return { remoteVer, remoteBase };
+}
+
+async function checkForWebUpdate() {
+    if (!document.getElementById('ota-update-modal')) return;
+    if (!navigator.onLine) {
+        hideOtaUpdateModal();
+        setUpdateAvailableUI(false);
+        pendingOtaUpdate = null;
+        return;
+    }
+
+    const installedVer = getInstalledWebVersion();
+    const { remoteVer, remoteBase } = await fetchRemoteUpdateVersion();
+    if (!remoteVer) {
+        hideOtaUpdateModal();
+        setUpdateAvailableUI(false);
+        pendingOtaUpdate = null;
+        return;
+    }
+
+    const dismissed = Number(AppStorage.getRaw('ota_banner_dismissed') || 0);
+    if (remoteVer <= installedVer) {
+        hideOtaUpdateModal();
+        setUpdateAvailableUI(false);
+        pendingOtaUpdate = null;
+        return;
+    }
+
+    pendingOtaUpdate = { remoteVer, remoteBase };
+    setUpdateAvailableUI(true, remoteVer);
+
+    if (dismissed >= remoteVer) {
+        hideOtaUpdateModal();
+        return;
+    }
+
+    const toastKey = 'ota_toast_' + remoteVer;
+    if (!sessionStorage.getItem(toastKey)) {
+        showToast('Neues App-Update v' + remoteVer + ' verfügbar!', 'warning');
+        sessionStorage.setItem(toastKey, '1');
+    }
+    showOtaUpdateModal(remoteVer, remoteBase);
+}
+
+/** APK: Statusleiste, Zurück-Taste, Portrait – siehe ANDROID_APK.md */
+function initAndroidApkBridge() {
+    document.documentElement.classList.add('is-android-app');
+    document.body.classList.add('is-android-app');
+    window.handleAndroidBackPress = handleAndroidBackPress;
+}
+
+function applyAndroidSafeAreaInsets() {
+    if (!isNativeAndroidApp()) return;
+    try {
+        const top = Math.min(Number(AndroidApp.getStatusBarHeightPx?.() || 0), 56);
+        const bottom = Math.min(Number(AndroidApp.getNavigationBarHeightPx?.() || 0), 64);
+        if (top > 0) document.documentElement.style.setProperty('--safe-top', top + 'px');
+        if (bottom > 0) document.documentElement.style.setProperty('--safe-bottom', bottom + 'px');
+    } catch (_) {}
+}
+
+/**
+ * Von der APK bei hardware back aufgerufen (WebView.evaluateJavascript).
+ * @returns {boolean} true = Web-App hat zurück verarbeitet, Activity nicht beenden
+ */
+function handleAndroidBackPress() {
+    const pin = document.getElementById('pin-protection-overlay');
+    if (pin && getComputedStyle(pin).display !== 'none') {
+        pin.style.display = 'none';
+        return true;
+    }
+    const calc = document.getElementById('calc-modal');
+    if (calc && getComputedStyle(calc).display === 'flex') {
+        if (typeof toggleCalc === 'function') toggleCalc(false);
+        else calc.style.display = 'none';
+        return true;
+    }
+    for (const m of document.querySelectorAll('.modal')) {
+        if (getComputedStyle(m).display === 'flex') {
+            m.style.display = 'none';
+            return true;
+        }
+    }
+    const drawer2 = document.getElementById('drawer2');
+    if (drawer2 && drawer2.classList.contains('open')) {
+        if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
+        return true;
+    }
+    const drawer1 = document.getElementById('drawer');
+    if (drawer1 && drawer1.classList.contains('open')) {
+        if (typeof toggleMenuApp1 === 'function') toggleMenuApp1(false);
+        return true;
+    }
+    const overlay2 = document.getElementById('overlay2');
+    if (overlay2 && overlay2.style.display === 'block') {
+        if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
+        return true;
+    }
+    const overlay1 = document.getElementById('overlay');
+    if (overlay1 && overlay1.style.display === 'block') {
+        if (typeof toggleMenuApp1 === 'function') toggleMenuApp1(false);
+        return true;
+    }
+    return false;
+}
+
+function lockPortraitForApp() {
+    const lock = isNativeAndroidApp()
+        || window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+    if (!lock) return;
+    try {
+        if (isNativeAndroidApp() && typeof AndroidApp.lockPortrait === 'function') {
+            AndroidApp.lockPortrait();
+            return;
+        }
+        if (screen.orientation && typeof screen.orientation.lock === 'function') {
+            screen.orientation.lock('portrait-primary').catch(() => {});
             screen.orientation.addEventListener('change', () => {
                 if (!screen.orientation.type.startsWith('portrait')) {
-                    screen.orientation.lock('portrait-primary').catch(err => {});
+                    screen.orientation.lock('portrait-primary').catch(() => {});
                 }
             });
         }
-    } catch (e) { console.warn("Screen-Orientation-API nicht verfügbar.", e); }
-};
+    } catch (_) {}
+}
 
 // AI-ADD: This function was missing in the live version and is required to fix dark mode display bugs.
 function applyHeaderDarkModeFix(isDark) {
-    // AI-FIX: The selector was likely too specific. This now targets the standard <header> tag
-    // and falls back to the previously used '.head' class to ensure the correct element is styled.
     let headers = document.querySelectorAll('header');
     if (!headers || headers.length === 0) {
         headers = document.querySelectorAll('.head');
@@ -250,10 +747,10 @@ function applyHeaderDarkModeFix(isDark) {
         const menuButton = header.querySelector('[onclick*="toggleMenuApp"]');
 
         if (isDark) {
-            header.style.background = 'var(--bg-color)'; 
+            header.style.setProperty('background', '#1f1f1f', 'important');
             if (menuButton) {
                 menuButton.style.backgroundColor = 'transparent';
-                menuButton.style.color = 'var(--text-color)';
+                menuButton.style.color = '#ffffff';
             }
         } else {
             header.style.background = '';
@@ -263,53 +760,173 @@ function applyHeaderDarkModeFix(isDark) {
             }
         }
     });
+
+    const drawers = [document.getElementById('drawer'), document.getElementById('drawer2')].filter(Boolean);
+    drawers.forEach(drawer => {
+        if (isDark) {
+            drawer.style.setProperty('background', '#1f1f1f', 'important');
+        } else {
+            drawer.style.background = '';
+        }
+    });
+
+    const scanStatusEl = document.getElementById('brandenburg-scan-status');
+    if (scanStatusEl) {
+        const neutralBg = isDark ? 'var(--bg-disabled, #2c2c2c)' : 'var(--bg-color-2, #f0f2f5)';
+        const currentBg = scanStatusEl.style.backgroundColor;
+        if (currentBg === 'rgb(240, 242, 245)' || currentBg === '' || currentBg === 'var(--bg-color-2, #f0f2f5)') {
+             scanStatusEl.style.background = neutralBg;
+        }
+    }
+
+    const leergutContainer = document.getElementById('bb-e2')?.parentElement.parentElement;
+    if (leergutContainer) {
+        leergutContainer.style.background = isDark ? 'var(--bg-disabled, #2c2c2c)' : '#f9f9f9';
+        leergutContainer.style.border = isDark ? '1px solid #444' : '1px solid #eee';
+    }
 }
 
 function toggleDarkMode() { document.body.classList.toggle('dark-mode'); const isDark = document.body.classList.contains('dark-mode'); AppStorage.setRaw('kombi_dark_mode', isDark); updateDarkModeIcons(isDark); applyHeaderDarkModeFix(isDark); }
 function updateDarkModeIcons(isDark) { document.querySelectorAll('.dark-mode-icon').forEach(el => el.innerText = isDark ? '☀️' : '🌙'); }
 
-// AUTO SYNC
-// KI-NOTIZ: Der automatische DOWNLOAD (silentCloudSync) wurde deaktiviert, damit Dropdowns nicht zurückspringen.
-// Der UPLOAD (triggerAutoSync) wird jetzt wieder aktiviert, damit erfasste Mitarbeiter sofort in der Cloud landen!
-let syncTimeout;
-function triggerAutoSync() {
-    clearTimeout(syncTimeout);
-    syncTimeout = setTimeout(silentPushToCloud, 1500);
-}
-function silentPushToCloud() { 
-    if (!navigator.onLine) return; 
-    const lData = AppStorage.get('kombi_logistik_db', {}); 
-    const rData = AppStorage.get('kombi_rechner_db', {}); 
-    const combinedData = {
-        // Stammdaten werden ab sofort MIT hochgeladen, damit das 
-        // Zuordnungssystem in der Logistik-App voll synchronisiert wird!
+// CLOUD SYNC
+// Logistik Pro: komplette kombi_logistik_db + Nölke-Produktliste hoch/runter
+// Rechner: nur Lieferanten, Sorten (articles), Nölke-Produkte – Tageslisten bleiben lokal
+// LKW-Rechner-Liste: nur über „LKW Senden“ / „LKW Empfangen“ (_shared_lkw.json)
+
+function getLogistikFullCloudPayload() {
+    const lData = AppStorage.get('kombi_logistik_db', {});
+    const rData = AppStorage.get('kombi_rechner_db', {});
+    const payload = {
         suppliers: lData.suppliers || [],
         customers: lData.customers || [],
         articles: lData.articles || [],
         lose: lData.lose || [],
-        workers: lData.workers || [],
         todo: lData.todo || [],
         later: lData.later || [],
         hidden: lData.hidden || [],
+        workers: lData.workers || [],
         deliveries: lData.deliveries || [],
         dailyStaff: lData.dailyStaff || {},
         dailyAttendance: lData.dailyAttendance || {},
         workerColors: lData.workerColors || {},
         settings: lData.settings || {},
-        savedProdukteRaw: rData.savedProdukteRaw || [],
-        sonderTemplates: rData.sonderTemplates || []
+        savedProdukteRaw: rData.savedProdukteRaw || []
     };
-    fetch(APP_CONFIG.CLOUD_URL + ".json", { 
-        method: 'PATCH', 
-        body: JSON.stringify(combinedData), 
+    if (lData.company) payload.company = lData.company;
+    return payload;
+}
+
+function getRechnerStammdatenCloudPayload() {
+    const lData = AppStorage.get('kombi_logistik_db', {});
+    const rData = AppStorage.get('kombi_rechner_db', {});
+    return {
+        suppliers: lData.suppliers || [],
+        articles: lData.articles || [],
+        savedProdukteRaw: rData.savedProdukteRaw || []
+    };
+}
+
+function applyLogistikFullFromCloud(data) {
+    if (!data || typeof data !== 'object') return false;
+    const lDb = AppStorage.get('kombi_logistik_db', {});
+    let changed = false;
+    const setArr = (key) => { if (Array.isArray(data[key])) { lDb[key] = data[key]; changed = true; } };
+    const setObj = (key) => { if (data[key] && typeof data[key] === 'object' && !Array.isArray(data[key])) { lDb[key] = data[key]; changed = true; } };
+    setArr('suppliers'); setArr('customers'); setArr('articles');
+    setArr('lose'); setArr('todo'); setArr('later'); setArr('hidden');
+    setArr('workers'); setArr('deliveries');
+    setObj('dailyStaff'); setObj('dailyAttendance'); setObj('workerColors'); setObj('settings');
+    if (data.company) {
+        lDb.company = data.company;
+        if (lDb.company) sanitizeCompanyLeergut(lDb.company);
+        changed = true;
+    }
+    if (changed) AppStorage.set('kombi_logistik_db', lDb);
+    if (Array.isArray(data.savedProdukteRaw)) {
+        const rDb = AppStorage.get('kombi_rechner_db', {});
+        rDb.savedProdukteRaw = data.savedProdukteRaw;
+        AppStorage.set('kombi_rechner_db', rDb);
+        changed = true;
+    }
+    return changed;
+}
+
+function applyRechnerStammdatenFromCloud(data) {
+    if (!data || typeof data !== 'object') return false;
+    let changed = false;
+    const lDb = AppStorage.get('kombi_logistik_db', {});
+    const rDb = AppStorage.get('kombi_rechner_db', {});
+    if (Array.isArray(data.suppliers)) { lDb.suppliers = data.suppliers; changed = true; }
+    if (Array.isArray(data.articles)) { lDb.articles = data.articles; changed = true; }
+    if (Array.isArray(data.savedProdukteRaw)) { rDb.savedProdukteRaw = data.savedProdukteRaw; changed = true; }
+    if (changed) {
+        AppStorage.set('kombi_logistik_db', lDb);
+        AppStorage.set('kombi_rechner_db', rDb);
+    }
+    return changed;
+}
+
+function applyCloudSyncPayload(data) { return applyRechnerStammdatenFromCloud(data); }
+
+let syncTimeout;
+let pendingSyncMode = 'logistik';
+
+function triggerAutoSync(mode) {
+    pendingSyncMode = mode || 'logistik';
+    clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => {
+        if (pendingSyncMode === 'rechner') silentPushRechnerStammdatenToCloud();
+        else silentPushLogistikToCloud();
+    }, 1500);
+}
+
+function silentPushLogistikToCloud() {
+    if (!navigator.onLine) return;
+    fetch(APP_CONFIG.CLOUD_URL + ".json", {
+        method: 'PATCH',
+        body: JSON.stringify(getLogistikFullCloudPayload()),
         headers: { 'Content-Type': 'application/json' }
     })
     .then(res => {
-        if (res.ok && typeof addAppCloudLog === 'function') addAppCloudLog("AUTO-SYNC: Upload erfolgreich [OK]");
+        if (res.ok && typeof addAppCloudLog === 'function') addAppCloudLog("AUTO-SYNC: Logistik in Cloud gesichert [OK]");
     })
-    .catch(e => {
-        if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Auto-Sync Upload fehlgeschlagen");
+    .catch(() => {
+        if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Logistik-Upload fehlgeschlagen");
     });
+}
+
+function silentPushRechnerStammdatenToCloud() {
+    if (!navigator.onLine) return;
+    fetch(APP_CONFIG.CLOUD_URL + ".json", {
+        method: 'PATCH',
+        body: JSON.stringify(getRechnerStammdatenCloudPayload()),
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(res => {
+        if (res.ok && typeof addAppCloudLog === 'function') addAppCloudLog("AUTO-SYNC: Rechner-Stammdaten hochgeladen [OK]");
+    })
+    .catch(() => {
+        if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Stammdaten-Upload fehlgeschlagen");
+    });
+}
+
+function silentPushToCloud() { silentPushLogistikToCloud(); }
+
+async function pullLogistikFromCloud(silent) {
+    if (!navigator.onLine) return;
+    try {
+        const res = await fetch(APP_CONFIG.CLOUD_URL + ".json?t=" + Date.now(), { credentials: 'omit' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || !applyLogistikFullFromCloud(data)) return;
+        if (typeof loadLocalDB === 'function') loadLocalDB();
+        if (typeof updateLiefDropdowns === 'function') updateLiefDropdowns();
+        if (typeof addAppCloudLog === 'function') addAppCloudLog("DOWNLOAD: Logistik aus Cloud geladen [OK]");
+        if (!silent) showToast("Logistik-Daten aus Cloud geladen!", "success");
+    } catch (e) {
+        if (!silent && typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Logistik-Download fehlgeschlagen");
+    }
 }
 
 function addAppCloudLog(action) {
@@ -337,82 +954,19 @@ function silentCloudSync() {
     .then(res => res.json())
     .then(cloudData => {
         if (!cloudData) return;
-        let lDb = AppStorage.get('kombi_logistik_db', {});
-        let rDb = AppStorage.get('kombi_rechner_db', {});
-        let changed = false;
-        
-        if (cloudData.suppliers && JSON.stringify(lDb.suppliers) !== JSON.stringify(cloudData.suppliers)) {
-            lDb.suppliers = cloudData.suppliers;
-            changed = true;
-        }
-        if (cloudData.articles && JSON.stringify(lDb.articles) !== JSON.stringify(cloudData.articles)) {
-            lDb.articles = cloudData.articles;
-            changed = true;
-        }
-        if (cloudData.customers && JSON.stringify(lDb.customers) !== JSON.stringify(cloudData.customers)) {
-            lDb.customers = cloudData.customers;
-            changed = true;
-        }
-        if (cloudData.lose && JSON.stringify(lDb.lose) !== JSON.stringify(cloudData.lose)) {
-            lDb.lose = cloudData.lose;
-            changed = true;
-        }
-        if (cloudData.todo && JSON.stringify(lDb.todo) !== JSON.stringify(cloudData.todo)) {
-            lDb.todo = cloudData.todo;
-            changed = true;
-        }
-        if (cloudData.later && JSON.stringify(lDb.later) !== JSON.stringify(cloudData.later)) {
-            lDb.later = cloudData.later;
-            changed = true;
-        }
-        if (cloudData.hidden && JSON.stringify(lDb.hidden) !== JSON.stringify(cloudData.hidden)) {
-            lDb.hidden = cloudData.hidden;
-            changed = true;
-        }
-        if (cloudData.workers && JSON.stringify(lDb.workers) !== JSON.stringify(cloudData.workers)) {
-            lDb.workers = cloudData.workers;
-            changed = true;
-        }
-        if (cloudData.deliveries && JSON.stringify(lDb.deliveries) !== JSON.stringify(cloudData.deliveries)) {
-            lDb.deliveries = cloudData.deliveries;
-            changed = true;
-        }
-        if (cloudData.dailyStaff && JSON.stringify(lDb.dailyStaff) !== JSON.stringify(cloudData.dailyStaff)) {
-            lDb.dailyStaff = cloudData.dailyStaff;
-            changed = true;
-        }
-        if (cloudData.dailyAttendance && JSON.stringify(lDb.dailyAttendance) !== JSON.stringify(cloudData.dailyAttendance)) {
-            lDb.dailyAttendance = cloudData.dailyAttendance;
-            changed = true;
-        }
-        if (cloudData.workerColors && JSON.stringify(lDb.workerColors) !== JSON.stringify(cloudData.workerColors)) {
-            lDb.workerColors = cloudData.workerColors;
-            changed = true;
-        }
-        if (cloudData.settings && JSON.stringify(lDb.settings) !== JSON.stringify(cloudData.settings)) {
-            lDb.settings = cloudData.settings;
-            changed = true;
-        }
-        if (cloudData.savedProdukteRaw && JSON.stringify(rDb.savedProdukteRaw) !== JSON.stringify(cloudData.savedProdukteRaw)) {
-            rDb.savedProdukteRaw = cloudData.savedProdukteRaw;
-            changed = true;
-        }
-        if (cloudData.sonderTemplates && JSON.stringify(rDb.sonderTemplates) !== JSON.stringify(cloudData.sonderTemplates)) {
-            rDb.sonderTemplates = cloudData.sonderTemplates;
-            changed = true;
-        }
-        
-        
-        if (cloudData.settings && cloudData.settings.lastUpdatePush) {
-            const localPush = parseInt(AppStorage.getRaw('last_update_push') || '0');
-            if (cloudData.settings.lastUpdatePush > localPush) {
-                AppStorage.setRaw('last_update_push', cloudData.settings.lastUpdatePush.toString());
-                const banner = document.getElementById('update-banner'); if(banner) banner.style.display = 'block';
-                showToast("✨ App-Update verfügbar!", "info");
+        if (sessionStorage.getItem('logistik_authenticated') === 'true') {
+            if (applyLogistikFullFromCloud(cloudData)) {
+                if (typeof loadLocalDB === 'function') loadLocalDB();
+                if (typeof addAppCloudLog === 'function') addAppCloudLog("AUTO-SYNC: Logistik empfangen [OK]");
+                showToast("🔄 Logistik aus Cloud aktualisiert!", "success");
             }
+        } else if (applyRechnerStammdatenFromCloud(cloudData)) {
+            if (typeof loadLocalDB === 'function') loadLocalDB();
+            if (typeof loadRechnerData === 'function') loadRechnerData();
+            if (typeof addAppCloudLog === 'function') addAppCloudLog("AUTO-SYNC: Stammdaten empfangen [OK]");
+            showToast("🔄 Stammdaten aus Cloud aktualisiert!", "success");
         }
-        if (changed) { AppStorage.set('kombi_logistik_db', lDb); AppStorage.set('kombi_rechner_db', rDb); if(typeof loadLocalDB === 'function') loadLocalDB(); if(typeof loadRechnerData === 'function') loadRechnerData(); if (typeof addAppCloudLog === 'function') addAppCloudLog("AUTO-SYNC: Neue Daten empfangen [OK]"); showToast("🔄 Live-Sync: Neue Einträge empfangen!", "success"); }
-    }).catch(e => {
+    }).catch(() => {
         if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Auto-Sync Download fehlgeschlagen");
     });
 }
@@ -580,9 +1134,10 @@ function initLkwShareButtons() {
     let targetContainer = document.getElementById('tab-lkw') || document.getElementById('lkw-tab') || document.getElementById('lkw-container');
     
     if(!targetContainer) {
-        // Fallback auf die alte Methode, falls die ID nicht gefunden wurde
-        targetContainer = document.getElementById('app2_wrapper');
-        if(!targetContainer) return;
+        // AI-FIX: Fallback entfernt. Wenn der LKW-Tab nicht gefunden wird,
+        // sollen die Buttons nicht an den Haupt-Wrapper angehängt werden,
+        // da sie sonst auf allen Seiten erscheinen.
+        return;
     }
     
     const bar = document.createElement('div');
@@ -597,6 +1152,16 @@ function initLkwShareButtons() {
 
 function setVoiceInputResult(text) {
     if (!window.currentVoiceTarget) return;
+    
+    if (window.currentVoiceTarget === 'input-adhoc' || window.currentVoiceTarget === 'input-morning') {
+        const inputEl = document.getElementById(window.currentVoiceTarget);
+        if (inputEl) {
+            inputEl.value = text;
+            showToast("Text erkannt!", "success");
+        }
+        return;
+    }
+    
     let numberMatch = text.replace(',', '.').match(/\d+(\.\d+)?/);
     if (numberMatch) {
         const inputEl = document.getElementById(window.currentVoiceTarget);

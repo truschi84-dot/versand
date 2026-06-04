@@ -4,6 +4,20 @@ let activeV10Tab = 'todo', currentTargetId = null, lastAction = null, editingFer
 let assignMode = 'sup', assignSelectedTarget = null;
 const getLocalISO = () => { let d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; };
 
+/**
+ * AI-FIX: Um die Klick-Probleme auf Touch-Geräten zuverlässig zu beheben,
+ * wird die Event-Verarbeitung auf Event-Delegation umgestellt.
+ * Statt `onclick` im HTML wird ein zentraler Listener verwendet.
+ */
+document.addEventListener('click', function(event) {
+    if (document.getElementById('app1_wrapper')?.style.display !== 'block') return;
+    const card = event.target.closest('#todayLog .card[data-delivery-id]');
+    if (card) {
+        const deliveryId = card.dataset.deliveryId;
+        if (deliveryId) openEditModal(deliveryId);
+    }
+});
+
 function loadLocalDB() {
     const val = AppStorage.get('kombi_logistik_db', {});
     suppliers = val.suppliers || []; 
@@ -41,7 +55,7 @@ function saveLocalDB() {
     renderApp1(); 
     if (typeof renderAnalysis === 'function') renderAnalysis(); 
     if (typeof updateLiefDropdowns === 'function') updateLiefDropdowns(); 
-    if (typeof triggerAutoSync === 'function') triggerAutoSync();
+    if (typeof triggerAutoSync === 'function') triggerAutoSync('logistik');
 }
 
 function backupToCloud() {
@@ -50,29 +64,10 @@ function backupToCloud() {
     
     saveLocalDB();
     
-    // Beide Silos für die Cloud zusammenführen
-    const lData = AppStorage.get('kombi_logistik_db', {});
-    const rData = AppStorage.get('kombi_rechner_db', {});
-    const combinedData = {
-        suppliers: lData.suppliers || [],
-        customers: lData.customers || [],
-        articles: lData.articles || [],
-        lose: lData.lose || [],
-        todo: lData.todo || [],
-        later: lData.later || [],
-        hidden: lData.hidden || [],
-        workers: lData.workers || [],
-        deliveries: lData.deliveries || [],
-        dailyStaff: lData.dailyStaff || {},
-        dailyAttendance: lData.dailyAttendance || {},
-        workerColors: lData.workerColors || {},
-        settings: lData.settings || {},
-        savedProdukteRaw: rData.savedProdukteRaw || [],
-        sonderTemplates: rData.sonderTemplates || []
-    };
+    const combinedData = typeof getLogistikFullCloudPayload === 'function' ? getLogistikFullCloudPayload() : {};
     
     fetch(APP_CONFIG.CLOUD_URL + ".json", { 
-        method: 'PUT', 
+        method: 'PATCH', 
         body: JSON.stringify(combinedData), 
         headers: { 'Content-Type': 'application/json' }
     })
@@ -84,8 +79,8 @@ function backupToCloud() {
             if(btn) { btn.innerHTML = '<span style="font-size:20px;">☁️</span> In Cloud sichern'; btn.disabled = false; }
             AppStorage.setRaw('logistik_last_backup_day', getLocalISO());
             closeBackupModal();
-            if (typeof addAppCloudLog === 'function') addAppCloudLog("UPLOAD: Manuelles Backup gesichert [OK]");
-            showToast("Erfolgreich in der Cloud gesichert!", "success");
+            if (typeof addAppCloudLog === 'function') addAppCloudLog("UPLOAD: Logistik in Cloud gesichert [OK]");
+            showToast("Logistik erfolgreich in der Cloud gesichert!", "success");
         })
         .catch(e => {
             console.error("Backup Fehler:", e);
@@ -93,6 +88,33 @@ function backupToCloud() {
             if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Upload fehlgeschlagen - " + e.message);
             showToast("Fehler beim Sichern in der Cloud.", "error");
         });
+}
+
+/**
+ * AI-ADD: Speichert die aktuellen Daten manuell in der Cloud, ohne die Seite zu verlassen.
+ * Zeigt Feedback über Toasts an und deaktiviert den Button während des Vorgangs.
+ * @param {HTMLElement} btn - Der Button, der den Push ausgelöst hat.
+ */
+function manualCloudPush(btn) {
+    if(btn) { 
+        btn.innerHTML = "⏳"; 
+        btn.disabled = true; 
+    }
+    
+    saveLocalDB();
+    const combinedData = typeof getLogistikFullCloudPayload === 'function' ? getLogistikFullCloudPayload() : {};
+    
+    fetch(APP_CONFIG.CLOUD_URL + ".json", { 
+        method: 'PATCH', 
+        body: JSON.stringify(combinedData), 
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(res => { if (!res.ok) throw new Error("Server Fehler: " + res.statusText); return res.json(); })
+    .then(() => { if(btn) { btn.innerHTML = '☁️'; btn.disabled = false; } if (typeof addAppCloudLog === 'function') addAppCloudLog("UPLOAD: Logistik gespeichert [OK]"); showToast("Logistik in der Cloud gespeichert!", "success"); })
+    .catch(e => {
+        console.error("Cloud Push Fehler:", e); if(btn) { btn.innerHTML = '☁️'; btn.disabled = false; }
+        if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Upload fehlgeschlagen - " + e.message); showToast("Fehler beim Sichern in der Cloud.", "error");
+    });
 }
 
 function restoreFromCloud() {
@@ -108,34 +130,12 @@ function restoreFromCloud() {
             if(btn) { btn.innerHTML = '<span style="font-size:20px;">🔄</span> Aus Cloud laden'; btn.disabled = false; }
             
             if (!data || Object.keys(data).length === 0) { showToast("Kein Backup gefunden.", "warning"); return; }
-            
-            // Daten aus der Cloud wieder sauber auf Logistik und Rechner aufteilen
-            let lDb = AppStorage.get('kombi_logistik_db', {});
-            if (Array.isArray(data.suppliers)) lDb.suppliers = data.suppliers;
-            if (Array.isArray(data.customers)) lDb.customers = data.customers;
-            if (Array.isArray(data.articles)) lDb.articles = data.articles;
-            if (Array.isArray(data.lose)) lDb.lose = data.lose;
-            if (Array.isArray(data.todo)) lDb.todo = data.todo;
-            if (Array.isArray(data.later)) lDb.later = data.later;
-            if (Array.isArray(data.hidden)) lDb.hidden = data.hidden;
-            if (Array.isArray(data.workers)) lDb.workers = data.workers;
-            if (Array.isArray(data.deliveries)) lDb.deliveries = data.deliveries;
-            if (data.dailyStaff) lDb.dailyStaff = data.dailyStaff;
-            if (data.dailyAttendance) lDb.dailyAttendance = data.dailyAttendance;
-            if (data.workerColors) lDb.workerColors = data.workerColors;
-            if (data.settings) lDb.settings = data.settings;
-            AppStorage.set('kombi_logistik_db', lDb);
-            
-            let rDb = AppStorage.get('kombi_rechner_db', {});
-            if (Array.isArray(data.savedProdukteRaw)) rDb.savedProdukteRaw = data.savedProdukteRaw;
-            if (Array.isArray(data.sonderTemplates)) rDb.sonderTemplates = data.sonderTemplates;
-            AppStorage.set('kombi_rechner_db', rDb);
-            
+            applyCloudPayloadToLocal(data);
             loadLocalDB(); // Logistik UI updaten
             if(typeof loadRechnerData === 'function') loadRechnerData(); // Rechner UI updaten
             
-            if (typeof addAppCloudLog === 'function') addAppCloudLog("DOWNLOAD: Daten aus Cloud geladen [OK]");
-            showToast("Daten erfolgreich geladen!", "success");
+            if (typeof addAppCloudLog === 'function') addAppCloudLog("DOWNLOAD: Logistik aus Cloud geladen [OK]");
+            showToast("Logistik-Daten aus Cloud geladen!", "success");
         })
         .catch(e => {
             if(btn) { btn.innerHTML = '<span style="font-size:20px;">🔄</span> Aus Cloud laden'; btn.disabled = false; }
@@ -144,7 +144,41 @@ function restoreFromCloud() {
         });
 }
 
-function checkBackupReminder() { const now = new Date(); if (now.getHours() >= 5 && AppStorage.getRaw('logistik_last_backup_day') !== getLocalISO()) { document.getElementById('backupReminderModal').style.display = "flex"; } }
+function applyCloudPayloadToLocal(data) {
+    if (typeof applyLogistikFullFromCloud === 'function') return applyLogistikFullFromCloud(data);
+    return false;
+}
+
+function emergencyRestore() {
+    const input = document.getElementById('emergency-json-input');
+    const raw = input ? input.value.trim() : '';
+    if (!raw) { showToast("Bitte JSON-Code einfügen.", "warning"); return; }
+    customConfirm("Notfall-Wiederherstellung: Logistik-Daten aus JSON laden (Rechner-Tageslisten bleiben lokal). Fortfahren?", () => {
+        try {
+            const data = JSON.parse(raw);
+            if (!applyCloudPayloadToLocal(data)) {
+                showToast("JSON ist leer oder ungültig.", "warning");
+                return;
+            }
+            loadLocalDB();
+            if (typeof loadRechnerData === 'function') loadRechnerData();
+            if (typeof addAppCloudLog === 'function') addAppCloudLog("NOTFALL: Daten aus JSON geladen [OK]");
+            showToast("Notfall-Daten erfolgreich geladen!", "success");
+            if (input) input.value = '';
+        } catch (e) {
+            showToast("Ungültiges JSON: " + e.message, "error");
+        }
+    });
+}
+
+function checkBackupReminder() {
+    const modal = document.getElementById('backupReminderModal');
+    if (!modal) return;
+    const now = new Date();
+    if (now.getHours() >= 5 && AppStorage.getRaw('logistik_last_backup_day') !== getLocalISO()) {
+        modal.style.display = "flex";
+    }
+}
 function closeBackupModal() { document.getElementById('backupReminderModal').style.display = "none"; AppStorage.setRaw('logistik_last_backup_day', getLocalISO()); }
 function getWColor(name) { return workerColors[name] || "#cccccc"; }
 function updateWorkerColor(name, color) { workerColors[name] = color; saveLocalDB(); }
@@ -216,7 +250,7 @@ function renderApp1() {
     if(document.getElementById('todayLog')) {
         document.getElementById('todayLog').innerHTML = filtered.length > 0 ? filtered.map(d => {
             const sum = (d.workerShares || []).reduce((s,v) => s + v.kg, 0);
-            return `<div class="card" style="border-left:5px solid ${(sum >= d.kg || d.isFullySorted) ? 'var(--success)' : 'var(--warning)'}; cursor:pointer;" onclick="openEditModal('${d.id}')"><div style="display:flex; justify-content:space-between;"><b>${d.name}</b> <span>${d.kg.toLocaleString()} kg</span></div></div>`;
+            return `<div class="card" data-delivery-id="${d.id}" style="border-left:5px solid ${(sum >= d.kg || d.isFullySorted) ? 'var(--success)' : 'var(--warning)'}; cursor:pointer; display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; justify-content:space-between; flex:1;"><b>${d.name}</b> <span>${d.kg.toLocaleString()} kg</span></div><span style="font-size:18px; padding: 10px; margin-right: -10px;">✏️</span></div>`;
         }).join('') : '<p style="color:#999; text-align:center;">Keine Daten für dieses Datum</p>';
     }
     
@@ -228,8 +262,8 @@ function renderApp1() {
     sorted.forEach(d => {
         const p = parseFloat(dailyStaff[d]) || 0; const tot = grouped[d].kg; const avg = p > 0 ? Math.round(tot/p) : 0;
         let rows = grouped[d].items.map(i => `<tr><td style="padding:8px 0; border-bottom:1px solid #eee;"><b>${i.name}</b><br>${(i.workerShares || []).map(ws => `<span class="worker-tag" style="background:${getWColor(ws.name)}">${ws.name} (${ws.kg})</span>`).join('')}</td><td style="text-align:right; padding:8px 0; border-bottom:1px solid #eee;">${i.kg.toLocaleString()} kg</td></tr>`).join('');
-        if(jCont) jCont.innerHTML += `<div style="margin-top:10px; font-weight:bold; font-size:12px; color:#555;">📅 ${new Date(d).toLocaleDateString()}</div><div class="day-summary-card" onclick="openDayModal('${d}')"><div class="stat-box"><label style="font-size:10px;">Pers</label><b>${p}</b></div><div class="stat-box"><label style="font-size:10px;">Ø/Kopf</label><b>${avg}</b></div><div class="stat-box"><label style="font-size:10px;">Gesamt</label><b>${tot.toLocaleString()}</b></div></div><table style="width:100%; border-collapse:collapse; font-size:12px;">${rows}</table>`;
-        if(sBody) sBody.innerHTML += `<tr onclick="navTo('today'); document.getElementById('selectedWorkDate').value='${d}'; renderApp1();" style="cursor:pointer;"><td style="padding:10px; border-bottom:1px solid #eee;">${new Date(d).toLocaleDateString()}</td><td align="center" style="border-bottom:1px solid #eee;">${p}</td><td align="center" style="border-bottom:1px solid #eee;">${avg}</td><td align="right" style="padding:10px; border-bottom:1px solid #eee;">${tot.toLocaleString()} kg</td></tr>`;
+        if(jCont) jCont.innerHTML += `<div style="margin-top:10px; font-weight:bold; font-size:12px; color:#555;">📅 ${new Date(d).toLocaleDateString('de-DE')}</div><div class="day-summary-card" onclick="openDayModal('${d}')"><div class="stat-box"><label style="font-size:10px;">Pers</label><b>${p}</b></div><div class="stat-box"><label style="font-size:10px;">Ø/Kopf</label><b>${avg}</b></div><div class="stat-box"><label style="font-size:10px;">Gesamt</label><b>${tot.toLocaleString('de-DE')}</b></div></div><table style="width:100%; border-collapse:collapse; font-size:12px;">${rows}</table>`;
+        if(sBody) sBody.innerHTML += `<tr onclick="navTo('today'); document.getElementById('selectedWorkDate').value='${d}'; renderApp1();" style="cursor:pointer;"><td style="padding:10px; border-bottom:1px solid #eee;">${new Date(d).toLocaleDateString('de-DE')}</td><td align="center" style="border-bottom:1px solid #eee;">${p}</td><td align="center" style="border-bottom:1px solid #eee;">${avg}</td><td align="right" style="padding:10px; border-bottom:1px solid #eee;">${tot.toLocaleString('de-DE')} kg</td></tr>`;
     });
 
     const openDeliveries = deliveries.filter(d => {
@@ -257,23 +291,37 @@ function renderApp1() {
     }
 
     if(curId) updateShareList();
+
+    if (document.getElementById('pageSummary') && document.getElementById('pageSummary').classList.contains('active') && typeof renderAppCloudLogs === 'function') {
+        renderAppCloudLogs();
+    }
 }
 
 function openEditSupModal(name) { document.getElementById('edit-sup-old-name').value = name; document.getElementById('edit-sup-new-name').value = name; document.getElementById('edit-sup-modal').style.display = 'flex'; }
 function saveSupplierEdit() {
-    const oldName = document.getElementById('edit-sup-old-name').value; const newName = document.getElementById('edit-sup-new-name').value.trim();
-    if (!newName || suppliers.includes(newName)) return;
+    const oldName = document.getElementById('edit-sup-old-name').value; 
+    const newName = document.getElementById('edit-sup-new-name').value.trim().replace(/[.#$\[\]]/g, '');
+    if (!newName || (suppliers.includes(newName) && newName !== oldName)) {
+        showToast("Name ungültig oder existiert bereits!", "warning");
+        return;
+    }
     suppliers = suppliers.map(s => s === oldName ? newName : s);
     articles.forEach(art => { if(art.suppliers) { art.suppliers = art.suppliers.map(s => s === oldName ? newName : s); } });
     saveLocalDB(); document.getElementById('edit-sup-modal').style.display = 'none'; showToast("Lieferant umbenannt!", "success");
 }
 function deleteSupplier(name) { if (confirm(`Lieferant "${name}" wirklich löschen?`)) { suppliers = suppliers.filter(s => s !== name); saveLocalDB(); showToast("Lieferant gelöscht!", "success"); } }
 
-function openEditCustModal(name) { 
+function openEditCustModal(name) {
     const newName = prompt("Kunde umbenennen:", name);
-    if(newName && newName.trim() !== "" && newName !== name) {
-        customers = customers.map(c => c === name ? newName.trim() : c);
-        saveLocalDB(); showToast("Kunde umbenannt!", "success");
+    if (newName) {
+        const sanitizedName = newName.trim().replace(/[.#$\[\]]/g, '');
+        if (sanitizedName && sanitizedName !== name && !customers.includes(sanitizedName)) {
+            customers = customers.map(c => c === name ? sanitizedName : c);
+            saveLocalDB();
+            showToast("Kunde umbenannt!", "success");
+        } else if (sanitizedName) {
+            showToast("Name ungültig oder existiert bereits!", "warning");
+        }
     }
 }
 function addCustomer() { const n = document.getElementById('newCust').value; if(n){ customers.push(n); saveLocalDB(); document.getElementById('newCust').value=""; showToast("Kunde gespeichert", "success"); } }
@@ -295,7 +343,7 @@ function renderAnalysis() {
     const container = document.getElementById('analysisContainer'); if(!container) return;
     const days = getDatesForWeekOffset(currentWeekOffset); const firstDayObj = new Date(days[0]); const weekNum = getISOWeekNumber(firstDayObj);
     document.getElementById('weekTitle').innerText = `KW ${weekNum} (${firstDayObj.getFullYear()})`;
-    let html = `<table class="analysis-table"><tr><th class="worker-col">Name</th>`; const dayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    let html = `<div class="table-scroll-x"><table class="analysis-table"><tr><th class="worker-col">Name</th>`; const dayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     days.forEach((d, index) => {
         let staffCountDisplay = dailyStaff[d] ? parseFloat(dailyStaff[d]) : 0; let staffCountCalc = staffCountDisplay > 0 ? staffCountDisplay : 1; let dailySum = deliveries.filter(x=>x.date===d).reduce((a,b)=>a+b.kg,0);
         html += `<th>${dayNames[index]}<br>${d.split('-')[2]}.${d.split('-')[1]}<div style="color:#666; font-size:10px; margin-top:4px; font-weight:normal;">👥 ${staffCountDisplay}</div><div style="color:var(--primary); font-size:10px; margin-top:2px;">Ø ${Math.round(dailySum/staffCountCalc)}</div></th>`;
@@ -313,7 +361,7 @@ function renderAnalysis() {
         });
         let trueAverage = workerWorkedDays > 0 ? Math.round(workerTotalKg / workerWorkedDays) : 0; html += `<td style="background:#f0f7ff; color:var(--primary)">${trueAverage > 0 ? trueAverage.toLocaleString() : 0}</td></tr>`;
     });
-    container.innerHTML = html + `</table>`;
+    container.innerHTML = html + `</table></div>`;
 }
 
 function saveDelivery() {
@@ -331,7 +379,7 @@ function saveDelivery() {
     }
 }
 
-function openEditModal(id) { 
+function openEditModal(id) {
     curId = id; const e = deliveries.find(x => x.id === id); if(!e) return; 
     document.getElementById('logModalTitle').innerText = e.name; 
     document.getElementById('editTotalKg').value = e.kg; 
@@ -339,7 +387,7 @@ function openEditModal(id) {
     const sInput = document.getElementById('modalDateInput'); if(sInput) sInput.value = getLocalISO();
     const fsCb = document.getElementById('modalFullySortedCb'); if(fsCb) fsCb.checked = !!e.isFullySorted;
     updateShareList(); 
-    document.getElementById('editModal').style.display="flex"; 
+    document.getElementById('logistik-edit-modal').style.display="flex"; 
 }
 
 function toggleFullySorted() {
@@ -383,11 +431,11 @@ function updateDeliveryData() {
             e.kg = v; 
             if(d) e.date = d;
             saveLocalDB(); updateShareList(); showToast("Aktualisiert!", "success");
-                closeModalApp1('editModal');
+                closeModalApp1('logistik-edit-modal');
         } 
     } 
 }
-function deleteEntry() { customConfirm("Ganzen Eintrag löschen?", () => { deliveries = deliveries.filter(x => x.id !== curId); saveLocalDB(); closeModalApp1('editModal'); showToast("Eintrag gelöscht", "success"); }); }
+function deleteEntry() { customConfirm("Ganzen Eintrag löschen?", () => { deliveries = deliveries.filter(x => x.id !== curId); saveLocalDB(); closeModalApp1('logistik-edit-modal'); showToast("Eintrag gelöscht", "success"); }); }
 
 function openDayModal(d) { 
     curDate = d; let att = dailyAttendance[d] || {}; let html = '';
@@ -408,13 +456,26 @@ function navTo(t) {
     const pageEl = document.getElementById('page' + id); if (pageEl) pageEl.classList.add('active'); 
     const navEl = document.getElementById('nav' + id); if (navEl) navEl.classList.add('active'); 
     toggleMenuApp1(false);
-    renderApp1(); // UI aktualisieren, wenn der Tab gewechselt wird
+    renderApp1();
+    if (t === 'backup' && typeof checkBackupReminder === 'function') checkBackupReminder();
 }
 
 function toggleMenuApp1(s) { document.getElementById('drawer').classList.toggle('open', s); document.getElementById('overlay').style.display = s ? 'block' : 'none'; }
-function closeModalApp1(m) { document.getElementById(m).style.display = "none"; if(m === 'editModal') curId = null; }
-function addSupplier() { const n = document.getElementById('newSup').value; if(n){ suppliers.push(n); saveLocalDB(); document.getElementById('newSup').value=""; }}
-function addWorker() { const n = document.getElementById('newWor').value; if(n){ workers.push(n); saveLocalDB(); document.getElementById('newWor').value=""; if(typeof silentPushToCloud === 'function') silentPushToCloud(); }}
+function closeModalApp1(m) { document.getElementById(m).style.display = "none"; if(m === 'logistik-edit-modal') curId = null; }
+function addSupplier() { 
+    const n = document.getElementById('newSup').value.trim().replace(/[.#$\[\]]/g, '');
+    if(n && !suppliers.includes(n)){ 
+        suppliers.push(n); 
+        saveLocalDB(); 
+        document.getElementById('newSup').value=""; 
+    } else if (n) {
+        showToast("Lieferant existiert bereits!", "warning");
+    }
+}
+function addWorker() { 
+    const n = document.getElementById('newWor').value.trim().replace(/[.#$\[\]]/g, '');
+    if(n && !workers.includes(n)){ workers.push(n); saveLocalDB(); document.getElementById('newWor').value=""; if(typeof silentPushToCloud === 'function') silentPushToCloud(); }
+}
 
 let currentCloudReklamationen = {};
 let editCloudReklamationKey = null;

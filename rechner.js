@@ -5,7 +5,7 @@ function formatMHD(el) {
     else el.value = val;
 }
 
-let entries = [], entriesSort = [], entriesNoelke = [];
+let entries = [], entriesSort = [], entriesNoelke = [], morningTasks = [], adhocTasks = [];
 let sonderTemplates = [];
 let reklamationDrafts = {};
 let customTabEntries = {};
@@ -22,11 +22,13 @@ function loadRechnerData() {
         entries = db.entries || []; entriesSort = db.entriesSort || []; entriesNoelke = db.entriesNoelke || [];
         sonderTemplates = db.sonderTemplates || [];
         reklamationDrafts = db.reklamationDrafts || {};
+        morningTasks = db.morningTasks || [];
+        adhocTasks = db.adhocTasks || [];
         customTabEntries = db.customTabEntries || {};
         
         if(typeof buildAppUI === 'function') buildAppUI();
 
-        if(typeof renderLKW === 'function') { renderLKW(); renderSort(); renderNoelke(); }
+        if(typeof renderLKW === 'function') { renderLKW(); renderSort(); renderNoelke(); loadBrandenburgData(); }
     } catch(e) { console.error("Fehler in loadRechnerData", e); }
 }
 
@@ -36,9 +38,11 @@ function saveRechnerDB() {
         db.entries = entries; db.entriesSort = entriesSort; db.entriesNoelke = entriesNoelke;
         db.sonderTemplates = sonderTemplates;
         db.reklamationDrafts = reklamationDrafts;
+        db.morningTasks = morningTasks;
+        db.adhocTasks = adhocTasks;
         db.customTabEntries = customTabEntries;
         AppStorage.set('kombi_rechner_db', db);
-        if (typeof triggerAutoSync === 'function') triggerAutoSync();
+        if (typeof triggerAutoSync === 'function') triggerAutoSync('rechner');
     } catch(e) { console.error("Fehler in saveRechnerDB", e); }
 }
 
@@ -49,39 +53,12 @@ async function loadAllFromCloud() {
         const res = await fetch(APP_CONFIG.CLOUD_URL + ".json?t=" + Date.now(), { credentials: 'omit' });
         const data = await res.json();
         if(data) {
-            const lDb = AppStorage.get('kombi_logistik_db', {});
-            if (Array.isArray(data.suppliers)) lDb.suppliers = data.suppliers;
-            if (Array.isArray(data.customers)) lDb.customers = data.customers;
-            if (Array.isArray(data.articles)) lDb.articles = data.articles;
-            if (Array.isArray(data.lose)) lDb.lose = data.lose;
-            if (Array.isArray(data.todo)) lDb.todo = data.todo;
-            if (Array.isArray(data.later)) lDb.later = data.later;
-            if (Array.isArray(data.hidden)) lDb.hidden = data.hidden;
-            if (Array.isArray(data.workers)) lDb.workers = data.workers;
-            if (Array.isArray(data.deliveries)) lDb.deliveries = data.deliveries;
-            if (data.dailyStaff) lDb.dailyStaff = data.dailyStaff;
-            if (data.dailyAttendance) lDb.dailyAttendance = data.dailyAttendance;
-            if (data.workerColors) lDb.workerColors = data.workerColors;
-            if (data.settings) lDb.settings = data.settings;
-            AppStorage.set('kombi_logistik_db', lDb);
-            
-            const rDb = AppStorage.get('kombi_rechner_db', {});
-            if (Array.isArray(data.savedProdukteRaw)) rDb.savedProdukteRaw = data.savedProdukteRaw;
-            if (Array.isArray(data.sonderTemplates)) rDb.sonderTemplates = data.sonderTemplates;
-            // +++ KI-NOTIZ: BITTE NICHT MEHR ÄNDERN! +++
-            // Die Synchronisations-Logik steht fest:
-            // - LKW (entries) -> synchron (auf allen Handys gleich)
-            // - Sortieren (entriesSort) -> lokal
-            // - Nölke (entriesNoelke) -> lokal
-            // - Leergut -> lokal
-            if (Array.isArray(data.entries)) rDb.entries = data.entries;
-            AppStorage.set('kombi_rechner_db', rDb);
-            
-            if (typeof loadLocalDB === 'function') loadLocalDB(); 
+            if (typeof applyRechnerStammdatenFromCloud === 'function') applyRechnerStammdatenFromCloud(data);
+            if (typeof loadLocalDB === 'function') loadLocalDB();
             if (typeof loadRechnerData === 'function') loadRechnerData();
-            updateLiefDropdowns(); 
-            if (typeof addAppCloudLog === 'function') addAppCloudLog("DOWNLOAD: Listen aktualisiert [OK]");
-            showToast("✅ Listen aktualisiert!", "success");
+            if (typeof updateLiefDropdowns === 'function') updateLiefDropdowns();
+            if (typeof addAppCloudLog === 'function') addAppCloudLog("DOWNLOAD: Stammdaten aus Cloud [OK]");
+            showToast("Lieferanten, Sorten & Nölke-Produkte geladen!", "success");
         }
     } catch(e) { 
         console.error(e); showToast("Cloud-Fehler", "error"); 
@@ -110,14 +87,29 @@ function updateLiefDropdowns() {
 function switchTab(tabId) {
     try {
         document.querySelectorAll('#app2_wrapper .tab-content').forEach(c => c.classList.remove('active'));
-        document.querySelectorAll('#app2_wrapper .tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#app2_wrapper .tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('#drawer2 .drawer-item.menu-tab').forEach(b => b.classList.remove('active'));
         
         let activeContent = document.getElementById('tab-' + tabId);
+        let activeMenuItem = document.getElementById('menu-tab-' + tabId);
         let activeButton = document.getElementById('btn-tab-' + tabId);
         
         if (activeContent) activeContent.classList.add('active');
+        if (tabId === 'checklist' && typeof initChecklist === 'function') initChecklist();
+        if (activeMenuItem) activeMenuItem.classList.add('active');
         if (activeButton) activeButton.classList.add('active');
     } catch(e) { console.error("Fehler in switchTab", e); }
+}
+
+function toggleMenuApp2(s) { 
+    const drawer = document.getElementById('drawer2');
+    const overlay = document.getElementById('overlay2');
+    if (drawer) drawer.classList.toggle('open', s); 
+    if (overlay) overlay.style.display = s ? 'block' : 'none'; 
+}
+function switchTabAndCloseMenu(tabId) {
+    if (typeof switchTab === 'function') switchTab(tabId);
+    toggleMenuApp2(false);
 }
 
 // ======================= MODAL SEARCH =======================
@@ -791,7 +783,7 @@ function handleCalc(b) { const d = document.getElementById('c-disp'); if(b === '
 
 function getLeergutConfig() {
     const lDb = AppStorage.get('kombi_logistik_db', {}); const company = lDb.company || {};
-    const str = company.leergut || "E2:2.0, Herta:2.5, H1:18.0, Euro:21.0";
+    const str = company.leergut || (typeof DEFAULT_LEERGUT_CONFIG !== 'undefined' ? DEFAULT_LEERGUT_CONFIG : "E2:2.0, Herta:2.5, H1:18.0, Euro:21.0");
     return str.split(',').map((s, idx) => {
         let parts = s.split(':'); if(parts.length < 2) return null;
         return { id: 'lg_' + idx, name: parts[0].trim(), weight: parseFloat(parts[1]) || 0 };
@@ -852,6 +844,18 @@ function buildAppUI() {
             isFirst = false;
         } else { const el = document.getElementById('tab-leergut'); if(el) el.style.display = 'none'; }
         
+        let bbMod = company.modules.brandenburg || { active: true, name: '🏭 Brandenburg' };
+        if(bbMod.active !== false) {
+            tabsHtml += `<button class="tab-btn ${isFirst?'active':''}" id="btn-tab-brandenburg" onclick="switchTab('brandenburg')">${bbMod.name || '🏭 Brandenburg'}</button>`;
+            isFirst = false;
+        } else { const el = document.getElementById('tab-brandenburg'); if(el) el.style.display = 'none'; }
+
+        let checklistMod = company.modules.checklist || { active: true, name: '📋 Checkliste' };
+        if(checklistMod.active !== false) {
+            tabsHtml += `<button class="tab-btn ${isFirst?'active':''}" id="btn-tab-checklist" onclick="switchTab('checklist')">${checklistMod.name || '📋 Checkliste'}</button>`;
+            isFirst = false;
+        } else { const el = document.getElementById('tab-checklist'); if(el) el.style.display = 'none'; }
+
         (company.customTabs || []).forEach(t => {
             tabsHtml += `<button class="tab-btn ${isFirst?'active':''}" id="btn-tab-${t.id}" onclick="switchTab('${t.id}')">${t.name}</button>`;
             isFirst = false;
@@ -876,38 +880,26 @@ function buildAppUI() {
         for(let i = itemsInRow1; i < 2; i++) { html += `<div class="field" style="visibility:hidden;"></div>`; }
         html += `</div>`; 
 
-        if (includeNoPal) {
-            html += `<div style="margin: 8px 0; display: flex; align-items: center; gap: 8px; background: #ffebee; padding: 6px 10px; border-radius: 6px; border: 1px solid #ffcdd2;" onclick="document.getElementById('no-pal-cb-${prefix}').click()">
-                <input type="checkbox" id="no-pal-cb-${prefix}" onchange="toggleNoPalDynamic('${prefix}')" onclick="event.stopPropagation()" style="width: 18px; height: 18px;">
-                <label style="font-size: 11px; font-weight: bold; color: var(--danger); text-transform: uppercase;">Keine Palette</label>
-            </div>`;
-        }
-        
         let buttonsHtml = "";
         if (prefix === 'lkw') {
-            buttonsHtml = `<div style="display:flex; gap:5px; align-items:flex-end; padding-bottom:8px;">
-                <button class="clear-btn" onclick="fullReset()">↺</button>
+            buttonsHtml = `<button class="clear-btn" onclick="fullReset()">↺</button>
                 <button class="sonder-toggle-btn" onclick="toggleSonderMode()">+ Sonderp.</button>
-                <button class="add-btn" style="flex:1" onclick="addPal()">+ Speichern</button>
-            </div>`;
+                <button class="add-btn" style="flex:1" onclick="addPal()">+ Speichern</button>`;
         } else if (prefix === 'sort') {
-            buttonsHtml = `<div style="display:flex; gap:5px; align-items:flex-end; padding-bottom:8px;">
-                <button class="clear-btn" onclick="fullResetSort()">↺</button>
+            buttonsHtml = `<button class="clear-btn" onclick="fullResetSort()">↺</button>
                 <button class="sonder-toggle-btn" onclick="toggleSonderModeSort()">+ Sonderp.</button>
-                <button class="add-btn" style="flex:1" onclick="addSort()">+ Speichern</button>
-            </div>`;
+                <button class="add-btn" style="flex:1" onclick="addSort()">+ Speichern</button>`;
         }
 
         let itemsInRow2 = lgConfig.slice(2, 4).length;
-        if (itemsInRow2 > 0 || buttonsHtml !== "") {
-            html += `<div class="grid-row-2" ${prefix === 'edit' ? 'style="margin-top: 10px;"' : ''}>`;
+        if (itemsInRow2 > 0) {
+            html += `<div class="grid-row-2 lg-grid-pal" ${prefix === 'edit' ? 'style="margin-top: 10px;"' : ''}>`;
             lgConfig.slice(2, 4).forEach(lg => {
                 let isPal = lg.weight >= 15 && lg.weight <= 25;
                let defaultVal = (isPal && prefix !== 'edit' && lg.name.toUpperCase().includes('H1')) ? '1' : '';
                 html += `<div class="field"><label>${lg.name} (${lg.weight})</label><input type="number" id="${prefix}_${lg.id}" placeholder="0" value="${defaultVal}" data-ispal="${isPal}" inputmode="numeric" onfocus="this.select()"></div>`;
             });
             for(let i = itemsInRow2; i < 2; i++) { if (prefix !== 'edit') html += `<div class="field" style="visibility:hidden;"></div>`; }
-            html += buttonsHtml;
             html += `</div>`; 
             
             if (lgConfig.length > 4) {
@@ -919,6 +911,20 @@ function buildAppUI() {
                 });
                 html += `</div>`;
             }
+        }
+
+        if (includeNoPal || buttonsHtml) {
+            html += `<div class="lg-toolbar">`;
+            if (includeNoPal) {
+                html += `<label class="no-pal-strip" for="no-pal-cb-${prefix}">
+                    <input type="checkbox" id="no-pal-cb-${prefix}" onchange="toggleNoPalDynamic('${prefix}')">
+                    <span>Keine Palette</span>
+                </label>`;
+            }
+            if (buttonsHtml) {
+                html += `<div class="lg-toolbar-btns">${buttonsHtml}</div>`;
+            }
+            html += `</div>`;
         }
         return html;
     };
@@ -1095,6 +1101,384 @@ window.clearLeergutInputs = function(prefix) {
     
     showToast("Zähler geleert!", "success");
 };
+
+// ======================= BRANDENBURG WARENEINGANG =======================
+let brandenburgState = { scans: [], entries: [], lastScan: null };
+let editingBrandenburgIndex = null;
+function isLikelyBrandenburgSscc(s) {
+    if (!s || typeof s !== 'string') return false;
+    const clean = s.replace(/\s|\[|\]|\]C1/g, '');
+    return /^00\d{18}$/.test(clean) || /^\d{18}$/.test(clean);
+}
+
+function isLikelyBrandenburgGs1(s) {
+    if (!s || typeof s !== 'string') return false;
+    const clean = s.replace(/\s/g, '');
+    if (/\(01\)|\(02\)|\(10\)|\(15\)|\(17\)|\(3302\)|\(400\)|\(401\)|\x1D/.test(clean)) return true;
+    if (/^(00|01|02|10|15|17|3302|400|401|31\d)/.test(clean)) return true;
+    return false;
+}
+
+function tryParseBrandenburgGs1(gs1Candidate) {
+    if (!gs1Candidate || typeof gs1Candidate !== 'string') return null;
+    let cleanText = gs1Candidate.replace(/\]C1/g, '').replace(/\[|\]/g, '').trim();
+    if (!cleanText || isLikelyBrandenburgSscc(cleanText)) return null;
+    const result = { charge: null, netto: 0, gtin: null, article: null };
+    const parseAiValue = (ai, value) => {
+        if (ai === '3302' && /^\d{6}$/.test(value)) { if (result.netto === 0) result.netto = parseInt(value, 10) / 100.0; return true; }
+        if (/^31\d\d$/.test(ai) && /^\d{6}$/.test(value)) { const decimals = parseInt(ai.substring(2, 3), 10); if (result.netto === 0) result.netto = parseInt(value, 10) / Math.pow(10, decimals); return true; }
+        if ((ai === '01' || ai === '02') && /^\d{14}$/.test(value)) { if (!result.gtin) result.gtin = value; if (!result.article) result.article = value; return true; }
+        if (ai === '10') { let charge = value; const fncIndex = charge.indexOf(String.fromCharCode(29)); if (fncIndex !== -1) charge = charge.substring(0, fncIndex); charge = charge.replace(/^IDE/, ''); if (charge && !/due\s*charge/i.test(charge)) { if (!result.charge) result.charge = charge; return true; } }
+        if ((ai === '400' || ai === '401') && value) { let article = value; const fncIndex = article.indexOf(String.fromCharCode(29)); if (fncIndex !== -1) article = article.substring(0, fncIndex); if (!result.article) result.article = article; return true; }
+        if (ai === '01' && /^\d{7,13}$/.test(value)) { if (!result.article) result.article = value; return true; }
+        return false;
+    };
+    if (cleanText.includes(String.fromCharCode(29))) { const parts = cleanText.split(String.fromCharCode(29)); for (const part of parts) { if (part.startsWith('01')) parseAiValue('01', part.substring(2)); else if (part.startsWith('10')) parseAiValue('10', part.substring(2)); else if (part.startsWith('3302')) parseAiValue('3302', part.substring(4)); } }
+    const parenRegex = /\(((?:00|01|02|10|15|17|3302|31\d\d|400|401))\)([^\(\x1D]*)/g; let match;
+    while ((match = parenRegex.exec(cleanText))) { parseAiValue(match[1], match[2]); }
+    if (result.netto === 0) { const weightMatch = cleanText.match(/3302(\d{6})/); if (weightMatch) { parseAiValue('3302', weightMatch[1]); } }
+    if (result.article || result.charge || result.gtin || result.netto > 0) return result;
+    return null;
+}
+
+function normalizeBrandenburgEntry(raw) {
+    if (!raw) return null;
+    let entry = { type: 'AUTO', value: '' };
+    if (typeof raw === 'string') { const m = raw.match(/^([A-Z0-9_-]+)\|([\s\S]+)$/); entry.value = m ? m[2] : raw; entry.type = m ? m[1] : 'AUTO'; } 
+    else if (typeof raw === 'object') { entry.type = raw.type || 'AUTO'; entry.value = raw.value || ''; }
+    entry.value = (entry.value || '').toString().trim(); if (!entry.value) return null;
+    const type = entry.type.toString().toUpperCase();
+    if (type === 'QR' || type === 'BC') { entry.type = type; return entry; }
+    if (isLikelyBrandenburgSscc(entry.value)) { entry.type = 'BC'; return entry; }
+    entry.type = isLikelyBrandenburgGs1(entry.value) ? 'QR' : 'BC'; return entry;
+}
+
+function processBrandenburgScanEntries(rawEntries) {
+    const entries = Array.isArray(rawEntries) ? rawEntries : [rawEntries];
+    const latestEntry = normalizeBrandenburgEntry(entries[entries.length - 1]);
+    if (!latestEntry) return;
+    if (brandenburgState.lastScan && brandenburgState.lastScan.value === latestEntry.value && (Date.now() - brandenburgState.lastScan.ts) < 1500) return;
+    brandenburgState.lastScan = { value: latestEntry.value, ts: Date.now() };
+    if (latestEntry.type !== 'QR') { showToast('Strichcode ignoriert. Bitte den QR-Code scannen.', 'info'); return; }
+    const qrData = tryParseBrandenburgGs1(latestEntry.value);
+    if (qrData && (qrData.article || qrData.gtin || qrData.charge)) {
+        const article = qrData.article || qrData.gtin; const charge = qrData.charge;
+        const isDark = document.body.classList.contains('dark-mode');
+        document.getElementById('brandenburg-scan-status').innerText = '✅ QR-Code erkannt!';
+        const statusEl = document.getElementById('brandenburg-scan-status');
+        statusEl.style.background = isDark ? "var(--success-bg, #1c3b1c)" : "var(--success-bg, #e8f5e9)";
+        statusEl.style.color = isDark ? "#66bb6a" : "#2e7d32";
+        document.getElementById('bb-artikel').value = article || ''; document.getElementById('bb-charge').value = charge || '';
+        document.getElementById('bb-netto-scan').value = '';
+        ['bb-artikel', 'bb-charge', 'bb-netto-scan', 'bb-brutto', 'bb-leergut', 'bb-e2', 'bb-h1'].forEach(id => { const input = document.getElementById(id); if (input) { input.readOnly = false; input.disabled = false; input.style.background = ''; input.removeAttribute('readonly'); } });
+        document.getElementById('brandenburg-data-form').style.display = 'block';
+        showToast('Daten aus QR-Code extrahiert. Bitte Gewicht manuell eintragen.', 'success');
+        if (typeof stopBarcodeScanner === 'function') { stopBarcodeScanner(); }
+        brandenburgState.scans = [];
+        setTimeout(() => { document.getElementById('bb-brutto')?.focus(); }, 300);
+    } else { showToast('Keine gültigen Artikel- oder Chargendaten im QR-Code gefunden.', 'error'); resetBrandenburgScanner(); }
+}
+
+function handleBrandenburgScan(scannedText) { if (!scannedText) return; processBrandenburgScanEntries(scannedText); }
+
+function calcBrandenburgNetto() {
+    const brutto = parseFloat(document.getElementById('bb-brutto').value.replace(',', '.')) || 0;
+    const lgConfig = getLeergutConfig();
+    const e2Config = lgConfig.find(lg => lg.name.toUpperCase() === 'E2'); const h1Config = lgConfig.find(lg => lg.name.toUpperCase() === 'H1');
+    const e2Weight = e2Config ? e2Config.weight : 2.0; const h1Weight = h1Config ? h1Config.weight : 18.0;
+    const e2Count = parseInt(document.getElementById('bb-e2').value) || 0; const h1Count = parseInt(document.getElementById('bb-h1').value) || 0;
+    const leergut = (e2Count * e2Weight) + (h1Count * h1Weight);
+    const leergutInput = document.getElementById('bb-leergut'); if (leergutInput) leergutInput.value = leergut.toFixed(2).replace('.', ',');
+    let istNetto = brutto - leergut;
+    const istNettoEl = document.getElementById('bb-netto-ist'); istNettoEl.value = istNetto.toFixed(2);
+    const scanNetto = parseFloat(document.getElementById('bb-netto-scan').value) || 0;
+    const diff = Math.abs(istNetto - scanNetto); const isDark = document.body.classList.contains('dark-mode');
+    if (scanNetto > 0 && diff <= 0.1) { istNettoEl.style.color = "#2e7d32"; istNettoEl.style.background = isDark ? "var(--success-bg, #1c3b1c)" : "var(--success-bg, #e8f5e9)"; } 
+    else if (scanNetto > 0) { istNettoEl.style.color = "#c62828"; istNettoEl.style.background = isDark ? "var(--danger-bg, #4d1f1f)" : "var(--danger-bg, #ffebee)"; } 
+    else { istNettoEl.style.color = ""; istNettoEl.style.background = isDark ? 'var(--bg-disabled, #2c2c2c)' : 'var(--bg-disabled, #f0f2f5)'; }
+}
+
+function resetBrandenburgScanner() {
+    if (editingBrandenburgIndex !== null) cancelBrandenburgEdit();
+    brandenburgState.scans = []; brandenburgState.lastScan = null; if (typeof scannerExpectedType !== 'undefined') scannerExpectedType = null;
+    const scanStatusEl = document.getElementById('brandenburg-scan-status');
+    scanStatusEl.innerText = "Scanner wird gestartet..."; scanStatusEl.style.background = "var(--warning-bg, #fff3e0)"; scanStatusEl.style.color = "var(--warning-text, #e65100)";
+    if (typeof startBarcodeScanner === 'function') startBarcodeScanner('brandenburg-scan-input');
+    document.getElementById('brandenburg-data-form').style.display = 'block';
+    ['bb-artikel', 'bb-charge', 'bb-netto-scan', 'bb-brutto', 'bb-leergut', 'bb-netto-ist', 'bb-e2', 'bb-h1'].forEach(id => {
+        let el = document.getElementById(id);
+        if(el) { el.value = ''; if (id !== 'bb-netto-ist' && id !== 'bb-leergut') { el.readOnly = false; el.disabled = false; el.style.background = ''; el.removeAttribute('readonly'); } }
+    });
+    const isDark = document.body.classList.contains('dark-mode'); let istNettoEl = document.getElementById('bb-netto-ist');
+    if(istNettoEl) { istNettoEl.style.color = ""; istNettoEl.style.background = isDark ? 'var(--bg-disabled, #2c2c2c)' : 'var(--bg-disabled, #f0f2f5)'; }
+}
+
+function resetBrandenburgForm() {
+    if (editingBrandenburgIndex !== null) { cancelBrandenburgEdit(); return; }
+    ['bb-artikel', 'bb-charge', 'bb-netto-scan', 'bb-brutto', 'bb-leergut', 'bb-netto-ist', 'bb-e2', 'bb-h1'].forEach(id => {
+        let el = document.getElementById(id);
+        if(el) { el.value = ''; if (id !== 'bb-netto-ist' && id !== 'bb-leergut') { el.readOnly = false; el.disabled = false; el.style.background = ''; el.removeAttribute('readonly'); } }
+    });
+    const isDark = document.body.classList.contains('dark-mode'); let istNettoEl = document.getElementById('bb-netto-ist');
+    if(istNettoEl) { istNettoEl.style.color = ""; istNettoEl.style.background = isDark ? 'var(--bg-disabled, #2c2c2c)' : 'var(--bg-disabled, #f0f2f5)'; }
+    const scanStatusEl = document.getElementById('brandenburg-scan-status');
+    if (scanStatusEl) { scanStatusEl.innerText = "Bereit zum Scannen oder zur manuellen Eingabe."; scanStatusEl.style.background = "var(--bg-color-2, #f0f2f5)"; scanStatusEl.style.color = "var(--text-color, #555)"; }
+}
+
+function saveBrandenburgPalette() {
+    if (editingBrandenburgIndex !== null) { showToast("Bitte erst die Bearbeitung abschließen.", "warning"); return; }
+    let artikel = document.getElementById('bb-artikel').value; let charge = document.getElementById('bb-charge').value;
+    let nettoScan = parseFloat(document.getElementById('bb-netto-scan').value) || 0; let brutto = parseFloat(document.getElementById('bb-brutto').value.replace(',','.')) || 0;
+    let e2Count = parseInt(document.getElementById('bb-e2').value) || 0; let h1Count = parseInt(document.getElementById('bb-h1').value) || 0;
+    let leergut = parseFloat(document.getElementById('bb-leergut').value.replace(',', '.')) || 0;
+    let nettoIst = parseFloat(document.getElementById('bb-netto-ist').value) || 0;
+    if(!brutto) { showToast("Bitte Bruttogewicht eingeben", "warning"); return; }
+    
+    brandenburgState.entries.push({ id: Date.now().toString(), artikel: artikel, charge: charge, nettoScan: nettoScan, brutto: brutto, leergut: leergut, leergutCounts: { e2: e2Count, h1: h1Count }, nettoIst: nettoIst, timestamp: new Date().toISOString() });
+    let db = AppStorage.get('kombi_rechner_db', {}); db.brandenburg = brandenburgState.entries; AppStorage.set('kombi_rechner_db', db);
+    renderBrandenburgList(); resetBrandenburgForm(); showToast("Palette gespeichert!", "success");
+}
+
+function loadBrandenburgData() {
+    let db = AppStorage.get('kombi_rechner_db', {}); brandenburgState.entries = db.brandenburg || []; renderBrandenburgList();
+    const form = document.getElementById('brandenburg-data-form'); if (form) form.style.display = 'block';
+    ['bb-artikel', 'bb-charge', 'bb-netto-scan', 'bb-brutto', 'bb-e2', 'bb-h1'].forEach(id => { const input = document.getElementById(id); if (input) { input.readOnly = false; input.style.background = ''; input.removeAttribute('readonly'); } });
+    const leergutInput = document.getElementById('bb-leergut'); if (leergutInput) { leergutInput.readOnly = true; leergutInput.style.background = 'var(--bg-disabled, #f0f2f5)'; leergutInput.placeholder = 'Auto'; }
+    const scanStatusEl = document.getElementById('brandenburg-scan-status'); if (scanStatusEl) { scanStatusEl.innerText = "Bereit zum Scannen oder zur manuellen Eingabe."; scanStatusEl.style.background = "var(--bg-color-2, #f0f2f5)"; scanStatusEl.style.color = "var(--text-color, #555)"; }
+    const container = document.getElementById('tab-brandenburg');
+    if (container) {
+        container.style.paddingBottom = '100px';
+        if (!document.getElementById('brandenburg-scan-btn')) {
+            const scanButton = document.createElement('button'); scanButton.id = 'brandenburg-scan-btn'; scanButton.innerHTML = '📷 QR-Code scannen';
+            scanButton.style.cssText = "width: calc(100% - 20px); margin: 15px 10px 5px 10px; padding: 15px; font-size: 16px; background: #8e44ad; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;";
+            scanButton.onclick = () => { if (typeof startBarcodeScanner === 'function') startBarcodeScanner('brandenburg-scan-input'); }; container.prepend(scanButton);
+        }
+        const saveButton = container.querySelector('.input-area .add-btn');
+        if (saveButton && !document.getElementById('brandenburg-button-container')) {
+            const buttonContainer = document.createElement('div'); buttonContainer.id = 'brandenburg-button-container';
+            saveButton.parentNode.insertBefore(buttonContainer, saveButton); buttonContainer.appendChild(saveButton); saveButton.id = 'btn-save-brandenburg';
+        }
+    }
+}
+
+function renderBrandenburgList() {
+    let countEl = document.getElementById('bb-counter'); if(countEl) countEl.innerText = brandenburgState.entries.length;
+    let listEl = document.getElementById('list-brandenburg'); if(!listEl) return;
+    listEl.innerHTML = brandenburgState.entries.map((e, index) => {
+        let isOk = Math.abs(e.nettoIst - e.nettoScan) <= 0.1; let color = e.nettoScan > 0 ? (isOk ? "#2e7d32" : "#c62828") : "#8e44ad";
+        let lgCounts = e.leergutCounts || {e2:0, h1:0}; let lgStr = [];
+        if (lgCounts.e2 > 0) lgStr.push(`${lgCounts.e2} E2`); if (lgCounts.h1 > 0) lgStr.push(`${lgCounts.h1} H1`);
+        return `<div class="swipe-wrap" style="margin: 0 10px 8px 10px;"><div class="swipe-bg" onclick="deleteBrandenburgEntry(${index})"><span>🗑️</span></div>
+            <div class="palette-card swipeable" style="border-left-color:${color}; margin: 0; padding:12px;" onclick="editBrandenburgEntry(${index})">
+                <div style="flex:1;"><div style="display:flex; justify-content:space-between; align-items:flex-start;"><b style="font-size:14px; color:var(--brandenburg-color, #8e44ad); max-width: 80%;">${e.artikel || '-'}</b><span style="font-size: 20px; color: var(--text-color-secondary, #999);">✏️</span></div>
+                    <div style="font-size:12px; color:var(--text-color-secondary, #777); margin-top:2px;">Charge: ${e.charge || '-'}</div>
+                    <div style="margin-top:8px; border-top:1px solid var(--border-color, #eee); padding-top:8px; font-size:12px; color:var(--text-color, #555); display:flex; justify-content:space-between; flex-wrap:wrap; gap:5px;">
+                        <span>Brutto: <b>${e.brutto.toFixed(2)} kg</b></span><span>Leergut: <b>${lgStr.join(', ') || '-'}</b></span><span>Netto: <b style="color:${color};">${e.nettoIst.toFixed(2)} kg</b></span>
+                    </div></div></div></div>`;
+    }).reverse().join('');
+}
+
+function deleteBrandenburgEntry(index) {
+    customConfirm("Diesen Eintrag wirklich löschen?", () => {
+        if (editingBrandenburgIndex === index) cancelBrandenburgEdit();
+        brandenburgState.entries.splice(index, 1); let db = AppStorage.get('kombi_rechner_db', {}); db.brandenburg = brandenburgState.entries; AppStorage.set('kombi_rechner_db', db);
+        renderBrandenburgList(); showToast("Gelöscht", "success");
+        if (editingBrandenburgIndex !== null && editingBrandenburgIndex > index) editingBrandenburgIndex--;
+    });
+}
+
+function editBrandenburgEntry(index) {
+    if (editingBrandenburgIndex !== null) { showToast("Bitte erst die aktuelle Bearbeitung abschließen.", "warning"); return; }
+    const entry = brandenburgState.entries[index]; if (!entry) return; editingBrandenburgIndex = index;
+    document.getElementById('bb-artikel').value = entry.artikel || ''; document.getElementById('bb-charge').value = entry.charge || ''; document.getElementById('bb-netto-scan').value = entry.nettoScan || '';
+    document.getElementById('bb-brutto').value = entry.brutto.toFixed(2).replace('.',','); document.getElementById('bb-e2').value = entry.leergutCounts?.e2 || '0'; document.getElementById('bb-h1').value = entry.leergutCounts?.h1 || '0';
+    calcBrandenburgNetto(); document.getElementById('tab-brandenburg').scrollTop = 0;
+    const buttonContainer = document.getElementById('brandenburg-button-container'); const saveBtn = document.getElementById('btn-save-brandenburg');
+    if (buttonContainer) {
+        if(saveBtn) saveBtn.style.display = 'none';
+        buttonContainer.innerHTML += `<button id="btn-update-brandenburg" class="add-btn" style="background: var(--warning); flex:2;" onclick="updateBrandenburgEntry()">💾 Änderungen speichern</button><button id="btn-cancel-brandenburg" class="clear-btn" onclick="cancelBrandenburgEdit()">Abbrechen</button>`;
+    } showToast("Bearbeitungsmodus aktiv.", "info");
+}
+
+function updateBrandenburgEntry() {
+    if (editingBrandenburgIndex === null) return; const entry = brandenburgState.entries[editingBrandenburgIndex]; if (!entry) return;
+    entry.artikel = document.getElementById('bb-artikel').value; entry.charge = document.getElementById('bb-charge').value;
+    entry.nettoScan = parseFloat(document.getElementById('bb-netto-scan').value) || 0; entry.brutto = parseFloat(document.getElementById('bb-brutto').value.replace(',','.')) || 0;
+    const e2Count = parseInt(document.getElementById('bb-e2').value) || 0; const h1Count = parseInt(document.getElementById('bb-h1').value) || 0;
+    entry.leergutCounts = { e2: e2Count, h1: h1Count }; const lgConfig = getLeergutConfig(); const e2Weight = (lgConfig.find(lg => lg.name.toUpperCase() === 'E2') || {weight: 2.0}).weight; const h1Weight = (lgConfig.find(lg => lg.name.toUpperCase() === 'H1') || {weight: 18.0}).weight;
+    entry.leergut = (e2Count * e2Weight) + (h1Count * h1Weight); entry.nettoIst = entry.brutto - entry.leergut;
+    let db = AppStorage.get('kombi_rechner_db', {}); db.brandenburg = brandenburgState.entries; AppStorage.set('kombi_rechner_db', db);
+    renderBrandenburgList(); cancelBrandenburgEdit(); showToast("Änderungen gespeichert!", "success");
+}
+
+function cancelBrandenburgEdit() {
+    editingBrandenburgIndex = null;
+    ['bb-artikel', 'bb-charge', 'bb-netto-scan', 'bb-brutto', 'bb-leergut', 'bb-netto-ist', 'bb-e2', 'bb-h1'].forEach(id => { let el = document.getElementById(id); if(el) el.value = ''; });
+    const isDark = document.body.classList.contains('dark-mode'); let istNettoEl = document.getElementById('bb-netto-ist');
+    if(istNettoEl) { istNettoEl.style.color = ""; istNettoEl.style.background = isDark ? 'var(--bg-disabled, #2c2c2c)' : 'var(--bg-disabled, #f0f2f5)'; }
+    const buttonContainer = document.getElementById('brandenburg-button-container'); const saveBtn = document.getElementById('btn-save-brandenburg'); const updateBtn = document.getElementById('btn-update-brandenburg'); const cancelBtn = document.getElementById('btn-cancel-brandenburg');
+    if (buttonContainer) { if(saveBtn) saveBtn.style.display = 'block'; if(updateBtn) updateBtn.remove(); if(cancelBtn) cancelBtn.remove(); }
+}
+
+function showBrandenburgSummary() {
+    let content = document.getElementById('bb-summary-content'); if(!content) return;
+    if(brandenburgState.entries.length === 0) { content.innerHTML = "<p style='text-align:center; color:var(--text-color-secondary, #999);'>Keine Daten erfasst.</p>"; document.getElementById('brandenburg-summary-modal').style.display = 'flex'; return; }
+    let grouped = {};
+    brandenburgState.entries.forEach(e => {
+        const key = e.artikel || 'Unbekannter Artikel';
+        if(!grouped[key]) { grouped[key] = { chargen: new Set(), nettoSollSum: 0, nettoIstSum: 0, e2Sum: 0, h1Sum: 0, count: 0, entries: [] }; }
+        grouped[key].chargen.add(e.charge); grouped[key].nettoSollSum += e.nettoScan || 0; grouped[key].nettoIstSum += e.nettoIst;
+        grouped[key].e2Sum += (e.leergutCounts ? e.leergutCounts.e2 : 0) || 0; grouped[key].h1Sum += (e.leergutCounts ? e.leergutCounts.h1 : 0) || 0;
+        grouped[key].count++; grouped[key].entries.push(e);
+    });
+    let totalE2 = 0; let totalH1 = 0; brandenburgState.entries.forEach(e => { totalE2 += (e.leergutCounts ? e.leergutCounts.e2 : 0) || 0; totalH1 += (e.leergutCounts ? e.leergutCounts.h1 : 0) || 0; });
+    let html = '';
+    for(let art in grouped) { 
+        let g = grouped[art]; let chargenList = Array.from(g.chargen).filter(c => c).join(', ');
+        html += `<div style="border: 1px solid var(--border-color, #ddd); border-radius: 8px; margin-bottom: 20px; overflow: hidden;"><div style="background: var(--bg-color-2, #f4f6f9); padding: 10px; border-bottom: 1px solid var(--border-color, #ddd);"><div style="font-weight: bold; font-size: 16px;">${art}</div><div style="font-size: 12px; color: var(--text-color-secondary, #555);">${chargenList || '-'}</div></div><table style="width:100%; border-collapse: collapse;"><thead><tr style="font-size:11px; background: var(--bg-color-2, #fafafa);"><th style="padding: 6px; border-bottom: 1px solid var(--border-color, #ddd); text-align: left;">Brutto</th><th style="padding: 6px; border-bottom: 1px solid var(--border-color, #ddd); text-align: left;">Leergut</th><th style="padding: 6px; border-bottom: 1px solid var(--border-color, #ddd); text-align: right;">Netto (Soll)</th><th style="padding: 6px; border-bottom: 1px solid var(--border-color, #ddd); text-align: right; color: #2e7d32;">Netto (Ist)</th><th style="padding: 6px; border-bottom: 1px solid var(--border-color, #ddd); text-align: right;">Diff.</th></tr></thead><tbody>`;
+        g.entries.forEach(entry => {
+            let lgCounts = entry.leergutCounts || {e2:0, h1:0}; let lgStr = [];
+            if (lgCounts.e2 > 0) lgStr.push(`${lgCounts.e2} E2`); if (lgCounts.h1 > 0) lgStr.push(`${lgCounts.h1} H1`);
+            let diff = entry.nettoIst - (entry.nettoScan || 0); let diffColor = Math.abs(diff) > 0.1 ? '#c62828' : '#2e7d32'; if (entry.nettoScan === 0) diffColor = '#555';
+            html += `<tr style="font-size: 13px;"><td style="padding: 6px; border-bottom: 1px solid var(--border-color, #eee);">${entry.brutto.toFixed(2)} kg</td><td style="padding: 6px; border-bottom: 1px solid var(--border-color, #eee);">${lgStr.join(', ') || '-'}</td><td style="padding: 6px; border-bottom: 1px solid var(--border-color, #eee); text-align: right;">${(entry.nettoScan || 0).toFixed(2)} kg</td><td style="padding: 6px; border-bottom: 1px solid var(--border-color, #eee); text-align: right;">${entry.nettoIst.toFixed(2)} kg</td><td style="padding: 6px; border-bottom: 1px solid var(--border-color, #eee); text-align: right; font-weight: bold; color: ${diffColor};">${diff.toFixed(2)} kg</td></tr>`;
+        });
+        html += `</tbody></table>`;
+        let totalDiff = g.nettoIstSum - g.nettoSollSum; let totalDiffColor = Math.abs(totalDiff) > (g.count * 0.1) ? '#c62828' : '#1b5e20'; if (g.nettoSollSum === 0) totalDiffColor = '#1b5e20';
+        html += `<div style="background: var(--success-bg, #e8f5e9); padding: 10px; font-size: 14px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px solid var(--border-color, #ccc);"><span>Summe Netto (Soll):</span><span style="font-weight: bold; color: var(--text-color-secondary, #555);">${g.nettoSollSum.toFixed(2)} kg</span></div><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px solid var(--border-color, #ccc);"><span>Summe Netto (Ist):</span><span style="font-weight: bold; color: #1b5e20;">${g.nettoIstSum.toFixed(2)} kg</span></div><div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-weight: bold;">Gesamtdifferenz:</span><span style="font-weight: bold; color: ${totalDiffColor};">${totalDiff.toFixed(2)} kg</span></div></div></div>`;
+    }
+    html += `<div style="background: var(--warning-bg, #fff3e0); padding: 15px; border-radius: 8px; border: 1px solid var(--warning-border, #ffe0b2); margin-top: 20px;"><div style="font-weight: bold; margin-bottom: 10px; text-align: center; text-transform: uppercase; font-size: 14px; color: var(--warning-text, #e65100);">Gesamt-Leergut</div><div style="display:flex; justify-content:space-around; font-size: 16px;"><span><b>E2 Kisten:</b> ${totalE2}</span><span><b>H1 Paletten:</b> ${totalH1}</span></div></div>`;
+    content.innerHTML = html; document.getElementById('brandenburg-summary-modal').style.display = 'flex';
+}
+
+function printBrandenburgSummary() {
+    let printArea = document.getElementById('printArea'); if(!printArea) return;
+    let now = new Date(), dateStr = now.toLocaleDateString('de-DE'), timeStr = now.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
+    let grouped = {};
+    brandenburgState.entries.forEach(e => {
+        const key = e.artikel || 'Unbekannter Artikel';
+        if(!grouped[key]) { grouped[key] = { chargen: new Set(), nettoSollSum: 0, nettoIstSum: 0, entries: [] }; }
+        grouped[key].chargen.add(e.charge); grouped[key].nettoSollSum += e.nettoScan || 0; grouped[key].nettoIstSum += e.nettoIst; grouped[key].count = (grouped[key].count || 0) + 1; grouped[key].entries.push(e);
+    });
+    let totalE2 = 0; let totalH1 = 0; brandenburgState.entries.forEach(e => { totalE2 += (e.leergutCounts ? e.leergutCounts.e2 : 0) || 0; totalH1 += (e.leergutCounts ? e.leergutCounts.h1 : 0) || 0; });
+    let html = `<div style="font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto;"><h2 style="color: #333; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">Wareneingang Brandenburg</h2><div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px;"><div><b>Datum:</b> ${dateStr}</div><div><b>Uhrzeit:</b> ${timeStr}</div></div>`;
+    for(let art in grouped) { 
+        let g = grouped[art]; let chargenList = Array.from(g.chargen).filter(c => c).join(', ');
+        html += `<div style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; overflow: hidden; page-break-inside: avoid;"><div style="background: #f4f6f9; padding: 10px; border-bottom: 1px solid #ddd;"><div style="font-weight: bold; font-size: 16px;">${art}</div><div style="font-size: 12px; color: #555;">Chargen: ${chargenList || '-'}</div></div><table style="width:100%; border-collapse: collapse; font-size: 13px;"><thead style="font-size:11px; background: #fafafa;"><tr style="font-size:11px; background: #fafafa;"><th style="padding: 6px; border-bottom: 1px solid #ddd; text-align: left;">Brutto</th><th style="padding: 6px; border-bottom: 1px solid #ddd; text-align: left;">Leergut</th><th style="padding: 6px; border-bottom: 1px solid #ddd; text-align: right;">Netto (Soll)</th><th style="padding: 6px; border-bottom: 1px solid #ddd; text-align: right;">Netto (Ist)</th><th style="padding: 6px; border-bottom: 1px solid #ddd; text-align: right;">Differenz</th></tr></thead><tbody>`;
+        g.entries.forEach(entry => {
+            let lgCounts = entry.leergutCounts || {e2:0, h1:0}; let lgStr = [];
+            if (lgCounts.e2 > 0) lgStr.push(`${lgCounts.e2} E2`); if (lgCounts.h1 > 0) lgStr.push(`${lgCounts.h1} H1`);
+            let diff = entry.nettoIst - (entry.nettoScan || 0); let diffColor = Math.abs(diff) > 0.1 ? '#c62828' : '#2e7d32'; if (entry.nettoScan === 0) diffColor = '#555';
+            html += `<tr><td style="padding: 6px; border-bottom: 1px solid #eee;">${entry.brutto.toFixed(2)} kg</td><td style="padding: 6px; border-bottom: 1px solid #eee;">${lgStr.join(', ') || '-'}</td><td style="padding: 6px; border-bottom: 1px solid #eee; text-align: right;">${(entry.nettoScan || 0).toFixed(2)} kg</td><td style="padding: 6px; border-bottom: 1px solid #eee; text-align: right;">${entry.nettoIst.toFixed(2)} kg</td><td style="padding: 6px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold; color: ${diffColor};">${diff.toFixed(2)} kg</td></tr>`;
+        });
+        let totalDiff = g.nettoIstSum - g.nettoSollSum; let totalDiffColor = Math.abs(totalDiff) > (g.count * 0.1) ? '#c62828' : '#1b5e20'; if (g.nettoSollSum === 0) totalDiffColor = '#1b5e20';
+        html += `</tbody></table><div style="background: #e8f5e9; padding: 10px; font-size: 14px; page-break-inside: avoid;"><table style="width: 100%; border-collapse: collapse; font-size: 14px;"><tbody><tr><td style="padding: 4px; font-weight: bold;">Summe Netto (Soll):</td><td style="padding: 4px; font-weight: bold; color: #555; text-align: right;">${g.nettoSollSum.toFixed(2)} kg</td></tr><tr><td style="padding: 4px; font-weight: bold;">Summe Netto (Ist):</td><td style="padding: 4px; font-weight: bold; color: #1b5e20; text-align: right;">${g.nettoIstSum.toFixed(2)} kg</td></tr><tr><td style="padding: 4px; font-weight: bold; border-top: 1px solid #ccc;">Gesamtdifferenz:</td><td style="padding: 4px; font-weight: bold; color: ${totalDiffColor}; text-align: right; border-top: 1px solid #ccc;">${totalDiff.toFixed(2)} kg</td></tr></tbody></table></div></div>`;
+    }
+    html += `<div style="background: #fff3e0; padding: 15px; border-radius: 8px; border: 1px solid #ffe0b2; margin-top: 20px; page-break-inside: avoid;"><div style="font-weight: bold; margin-bottom: 10px; text-align: center; text-transform: uppercase; font-size: 14px; color: #e65100;">Gesamt-Leergut</div><div style="display:flex; justify-content:space-around; font-size: 16px;"><span><b>E2 Kisten:</b> ${totalE2}</span><span><b>H1 Paletten:</b> ${totalH1}</span></div></div><div style="font-size: 10px; color: #777; text-align: center; margin-top: 50px;">Gedruckt mit Kombi-App</div></div>`;
+    printArea.innerHTML = html; if(typeof forcePrint === 'function') { forcePrint('WE_Brandenburg_' + dateStr.replace(/\./g, '')); }
+}
+
+// ======================= CHECKLISTE (ARBEITS-ROUTINEN) =======================
+
+window.switchChecklistTab = function(tabId) {
+    document.querySelectorAll('.checklist-tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.checklist-view').forEach(view => view.style.display = 'none');
+    const activeBtn = document.getElementById('checklist-tab-' + tabId); const activeView = document.getElementById('checklist-view-' + tabId);
+    if(activeBtn) activeBtn.classList.add('active'); if(activeView) activeView.style.display = 'block';
+};
+
+function initChecklist() {
+    if (!morningTasks || (morningTasks.length === 0 && !AppStorage.getRaw('checklist_init_done'))) {
+         morningTasks = [ { id: 'm1', text: 'Stapler prüfen (Wasser, Öl, Batterie)', done: false }, { id: 'm2', text: 'Tore & Türen öffnen', done: false }, { id: 'm3', text: 'LKW Ladezonen aufräumen / reinigen', done: false }, { id: 'm4', text: 'Leergut-Platz kontrollieren', done: false }, { id: 'm5', text: 'Müll / Pappe entsorgen', done: false } ];
+         AppStorage.setRaw('checklist_init_done', 'true'); saveRechnerDB();
+    }
+    const formMorning = document.getElementById('form-morning');
+    if (formMorning && !formMorning.hasAttribute('data-init')) { formMorning.addEventListener('submit', function(e) { e.preventDefault(); addMorningTask(); }); formMorning.setAttribute('data-init', '1'); }
+    const formAdhoc = document.getElementById('form-adhoc');
+    if (formAdhoc && !formAdhoc.hasAttribute('data-init')) { formAdhoc.addEventListener('submit', function(e) { e.preventDefault(); addAdhocTask(); }); formAdhoc.setAttribute('data-init', '1'); }
+    const resetBtn = document.getElementById('reset-btn');
+    if (resetBtn && !resetBtn.hasAttribute('data-init')) { resetBtn.addEventListener('click', function(e) { e.preventDefault(); resetMorningTasks(); }); resetBtn.setAttribute('data-init', '1'); }
+    const micBtn = document.querySelector('#form-adhoc #mic-checklist');
+    if (micBtn && !micBtn.hasAttribute('data-init')) { micBtn.addEventListener('click', function(e) { e.preventDefault(); if (typeof startVoiceRecognition === 'function') startVoiceRecognition('input-adhoc'); }); micBtn.setAttribute('data-init', '1'); }
+    renderChecklist();
+}
+
+function renderChecklist() {
+    const morningList = document.getElementById('morning-list'); const adhocList = document.getElementById('adhoc-list');
+    if (!morningList || !adhocList) return;
+    let fileInput = document.getElementById('task-photo-input');
+    if (!fileInput) { fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.id = 'task-photo-input'; fileInput.accept = 'image/*'; fileInput.capture = 'environment'; fileInput.style.display = 'none'; fileInput.onchange = handleTaskPhotoUpload; document.body.appendChild(fileInput); }
+
+    if (!morningTasks || morningTasks.length === 0) {
+        const empty = document.getElementById('morning-empty'); if(empty) empty.style.display = 'block'; morningList.innerHTML = '';
+    } else {
+        const empty = document.getElementById('morning-empty'); if(empty) empty.style.display = 'none';
+        let doneCount = 0;
+        morningList.innerHTML = morningTasks.map((t, i) => {
+            if (t.done) doneCount++;
+            let bg = t.done ? 'var(--success-bg, #e8f5e9)' : 'var(--bg-card, #fff)'; let color = t.done ? 'var(--success, #2e7d32)' : 'var(--text-color, #333)'; let textDec = t.done ? 'line-through' : 'none';
+            let photoIcon = t.photo ? `<span onclick="viewTaskPhoto('morning', ${i}); event.stopPropagation();" style="font-size:22px; color:var(--primary, #004b93); cursor:pointer; padding:5px;">🖼️</span>` : `<span onclick="triggerTaskPhoto('morning', ${i}); event.stopPropagation();" style="font-size:22px; filter:grayscale(1); opacity:0.3; cursor:pointer; padding:5px;">📷</span>`;
+            return `<li class="swipe-wrap" style="margin: 0 0 5px 0;"><div class="swipe-bg" onclick="deleteMorningTask(${i})"><span>🗑️</span></div><div class="swipeable" onclick="toggleTask('morning', ${i})" style="background:${bg}; padding:12px 10px; border-bottom:1px solid var(--border-color, #eee); display:flex; align-items:center; gap:12px; cursor:pointer; transition:background 0.2s; border-radius:8px;"><input type="checkbox" ${t.done ? 'checked' : ''} style="width:22px; height:22px; pointer-events:none; accent-color:var(--success, #2e7d32);"><span style="color:${color}; text-decoration:${textDec}; font-size:15px; font-weight:500; flex:1;">${t.text}</span>${photoIcon}</div></li>`;
+        }).join('');
+        const total = morningTasks.length; const percent = total > 0 ? (doneCount / total) * 100 : 0;
+        const progressEl = document.getElementById('checklist-progress-bar'); if (progressEl) progressEl.style.width = percent + '%';
+        const progressText = document.getElementById('checklist-progress-text'); if (progressText) progressText.innerText = `${doneCount}/${total} erledigt`;
+    }
+
+    if (!adhocTasks || adhocTasks.length === 0) {
+        const empty = document.getElementById('adhoc-empty'); if(empty) empty.style.display = 'block'; adhocList.innerHTML = '';
+        let clearBtn = document.getElementById('clear-adhoc-btn'); if(clearBtn) clearBtn.remove();
+    } else {
+        const empty = document.getElementById('adhoc-empty'); if(empty) empty.style.display = 'none';
+        adhocList.innerHTML = adhocTasks.map((t, i) => {
+            let bg = t.done ? 'var(--success-bg, #e8f5e9)' : 'var(--bg-card, #fff)'; let color = t.done ? 'var(--success, #2e7d32)' : 'var(--text-color, #333)'; let textDec = t.done ? 'line-through' : 'none'; let borderCol = t.done ? 'var(--success, #2e7d32)' : 'var(--warning, #ff9800)';
+            let photoIcon = t.photo ? `<span onclick="viewTaskPhoto('adhoc', ${i}); event.stopPropagation();" style="font-size:22px; color:var(--primary, #004b93); cursor:pointer; padding:5px;">🖼️</span>` : `<span onclick="triggerTaskPhoto('adhoc', ${i}); event.stopPropagation();" style="font-size:22px; filter:grayscale(1); opacity:0.3; cursor:pointer; padding:5px;">📷</span>`;
+            return `<li class="swipe-wrap" style="margin: 0 0 10px 0;"><div class="swipe-bg" onclick="deleteAdhocTask(${i})"><span>🗑️</span></div><div class="palette-card swipeable" onclick="toggleTask('adhoc', ${i})" style="margin: 0; padding:15px; background:${bg}; border-left-color:${borderCol}; cursor:pointer;"><div style="flex:1; display:flex; align-items:center; gap:12px;"><input type="checkbox" ${t.done ? 'checked' : ''} style="width:22px; height:22px; pointer-events:none; accent-color:var(--success, #2e7d32);"><span style="color:${color}; text-decoration:${textDec}; font-size:15px; font-weight:500; flex:1;">${t.text}</span>${photoIcon}</div></div></li>`;
+        }).join('');
+        if (adhocTasks.some(t => t.done)) { if (!document.getElementById('clear-adhoc-btn')) { const btn = document.createElement('button'); btn.id = 'clear-adhoc-btn'; btn.className = 'clear-btn'; btn.style.cssText = 'width:100%; padding:10px; font-size:14px; margin-top:15px;'; btn.innerText = '🧹 Erledigte Aufgaben ausblenden'; btn.onclick = clearDoneAdhocTasks; adhocList.parentNode.appendChild(btn); } } 
+        else { let clearBtn = document.getElementById('clear-adhoc-btn'); if(clearBtn) clearBtn.remove(); }
+    }
+}
+
+window.toggleTask = function(type, index) { if(type === 'morning') morningTasks[index].done = !morningTasks[index].done; else adhocTasks[index].done = !adhocTasks[index].done; saveRechnerDB(); renderChecklist(); };
+window.addMorningTask = function() { const input = document.getElementById('input-morning'); if(!input || !input.value.trim()) { showToast("Bitte Routine eingeben", "warning"); return; } if(!morningTasks) morningTasks = []; morningTasks.push({ id: Date.now().toString(), text: input.value.trim(), done: false }); input.value = ''; saveRechnerDB(); renderChecklist(); showToast("Routine hinzugefügt", "success"); };
+window.deleteMorningTask = function(index) { morningTasks.splice(index, 1); saveRechnerDB(); renderChecklist(); showToast("Routine gelöscht", "success"); };
+window.addAdhocTask = function() { const input = document.getElementById('input-adhoc'); if(!input || !input.value.trim()) { showToast("Bitte Aufgabe eingeben", "warning"); return; } if(!adhocTasks) adhocTasks = []; adhocTasks.unshift({ id: Date.now().toString(), text: input.value.trim(), done: false }); input.value = ''; saveRechnerDB(); renderChecklist(); showToast("Aufgabe hinzugefügt", "success"); };
+window.deleteAdhocTask = function(index) { adhocTasks.splice(index, 1); saveRechnerDB(); renderChecklist(); showToast("Aufgabe gelöscht", "success"); };
+window.clearDoneAdhocTasks = function() { adhocTasks = adhocTasks.filter(t => !t.done); saveRechnerDB(); renderChecklist(); showToast("Aufgeräumt!", "success"); };
+
+let currentPhotoTaskType = null; let currentPhotoTaskIndex = null;
+window.triggerTaskPhoto = function(type, index) { currentPhotoTaskType = type; currentPhotoTaskIndex = index; const fi = document.getElementById('task-photo-input'); if(fi) fi.click(); };
+window.handleTaskPhotoUpload = function(event) {
+    const file = event.target.files[0]; if(!file) return; showToast("Verarbeite Foto...", "warning");
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas'); let ctx = canvas.getContext('2d'); let MAX_WIDTH = 800; let MAX_HEIGHT = 800; let width = img.width; let height = img.height;
+            if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+            canvas.width = width; canvas.height = height; ctx.drawImage(img, 0, 0, width, height);
+            const base64 = canvas.toDataURL('image/jpeg', 0.6);
+            if(currentPhotoTaskType === 'morning') morningTasks[currentPhotoTaskIndex].photo = base64; else if(currentPhotoTaskType === 'adhoc') adhocTasks[currentPhotoTaskIndex].photo = base64;
+            saveRechnerDB(); renderChecklist(); showToast("Foto gespeichert!", "success");
+        }; img.src = e.target.result;
+    }; reader.readAsDataURL(file);
+};
+window.viewTaskPhoto = function(type, index) {
+    let task = type === 'morning' ? morningTasks[index] : adhocTasks[index];
+    if (task && task.photo) {
+        let modal = document.getElementById('task-photo-modal');
+        if (!modal) {
+            modal = document.createElement('div'); modal.id = 'task-photo-modal';
+            modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:100000; display:flex; justify-content:center; align-items:center; flex-direction:column; padding:20px; box-sizing:border-box;';
+            modal.innerHTML = `<img id="task-photo-img" style="max-width:100%; max-height:80vh; border-radius:12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); object-fit:contain;"><div style="margin-top:20px; display:flex; gap:15px; width:100%; max-width:400px;"><button id="task-photo-close-btn" style="flex:1; padding:12px; background:#fff; color:#000; border:none; border-radius:8px; font-weight:bold; font-size:16px;">Schließen</button><button id="task-photo-delete-btn" style="flex:1; padding:12px; background:#dc3545; color:#fff; border:none; border-radius:8px; font-weight:bold; font-size:16px;">🗑️ Löschen</button></div>`;
+            document.body.appendChild(modal);
+        }
+        document.getElementById('task-photo-img').src = task.photo; document.getElementById('task-photo-close-btn').onclick = () => { modal.style.display = 'none'; };
+        document.getElementById('task-photo-delete-btn').onclick = function() { customConfirm("Foto wirklich löschen?", () => { task.photo = null; saveRechnerDB(); renderChecklist(); modal.style.display = 'none'; showToast("Foto gelöscht", "success"); }); };
+        modal.style.display = 'flex';
+    }
+};
+window.resetMorningTasks = function() { customConfirm("Morgen-Routinen zurücksetzen?", () => { morningTasks.forEach(t => t.done = false); saveRechnerDB(); renderChecklist(); showToast("Routinen zurückgesetzt!", "success"); }); };
 
 window.resetLadeProgress = function(silent) {
     document.querySelectorAll('[id$="-count"]').forEach(el => {

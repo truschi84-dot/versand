@@ -1,0 +1,7 @@
+{
+  "configUrl": "https://truschi84-dot.github.io/versand/app-update.json",
+  "webBaseUrl": "https://truschi84-dot.github.io/versand",
+  "officeWebBaseUrl": "http://192.168.2.204:8080",
+  "preferOfficeLan": true,
+  "fallbackBundled": true
+}

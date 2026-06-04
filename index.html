@@ -3,28 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Kombi - Logistik & Rechner V6</title>
+    <title>Kombi - Logistik & Rechner V7</title>
     
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-weeb-app-title" content="Kombi App">
+    <meta name="apple-mobile-web-app-title" content="Kombi App">
+    <meta name="format-detection" content="telephone=no">
     <meta name="theme-color" content="#004b93">
     
-    <link rel="manifest" href="data:application/manifest+json;base64,ewogICJuYW1lIjogIkxvZ2lzdGlrIFBybyAmIFJlY2huZXIiLAogICJzaG9ydF9uYW1lIjogIktvbWJpLUFwcCIsCiAgInN0YXJ0X3VybCI6ICIuL2luZGV4Lmh0bWwiLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmMmY0ODgiLAogICJ0aGVtZV9jb2xvciI6ICIjMDA0YjkzIiwKICAib3JpZW50YXRpb24iOiAicG9ydHJhaXQiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJodHRwczovL2Nkbi1pY29ucy1wbmcuZmxhdGljb24uY29tLzUxMi8yNjQzLzI2NDMzOTcucG5nIiwKICAgICAgInNpemVzIjogIjE5MngxOTIiLAogICAgICAidHlwZSI6ICJpbWFnZS9wbmciLAogICAgICAicHVycG9zZSI6ICJhbnkgbWFza2FibGUiCiAgICB9LAogICAgewogICAgICAic3JjIjogImh0dHBzOi8vY2RuLWljb25zLXBuZy5mbGF0aWNvbi5jb20vNTEyLzI2NDMvMjY0MzM5Ny5wbmciLAogICAgICAic2l6ZXMiOiAiNTEyeDUxMiIsCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIsCiAgICAgICJwdXJwb3NlIjogImFueSBtYXNrYWJsZSIKICAgIH0KICBdCn0=">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2643/2643397.png">
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <link rel="stylesheet" href="style.css?v=50">
+    <link rel="stylesheet" href="style.css?v=88">
     <style>
-        /* Control Center Design */
-        .control-center { background: #d1e3ff; margin: 10px; padding: 15px; border-radius: 12px; border: 2px solid #004b93; display: flex; justify-content: space-between; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .control-item { flex: 1; text-align: center; }
-        .control-item b { display: block; font-size: 20px; color: #000; }
-        .control-item span { font-size: 10px; text-transform: uppercase; color: #004b93; font-weight: bold; }
+        /* Burger Menu Icon design */
+        .burger { font-size: 22px !important; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(255,255,255,0.18); color: white; border: 1px solid rgba(255,255,255,0.35); box-shadow: 0 4px 10px rgba(0,0,0,0.12); transition: transform 0.2s ease, background 0.2s ease; cursor: pointer; user-select: none; }
+        .burger:hover { transform: translateY(-1px); background: rgba(255,255,255,0.26); }
+        html, body { overflow-x: hidden; }
+
+        /* Burger Menu Rechner (App2) */
+        #drawer2 { position: fixed; left: -340px; top: 0; width: 320px; height: 100%; background: linear-gradient(180deg, #ffffff 0%, #f6f8ff 100%); box-shadow: 2px 0 30px rgba(0,0,0,0.20); z-index: 3000; transition: left 0.28s ease; padding: 24px 18px 18px; overflow-y: auto; border-right: 1px solid rgba(0,0,0,0.08); backdrop-filter: blur(12px); box-sizing: border-box; }
+        #drawer2.open { left: 0 !important; }
+        #drawer2 .drawer-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+        #drawer2 .drawer-title { font-size: 18px; font-weight: 900; letter-spacing: 0.02em; color: var(--primary); }
+        #drawer2 .drawer-close { border: none; background: rgba(0,75,147,0.1); color: var(--primary); width: 42px; height: 42px; border-radius: 12px; cursor: pointer; transition: background 0.2s ease; font-size: 20px; display: inline-flex; align-items: center; justify-content: center; }
+        #drawer2 .drawer-close:hover { background: rgba(0,75,147,0.18); }
+        #drawer2 .drawer-item { display: flex; align-items: center; justify-content: flex-start; gap: 10px; padding: 14px 16px; margin: 8px 0; border-radius: 16px; border: 1px solid rgba(0,75,147,0.12); background: rgba(255,255,255,0.9); color: #1d325f; font-weight: 700; font-size: 15px; box-shadow: 0 10px 20px rgba(19, 54, 100, 0.05); cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease; }
+        #drawer2 .drawer-item:hover { transform: translateX(2px); box-shadow: 0 14px 26px rgba(19, 54, 100, 0.09); background: #f4f7ff; }
+        #drawer2 .drawer-item.active { background: var(--primary); color: #ffffff; border-color: rgba(255,152,0,0.8); box-shadow: 0 18px 30px rgba(0,75,147,0.25); border-left: 5px solid #ff9800; }
+        #drawer2 .drawer-item .item-icon { font-size: 18px; }
+        #drawer2 .drawer-item.small-note { font-size: 14px; opacity: 0.85; font-weight: 600; }
+        #drawer2 .drawer-separator { border: 0; border-top: 1px solid rgba(0,0,0,0.08); margin: 16px 0; }
+        #overlay2 { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); z-index: 2999; display: none; }
+        body.dark-mode #drawer2 { background-color: #191b22 !important; color: #fff !important; border-right: 1px solid #333; }
+        body.dark-mode #drawer2 .drawer-item { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.08); color: #f1f1f1; }
+        body.dark-mode #drawer2 .drawer-item:hover { background: rgba(255,255,255,0.08); }
+        body.dark-mode #drawer2 .drawer-item.active { background: #004b93; box-shadow: 0 18px 30px rgba(0,0,0,0.4); }
 
         body.dark-mode { background-color: #121212 !important; color: #ffffff !important; }
         body.dark-mode #app2_wrapper, body.dark-mode #app1_wrapper { background-color: #121212 !important; }
-        body.dark-mode header { background-color: #1f1f1f !important; color: #ffffff !important; border-bottom: 1px solid #333 !important; }
+        body.dark-mode header { background: #1f1f1f !important; color: #ffffff !important; border-bottom: 1px solid #333 !important; }
         body.dark-mode .card, body.dark-mode .summary-card, body.dark-mode .leergut-card, body.dark-mode .palette-card,
         body.dark-mode .input-area, body.dark-mode .sonder-box, body.dark-mode .select-trigger,
         body.dark-mode .worker-list-item, body.dark-mode #artSupplierCheckboxes,
@@ -48,14 +69,11 @@
         body.dark-mode .drawer-item:hover { background-color: #333 !important; }
         body.dark-mode label[style*="background:#fff"], body.dark-mode label[style*="background: #fff"], body.dark-mode label[style*="background: white"], body.dark-mode div[style*="background:#f0f0f0"], body.dark-mode thead[style*="background:#f8f9fa"], body.dark-mode div[style*="background:#fff"], body.dark-mode div[style*="background: #fff"], body.dark-mode div[style*="background: white"], body.dark-mode div[style*="background:white"], body.dark-mode div[style*="background:#fafafa"], body.dark-mode div[style*="background:#f4f6f9"], body.dark-mode div[style*="background:#e9ecef"], body.dark-mode div[style*="background:#e6e9ed"], body.dark-mode div[style*="background: #fafafa"] { background-color: #2c2c2c !important; color: #ffffff !important; border-top-color: #444 !important; border-right-color: #444 !important; border-bottom-color: #444 !important; }
         
-        body.dark-mode div[style*="background:#e8f0fe"], body.dark-mode .control-center { background-color: #102a43 !important; color: #ffffff !important; border-color: #2c5282 !important; }
-        body.dark-mode .control-item b { color: #ffffff !important; }
-        
         body.dark-mode button[style*="background:#f5f5f5"], body.dark-mode button[style*="background:#eee"], body.dark-mode div[style*="background:#eee"], body.dark-mode div[style*="background: #eee"] { background-color: #3a3a3a !important; color: #ffffff !important; border: 1px solid #555 !important; }
         body.dark-mode .clear-btn, body.dark-mode div[style*="background: #ffebee"], body.dark-mode button[style*="background:#ffebee"] { background-color: #3b1c1c !important; color: #ff5555 !important; border-color: #552222 !important; }
         body.dark-mode label, body.dark-mode .field label, body.dark-mode small, body.dark-mode .sup-leergut-inline, body.dark-mode p, body.dark-mode div[style*="color:#777"], body.dark-mode div[style*="color: #777"], body.dark-mode div[style*="color:#666"], body.dark-mode div[style*="color: #666"], body.dark-mode div[style*="color:#999"], body.dark-mode div[style*="color: #999"], body.dark-mode span[style*="color:#666"], body.dark-mode span[style*="color: #666"], body.dark-mode span[style*="color:#555"], body.dark-mode span[style*="color: #555"], body.dark-mode div[style*="color:#333"], body.dark-mode div[style*="color: #333"], body.dark-mode div[style*="color:#444"], body.dark-mode span[style*="color:#444"], body.dark-mode b[style*="color:#333"], body.dark-mode b[style*="color: #333"], body.dark-mode b[style*="color:#444"], body.dark-mode td[style*="color:#000"], body.dark-mode td[style*="color: #000"], body.dark-mode div[style*="color:#000"], body.dark-mode div[style*="color: #000"], body.dark-mode span[style*="color:#000"], body.dark-mode span[style*="color: #000"] { color: #e0e0e0 !important; }
         body.dark-mode .result-item { color: #ffffff !important; border-bottom: 1px solid #333 !important; }
-        
+
         .side-menu { position: fixed; right: -350px; top: 0; width: 320px; height: 100%; background: white; border-left: 2px solid #ccc; transition: 0.3s; z-index: 2000; padding: 15px; display: flex; flex-direction: column; box-shadow: -2px 0 10px rgba(0,0,0,0.2); box-sizing: border-box; }
         .side-menu.open { right: 0 !important; }
         .toggle-btn { flex: 1; padding: 14px; text-align: center; cursor: pointer; font-weight: bold; color: #5f6368; transition: 0.3s; border-radius: 10px; border: none; }
@@ -66,118 +84,96 @@
         .modal-content .input-area .field input, .modal-content .input-area .field select, .modal-content .input-area .field textarea { width: 100% !important; box-sizing: border-box !important; padding: 12px !important; border-radius: 8px !important; border: 1px solid #ccc !important; font-size: 16px !important; background: #fafafa !important; color: #333 !important; }
         body.dark-mode .modal-content .input-area .field input, body.dark-mode .modal-content .input-area .field select, body.dark-mode .modal-content .input-area .field textarea { background: #2c2c2c !important; border-color: #444 !important; color: #fff !important; }
 
-        /* Vergrößert die Überschriften (Lieferant) auf dem gedruckten Wiegeschein extrem */
         @media print {
             #printArea h2 { font-size: 38px !important; font-weight: 900 !important; margin-bottom: 10px !important; }
             #printArea h3 { font-size: 28px !important; font-weight: bold !important; }
         }
 
-        /* Modern Drawer Design (Beta/Logistik Menu) */
-        .drawer { background-color: #ffffff; padding: 0 !important; overflow-y: auto; overflow-x: hidden; }
-        body.dark-mode .drawer { background-color: #1e1e1e !important; border: none !important; }
-        .drawer-header {
-            background: linear-gradient(135deg, var(--primary, #004b93), #0069d9);
-            color: white;
-            padding: 30px 20px 20px 20px;
-            font-size: 22px;
-            font-weight: 800;
-            margin-bottom: 15px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-            border-bottom-right-radius: 20px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        body.dark-mode .drawer-header { background: linear-gradient(135deg, #102a43, #1a365d); border-bottom: 1px solid #333; }
-        .drawer-item {
-            margin: 8px 15px; padding: 12px 18px !important; border-radius: 12px;
-            display: flex; align-items: center; gap: 15px;
-            font-size: 16px; font-weight: 600; color: #444;
-            transition: all 0.2s ease; cursor: pointer;
-            background: transparent; border: none !important;
-        }
-        .drawer-item:hover { background: #f0f4f8 !important; transform: translateX(5px); color: var(--primary, #004b93) !important; }
-        body.dark-mode .drawer-item { color: #e0e0e0 !important; }
-        body.dark-mode .drawer-item:hover { background-color: #2c2c2c !important; color: #64b5f6 !important; }
-        
-        .drawer-item.highlight-item { background: #ffebee !important; color: #c62828 !important; border-left: 5px solid #c62828 !important; box-shadow: 0 2px 5px rgba(198,40,40,0.1); }
-        .drawer-item.highlight-item:hover { background: #ffcdd2 !important; }
-        body.dark-mode .drawer-item.highlight-item { background: #3b1c1c !important; color: #ff5555 !important; border-color: #ff5555 !important; }
-        body.dark-mode .drawer-item.highlight-item:hover { background: #4a2323 !important; }
-
-        /* Modern Header Design (App1) */
-        #app1_wrapper header {
-            background: linear-gradient(135deg, var(--primary, #004b93), #0069d9);
-            padding: 15px 20px !important;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            border-bottom-left-radius: 20px;
-            border-bottom-right-radius: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        body.dark-mode #app1_wrapper header { background: linear-gradient(135deg, #102a43, #1a365d) !important; border-bottom: 1px solid #333 !important; }
-        
-        .modern-header-title { font-weight: 800 !important; font-size: 22px !important; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; color: #fff; }
-        
-        .modern-btn {
-            background: rgba(255, 255, 255, 0.15) !important;
-            color: white !important;
-            border: 1px solid rgba(255, 255, 255, 0.3) !important;
-            padding: 8px 16px !important;
-            border-radius: 12px !important;
-            font-size: 14px !important;
-            cursor: pointer; font-weight: 600 !important;
-            transition: all 0.2s ease; backdrop-filter: blur(5px);
-            display: flex; align-items: center; gap: 6px;
-        }
-        .modern-btn:hover { background: rgba(255, 255, 255, 0.25) !important; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        
-        .modern-burger {
-            font-size: 22px; cursor: pointer; padding: 8px 12px; border-radius: 12px;
-            transition: all 0.2s; display: flex; align-items: center; justify-content: center;
-            background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2);
-        }
-        .modern-burger:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.05); }
+        /* --- Checkliste Styles --- */
+        .checklist-tabs { display: flex; gap: 10px; margin-top: 15px; }
+        .checklist-tab-btn { flex: 1; padding: 12px; border: none; background: #eef2f7; color: #5a6b7d; border-radius: 12px; font-weight: 700; cursor: pointer; transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
+        .checklist-tab-btn.active { background: linear-gradient(135deg, #005baa, #004b93); color: white; box-shadow: 0 6px 14px rgba(0,75,147,0.25); }
+        .task-list { list-style: none; padding: 0; margin: 0 0 15px 0; }
+        .empty-list-info { text-align: center; padding: 20px; color: #999; font-size: 14px; background: #fafafa; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 15px; }
+        .checklist-form { display: flex; gap: 8px; margin-bottom: 15px; }
+        .checklist-form input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; background: #fafafa; color: #333; }
+        .checklist-form button[type="submit"] { padding: 0 20px; background: var(--primary, #004b93); color: white; border: none; border-radius: 8px; font-size: 24px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .checklist-form #mic-checklist { padding: 0 15px; background: var(--primary, #004b93); color: white; border: none; border-radius: 8px; font-size: 20px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn-secondary { width: 100%; padding: 12px; background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        #checklist-progress-bar-container { height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden; margin-bottom: 5px; }
+        #checklist-progress-bar { height: 100%; background: var(--success, #4caf50); width: 0%; transition: width 0.3s ease; }
+        #checklist-progress-text { margin: 0; font-size: 12px; color: #555; text-align: center; font-weight: bold; }
+        body.dark-mode .checklist-tab-btn { background: #2c2c2c; color: #aaa; }
+        body.dark-mode .checklist-tab-btn.active { background: var(--primary, #004b93); color: white; }
+        body.dark-mode .empty-list-info { background: #1e1e1e; border-color: #444; color: #777; }
+        body.dark-mode .checklist-form input { background: #2c2c2c; border-color: #444; color: white; }
+        body.dark-mode .btn-secondary { background: #3b1c1c; color: #ff5555; border-color: #552222; }
+        body.dark-mode #checklist-progress-bar-container { background: #333; }
     </style>
 </head>
 <body>
 
-<div id="pin-protection-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--primary); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; color: white; padding: 20px; box-sizing: border-box;">
-    <h2 id="pin-title" style="margin-bottom: 20px; text-align: center;">Logistik-Bereich gesperrt</h2>
-    <p id="pin-desc" style="margin-top: 0; margin-bottom: 10px;">Bitte Admin-PIN eingeben</p>
-    <input type="password" id="pin-input" pattern="[0-9]*" inputmode="numeric" style="width: 100%; max-width: 200px; padding: 10px; font-size: 24px; text-align: center; border-radius: 8px; border: 1px solid white; background: rgba(255,255,255,0.2); color: white;">
-    <p id="pin-attempts-msg" style="color: #ffcccc; font-size: 14px; margin-top: 10px; display: none; font-weight: bold;">Noch 2 Versuche</p>
-    <button id="pin-submit-btn" style="width: 100%; max-width: 224px; padding: 12px; margin-top: 15px; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;">Entsperren</button>
-    <button id="pin-email-btn" style="display: none; width: 100%; max-width: 224px; padding: 12px; margin-top: 15px; background: #4285F4; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; box-sizing: border-box;">Admin kontaktieren</button>
-    <button style="width: 100%; max-width: 224px; padding: 12px; margin-top: 15px; background: transparent; color: white; border: 1px solid white; border-radius: 8px; font-size: 16px; cursor: pointer;" onclick="document.getElementById('pin-protection-overlay').style.display='none'">Abbrechen</button>
-    <button style="width: 100%; max-width: 224px; padding: 12px; margin-top: 15px; background: #8e44ad; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;" onclick="window.location.href='index_beta.html'">🧪 Zur Beta-Version</button>
-    <div style="margin-top: 35px; font-size: 12px; color: rgba(255,255,255,0.6); cursor: pointer; padding: 10px;" onclick="promptCustomCloudUrl()">⚙️ Server-Adresse ändern</div>
+<div id="pin-protection-overlay" class="pin-overlay">
+    <h2 id="pin-title">Logistik-Bereich gesperrt</h2>
+    <p id="pin-desc">Bitte Admin-PIN eingeben</p>
+    <input type="password" id="pin-input" pattern="[0-9]*" inputmode="numeric" autocomplete="one-time-code" enterkeyhint="go">
+    <p id="pin-attempts-msg" class="pin-attempts">Noch 2 Versuche</p>
+    <button id="pin-submit-btn" class="pin-btn pin-btn-primary">Entsperren</button>
+    <button id="pin-email-btn" class="pin-btn pin-btn-email" style="display: none;">Admin kontaktieren</button>
+    <button type="button" class="pin-btn pin-btn-ghost" onclick="document.getElementById('pin-protection-overlay').style.display='none'">Abbrechen</button>
+    <div class="pin-settings-link" onclick="promptCustomCloudUrl()">⚙️ Server-Adresse ändern</div>
 </div>
 
-<div id="update-banner" style="display:none; position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--accent); color:white; padding:12px 25px; border-radius:30px; font-weight:bold; z-index:9999; box-shadow:0 4px 15px rgba(0,0,0,0.3); cursor:pointer; white-space:nowrap; border: 2px solid #fff;" onclick="location.reload(true)">
-    ✨ Neues Update verfügbar! Hier tippen.
+<div id="ota-update-modal" class="modal ota-update-modal" style="display:none; z-index:10006;">
+    <div class="modal-content ota-update-modal-content" style="text-align:center; padding:28px 22px; max-width:340px;">
+        <div style="font-size:48px; line-height:1; margin-bottom:8px;">📲</div>
+        <h2 style="color:var(--primary); margin:0 0 8px; font-size:20px;">App-Update verfügbar</h2>
+        <p id="ota-update-text" style="margin:0 0 20px; color:#555; font-size:15px; line-height:1.45;">
+            Version <strong id="ota-update-ver">—</strong> ist bereit.<br>Nach dem Bestätigen wird die neue Version installiert.
+        </p>
+        <button type="button" id="ota-update-confirm" style="width:100%; padding:15px; background:var(--success); color:white; border:none; border-radius:10px; font-weight:bold; font-size:17px; cursor:pointer; margin-bottom:10px;">Jetzt installieren</button>
+        <button type="button" id="ota-update-later" style="width:100%; padding:12px; background:transparent; color:#666; border:1px solid #ccc; border-radius:10px; font-size:15px; cursor:pointer;">Später</button>
+    </div>
 </div>
 
 <div id="app2_wrapper">
+    <div class="overlay" id="overlay2" onclick="toggleMenuApp2(false)"></div>
+    <nav class="drawer" id="drawer2">
+        <div class="drawer-header">
+            <div class="drawer-title">Rechner Menü</div>
+            <button class="drawer-close" onclick="toggleMenuApp2(false)">✕</button>
+        </div>
+        <div class="drawer-item small-note" onclick="switchApp(1)">
+            <span class="item-icon">⇋</span>
+            <span>Zur Logistik</span>
+        </div>
+        <hr class="drawer-separator">
+        <div class="drawer-item menu-tab" id="menu-tab-lkw" onclick="switchTabAndCloseMenu('lkw')"><span class="item-icon">🚛</span><span>LKW</span></div>
+        <div class="drawer-item menu-tab" id="menu-tab-sort" onclick="switchTabAndCloseMenu('sort')"><span class="item-icon">📦</span><span>Sortierung</span></div>
+        <div class="drawer-item menu-tab" id="menu-tab-noelke" onclick="switchTabAndCloseMenu('noelke')"><span class="item-icon">📝</span><span>Nölke</span></div>
+        <div class="drawer-item menu-tab" id="menu-tab-leergut" onclick="switchTabAndCloseMenu('leergut')"><span class="item-icon">♻️</span><span>Leergut</span></div>
+        <div class="drawer-item menu-tab" id="menu-tab-brandenburg" onclick="switchTabAndCloseMenu('brandenburg')"><span class="item-icon">🏭</span><span>Brandenburg WE</span></div>
+        <div class="drawer-item menu-tab" id="menu-tab-checklist" onclick="switchTabAndCloseMenu('checklist')"><span class="item-icon">📋</span><span>Arbeits-Checkliste</span></div>
+        <hr class="drawer-separator">
+        <div class="drawer-item" id="menu-wlan-update-item" onclick="loadWlanUpdateNow();"><span class="item-icon">📶</span><span>Update vom Laptop (WLAN)</span><span class="update-available-chip menu-chip" style="display:none;">NEU</span></div>
+        <div class="drawer-item" onclick="clearAppBrowserCache(); toggleMenuApp2(false);"><span class="item-icon">🧹</span><span>App-Cache leeren</span></div>
+        <div class="drawer-item" onclick="toggleDarkMode(); toggleMenuApp2(false);" style="display: flex; align-items: center; gap: 10px;"><span class="item-icon dark-mode-icon">🌙</span><span class="dark-mode-label">Dunkelmodus</span></div>
+        <div class="drawer-item" onclick="toggleCalc(true); toggleMenuApp2(false);" style="display: flex; align-items: center; gap: 10px;"><span class="item-icon">🖩</span><span>Taschenrechner</span></div>
+    </nav>
+
     <header>
-        <button class="header-btn" onclick="switchApp(1)" style="font-weight:bold; background:var(--accent); border:none;">⇋ Logistik</button>
+        <div style="display:flex; align-items:center; gap: 15px;">
+            <div class="burger" onclick="toggleMenuApp2(true)">☰</div>
+        </div>
         <div class="header-center">
             <p class="head-title">Tresch & Sohn</p>
-            <p class="head-subtitle">V6.1 Cloud Pro 🚀</p>
+            <p class="head-subtitle">Update-Test v89</p>
         </div>
-        <div style="display:flex; gap:5px;">
-            <button class="header-btn" id="global-sync-btn" onclick="loadAllFromCloud()" style="font-size: 16px;">🔄</button>
-            <button class="header-btn dark-mode-icon" onclick="toggleDarkMode()">🌙</button>
-            <button class="header-btn" onclick="toggleCalc(true)">🖩</button>
+        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            <button type="button" class="update-available-chip header-update-chip" style="display:none;" onclick="openOtaUpdatePrompt()" title="Neues Update installieren">UPDATE</button>
+            <button class="header-btn" id="global-sync-btn" onclick="loadAllFromCloud()" style="font-size: 16px;" title="Stammdaten laden: Lieferanten, Sorten, Nölke-Produkte">🔄</button>
         </div>
     </header>
-
-    <div class="tab-wrapper">
-        <button class="tab-btn active" id="btn-tab-lkw" onclick="switchTab('lkw')">🚛 LKW</button>
-        <button class="tab-btn" id="btn-tab-sort" onclick="switchTab('sort')">📦 Sortierung</button>
-        <button class="tab-btn" id="btn-tab-noelke" onclick="switchTab('noelke')">📝 Nölke</button>
-    </div>
 
     <div id="tab-lkw" class="tab-content active">
         <button onclick="openReklamationModal()" style="background:#d32f2f; color:white; width:100%; padding:12px; border-radius:8px; border:none; font-size: 16px; font-weight:bold; margin-bottom:15px; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">⚠️ Reklamation / Mangel erfassen</button>
@@ -225,26 +221,7 @@
     </div>
        <div id="tab-sort" class="tab-content">
         
-        <!-- NEU: Live Control Center -->
-        <div class="control-center" style="position:relative;">
-            <button onclick="backupToCloud()" style="position:absolute; top:8px; right:8px; background:#17a2b8; color:white; border:none; border-radius:6px; font-size:10px; font-weight:bold; padding:4px 6px; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.2);" title="Daten in Cloud sichern">☁️ Cloud</button>
-            <div class="control-item">
-                <span>Paletten</span>
-                <b id="stat-pal">0</b>
-            </div>
-            <div class="control-item">
-                <span>E2 Kisten</span>
-                <b id="stat-e2">0</b>
-            </div>
-            <div class="control-item">
-                <span>Gesamt (kg)</span>
-                <b id="stat-kg">0,00</b>
-            </div>
-        </div>
-
         <div class="input-area">
-
-
             <div class="field"><label>Lieferant</label><select id="lief-sort" onchange="resetSorteSelection()"></select></div>
             
             <div id="sonder-box-sort" class="sonder-box" style="display:none; margin-top: 10px;">
@@ -281,7 +258,7 @@
             <label style="font-size: 9px; font-weight: bold; color: #666; display:block; text-align:center;">SORTE / ARTIKEL-NR</label>
             <div style="display:flex; gap:5px;">
                 <div id="selected-sorte-display" class="select-trigger" style="flex:1; margin-bottom:0;" onclick="openSearchModal('sorte')">Bitte Sorte wählen...</div>
-                <button onclick="startBarcodeScanner('sorte')" style="background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; width:55px; font-size:24px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">📷</button>
+                <button onclick="startBarcodeScanner('sorte')" style="background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; width:55px; font-size:24px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display:flex; align-items:center; justify-content:center;">📷</button>
             </div>
             <div id="dynamic-leergut-sort"></div>
             </div>
@@ -423,6 +400,91 @@
             </div>
         </div>
     </div>
+
+    <div id="tab-brandenburg" class="tab-content">
+        <input type="hidden" id="brandenburg-scan-input" oninput="handleBrandenburgScan(this.value)">
+        <div class="input-area" style="border-top: 4px solid #8e44ad;">
+            <div style="font-weight:bold; color:#8e44ad; margin-bottom:15px; text-align:center;">Brandenburg Wareneingang</div>
+            
+            <div id="brandenburg-scan-status" style="text-align: center; padding: 10px; background: #f3e5f5; color: #8e44ad; border-radius: 8px; font-weight: bold; margin-bottom: 10px;">
+                Warte auf Scan 1...
+            </div>
+            <div id="brandenburg-debug" style="display:none; text-align:left; font-size:12px; color:#333; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; margin-bottom:10px; white-space: pre-wrap; max-height:120px; overflow:auto;"></div>
+            
+            <div id="brandenburg-data-form" style="display: none;">
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <div class="field" style="flex:1;"><label>Artikel</label><input type="text" id="bb-artikel" readonly style="background: #eee;"></div>
+                    <div class="field" style="flex:1;"><label>Charge</label><input type="text" id="bb-charge" readonly style="background: #eee;"></div>
+                </div>
+                <div class="field" style="margin-bottom:10px;"><label>Netto (Etikett)</label><input type="text" id="bb-netto-scan" readonly style="background: #e8f5e9; color: #2e7d32; font-weight: bold;"></div>
+                
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                                        <div class="field" style="flex:1;"><label>Brutto (Ist)</label><input type="number" step="0.01" id="bb-brutto" inputmode="decimal" oninput="calcBrandenburgNetto()"></div>
+                    <div class="field" style="flex:1; display: none;"><label>Leergut (Auto)</label><input type="text" id="bb-leergut" readonly style="background: #f0f2f5;"></div>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-bottom:10px; background: #f9f9f9; padding: 8px; border-radius: 6px; border: 1px solid #eee;">
+                    <div class="field" style="flex:1; margin-bottom:0;">
+                        <label style="font-size:10px; font-weight:bold; color:#555;">E2 Kisten</label>
+                        <input type="number" id="bb-e2" placeholder="0" oninput="calcBrandenburgNetto()" inputmode="numeric"></div>
+                    <div class="field" style="flex:1; margin-bottom:0;">
+                        <label style="font-size:10px; font-weight:bold; color:#555;">H1 Paletten</label>
+                        <input type="number" id="bb-h1" placeholder="0" oninput="calcBrandenburgNetto()" inputmode="numeric"></div>
+                </div>
+                
+                <div class="field" style="margin-bottom:15px;"><label>Ist-Netto (Berechnet)</label><input type="text" id="bb-netto-ist" readonly style="font-weight: bold; font-size: 18px;"></div>
+                
+                <div style="display:flex; gap:10px;">
+                    <button class="clear-btn" onclick="resetBrandenburgScanner()">↺</button>
+                    <button class="add-btn" style="flex:1; background:#8e44ad;" onclick="saveBrandenburgPalette()">+ Palette speichern</button>
+                </div>
+            </div>
+        </div>
+        
+        <div style="padding: 10px; text-align: center; font-weight: bold; color: #555;">Erfasste Paletten: <span id="bb-counter">0</span></div>
+        <div class="list-area" id="list-brandenburg"></div>
+        <div style="padding: 10px;"><button onclick="showBrandenburgSummary()" style="background: #34495e; color: white; width: 100%; padding: 15px; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ Drucken / Zusammenfassung</button></div>
+    </div>
+
+    <div id="tab-checklist" class="tab-content" style="padding: 10px;">
+        <div class="card" style="padding: 15px; margin-bottom: 10px; flex-shrink: 0;">
+            <h3 style="margin:0; color:var(--primary);">📋 Arbeits-Checkliste</h3>
+            <div class="checklist-tabs">
+                <button id="checklist-tab-morning" class="checklist-tab-btn active" onclick="switchChecklistTab('morning')">Morgen-Check</button>
+                <button id="checklist-tab-adhoc" class="checklist-tab-btn" onclick="switchChecklistTab('adhoc')">Zusatzaufgaben</button>
+            </div>
+        </div>
+
+        <div id="checklist-view-morning" class="checklist-view">
+            <div class="card" style="padding: 10px; margin-bottom: 10px;">
+                <div id="checklist-progress-bar-container">
+                    <div id="checklist-progress-bar"></div>
+                </div>
+                <p id="checklist-progress-text">0/0 erledigt</p>
+            </div>
+            <ul id="morning-list" class="task-list"></ul>
+            <div id="morning-empty" class="empty-list-info">Keine Aufgaben.</div>
+            <div class="checklist-controls">
+                <form id="form-morning" class="checklist-form">
+                    <input type="text" id="input-morning" placeholder="Morgen-Aufgabe hinzufügen...">
+                    <button type="submit">+</button>
+                </form>
+                <button id="reset-btn" class="btn-secondary">Neuer Tag: Alle Haken entfernen</button>
+            </div>
+        </div>
+
+        <div id="checklist-view-adhoc" class="checklist-view" style="display: none;">
+            <ul id="adhoc-list" class="task-list"></ul>
+            <div id="adhoc-empty" class="empty-list-info">Keine Zusatzaufgaben.</div>
+            <div class="checklist-controls">
+                <form id="form-adhoc" class="checklist-form">
+                    <button type="button" id="mic-checklist">🎤</button>
+                    <input type="text" id="input-adhoc" placeholder="Aufgabe tippen oder sprechen...">
+                    <button type="submit">+</button>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div id="app1_wrapper" style="display: none;">
@@ -433,10 +495,19 @@
         </div>
         <div style="padding-bottom: 20px;">
             <div class="drawer-item highlight-item" onclick="switchApp(2)">
-                <span style="font-size:20px;">⇋</span> <span>Zum Rechner (V6)</span>
+                <span style="font-size:20px;">⇋</span> <span>Zum Rechner (V7)</span>
             </div>
             <div class="drawer-item" onclick="navTo('today')">
                 <span style="font-size:20px;">📅</span> <span>Erfassung Heute</span>
+            </div>
+            <div class="drawer-item" onclick="navTo('stats')">
+                <span style="font-size:20px;">📊</span> <span>Journal / Statistik</span>
+            </div>
+            <div class="drawer-item" onclick="navTo('summary')">
+                <span style="font-size:20px;">📋</span> <span>Übersicht & Cloud-Log</span>
+            </div>
+            <div class="drawer-item" onclick="navTo('backup')">
+                <span style="font-size:20px;">☁️</span> <span>Datensicherung</span>
             </div>
             <div class="drawer-item" onclick="navTo('comparison')">
                 <span style="font-size:20px;">📈</span> <span>Wochen-Analyse</span>
@@ -477,22 +548,29 @@
             <label>Gewicht (kg):</label>
         <div style="display:flex; gap:5px; margin-bottom:10px;">
             <input type="number" id="weightInput" placeholder="kg" inputmode="decimal" style="flex:1; margin-bottom:0;">
-            <button id="mic-btn" onclick="startVoiceRecognition('weightInput')" style="background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; width:55px; font-size:20px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 5px rgba(0,0,0,0.1);">🎤</button>
+            <button id="mic-weight" type="button" onclick="startVoiceRecognition('weightInput')" style="background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; width:55px; font-size:20px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 5px rgba(0,0,0,0.1);">🎤</button>
         </div>
             <label>Mitarbeiter:</label>
             <div id="workerCheckboxes" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:15px; max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:10px; border-radius:8px; background:#fafafa;"></div>
             <div style="display:flex; gap:10px;">
-                <button class="btn-main" style="flex:2;" onclick="saveDelivery()">Speichern</button>
-                <button class="btn-main" style="flex:1; background:#17a2b8;" onclick="saveDelivery(); setTimeout(backupToCloud, 500);">☁️ Cloud</button>
+                <button class="btn-main" style="flex:2;" onclick="saveDelivery()">Lokal Speichern</button>
+                <button class="btn-main" style="flex:1; background:#17a2b8;" onclick="manualCloudPush(this)">☁️ Cloud</button>
             </div>
+        </div>
+        <div class="card" style="margin-top:15px;">
+            <h3 style="margin-top:0; color:var(--warning); font-size:16px;">⚠️ Offene Sortierungen (alle Tage)</h3>
+            <div id="globalOpenLog"><p style="color:#999; text-align:center;">Lade...</p></div>
         </div>
         <div id="todayLog">Lade Daten...</div>
     </div>
-
-    <div id="pageStats" class="page"><div id="journalContainer"></div></div>
-
+    
+    <div id="pageStats" class="page">
+        <div id="journalContainer"></div>
+        <button onclick="backupToCloud()" style="width: 100%; margin-top: 15px; background: #17a2b8; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">☁️ In Cloud sichern</button>
+    </div>
+    
     <div id="pageSummary" class="page">
-        <div class="card" style="padding:0; overflow: hidden;">
+        <div class="card table-scroll-x" style="padding:0;">
             <table style="width:100%; border-collapse:collapse;">
                 <thead style="background:#f8f9fa; font-size:11px;">
                     <tr><th style="padding:10px;">Datum</th><th>Pers.</th><th>Ø/Kopf</th><th style="text-align:right;padding:10px;">Gesamt</th></tr>
@@ -501,6 +579,7 @@
             </table>
         </div>
         <button onclick="exportLogistikToExcel()" style="width:100%; margin-top:15px; background:#107c41; color:white; padding:12px; border-radius:8px; border:none; font-weight:bold; font-size:16px; cursor:pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">📊 Logistik als Excel exportieren</button>
+        <button onclick="backupToCloud()" style="width: 100%; margin-top: 15px; background: #17a2b8; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">☁️ In Cloud sichern</button>
         
         <div class="card" style="margin-top: 20px; border-top: 4px solid #4285F4;">
             <h3 style="margin-top:0; color:#4285F4;">☁️ Letzte Cloud-Bewegungen</h3>
@@ -519,6 +598,7 @@
             </div>
             <button onclick="window.print()" style="width:100%; margin-bottom:10px; background:var(--success); border:none; color:white; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer;">🖨️ Drucken</button>
             <button onclick="exportLogistikToExcel()" style="width:100%; margin-bottom:15px; background:#107c41; color:white; padding:12px; border-radius:8px; border:none; font-weight:bold; font-size:16px; cursor:pointer;">📊 Als Excel exportieren</button>
+            <button onclick="silentPushToCloud(); showToast('☁️ Änderungen werden gespeichert...', 'info');" style="width: 100%; margin-top: 15px; background: #17a2b8; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">☁️ In Cloud sichern</button>
             <div id="analysisContainer"></div>
         </div>
     </div>
@@ -588,6 +668,7 @@
         </div>
 
         <div id="v10-article-list"></div>
+        <button onclick="silentPushToCloud(); showToast('☁️ Änderungen werden gespeichert...', 'info');" style="width: 100%; margin-top: 15px; background: #17a2b8; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">☁️ In Cloud sichern</button>
     </div>
 
     <div id="pageSortimente" class="page">
@@ -610,6 +691,7 @@
                 <div id="assign-right-list" style="flex:1; overflow-y:auto; padding-right:5px;"></div>
             </div>
         </div>
+        <button onclick="silentPushToCloud(); showToast('☁️ Änderungen werden gespeichert...', 'info');" style="width: 100%; margin-top: 15px; background: #17a2b8; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">☁️ In Cloud sichern</button>
     </div>
 
     <div id="pageSuppliers" class="page">
@@ -621,6 +703,7 @@
             </div>
         </div>
         <div id="supList" style="margin-bottom: 20px;"></div>
+        <button onclick="silentPushToCloud(); showToast('☁️ Änderungen werden gespeichert...', 'info');" style="width: 100%; margin-top: 15px; background: #17a2b8; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">☁️ In Cloud sichern</button>
     </div>
 
     <div id="pageCustomers" class="page">
@@ -632,6 +715,7 @@
             </div>
         </div>
         <div id="custList" style="margin-bottom: 20px;"></div>
+        <button onclick="silentPushToCloud(); showToast('☁️ Änderungen werden gespeichert...', 'info');" style="width: 100%; margin-top: 15px; background: #17a2b8; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">☁️ In Cloud sichern</button>
     </div>
 
     <div id="pageWorkers" class="page">
@@ -646,14 +730,8 @@
             </div>
         </div>
         <div id="worList"></div>
+        <button onclick="silentPushToCloud(); showToast('☁️ Änderungen werden gespeichert...', 'info');" style="width: 100%; margin-top: 15px; background: #17a2b8; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">☁️ In Cloud sichern</button>
     </div>
-
-    <nav class="bottom-nav">
-        <div class="nav-item active" id="navToday" onclick="navTo('today')"><span style="font-size:18px;">📅</span>Erfassung</div>
-        <div class="nav-item" id="navStats" onclick="navTo('stats')"><span style="font-size:18px;">📊</span>Journal</div>
-        <div class="nav-item" id="navSummary" onclick="navTo('summary')"><span style="font-size:18px;">📋</span>Übersicht</div>
-        <div class="nav-item" id="navBackup" onclick="navTo('backup')"><span style="font-size:18px;">💾</span>Backup</div>
-    </nav>
 </div>
 
 <div id="menu-lose" class="side-menu drawer" style="padding:0;">
@@ -818,102 +896,6 @@
     <div class="c-grid" id="c-grid-btns"></div>
 </div>
 
-<div id="editModal" class="modal">
-    <div class="modal-content" style="border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <h3 id="logModalTitle" style="margin:0; font-size: 18px; color: var(--primary);"></h3>
-            <span onclick="closeModalApp1('editModal')" style="font-size:26px; color: #999; cursor:pointer; line-height: 1;">&times;</span>
-        </div>
-        
-        <div class="input-area" style="padding:0; margin:0; box-shadow:none; border:none; background:transparent;">
-            <div style="display:flex; gap:10px;">
-                <div class="field" style="flex:1;">
-                    <label>Datum</label>
-                    <input type="date" id="editTotalDate">
-                </div>
-                <div class="field" style="flex:1;">
-                    <label>Gesamtgewicht (kg)</label>
-                    <input type="number" id="editTotalKg" inputmode="decimal">
-                </div>
-            </div>
-            <button style="width:100%; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; margin-bottom: 10px;" onclick="updateDeliveryData()">Änderungen speichern</button>
-            
-            <div id="openKgBox" style="background:none; padding:0; margin:0 0 10px 0; text-align:center; font-weight:bold; color:var(--primary); border: none;">Noch offen: <span id="openKgLabel" style="font-size: 18px;">0</span> kg</div>
-            
-            <div style="text-align:center; margin-bottom: 15px;">
-                <label style="cursor:pointer; font-size: 12px; font-weight:bold; color:var(--danger);">
-                    <input type="checkbox" id="modalFullySortedCb" onchange="toggleFullySorted()" style="width: auto; height: auto; margin-right: 5px; vertical-align: middle; padding: 0;">
-                    Restmenge nicht mehr zuweisbar (Gilt als erledigt)
-                </label>
-            </div>
-
-            <div style="display:flex; gap:8px; margin-bottom:10px;">
-                <select id="modalWorkerSelect" style="flex:1;"></select>
-                <input type="number" id="modalKgInput" placeholder="kg" style="width:80px;" inputmode="decimal">
-            </div>
-            <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
-                <label style="font-size:12px; color:#555; white-space:nowrap; font-weight:bold;">Sortier-Datum:</label>
-                <input type="date" id="modalDateInput" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
-            </div>
-        </div>
-
-        <div style="display:flex; gap:8px; margin-bottom:15px;">
-            <button style="background:var(--primary); color:white; flex:1; padding:12px; border:none; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="addAllRemainingShare()">Voll</button>
-            <button style="background:var(--success); color:white; flex:1; padding:12px; border:none; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="addWorkerShare()">Teil</button>
-        </div>
-        
-        <div id="shareList" style="margin-bottom: 15px;"></div>
-        
-        <button style="background:#ffebee; color:var(--danger); border:1px solid #ffcdd2; width:100%; padding: 12px; border-radius: 8px; font-weight:bold; cursor:pointer;" onclick="deleteEntry()">🗑️ Ganzen Eintrag löschen</button>
-    </div>
-</div>
-
-<div id="dayInfoModal" class="modal">
-    <div class="modal-content" style="max-height: 85vh; overflow-y: auto;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <h3 style="margin:0;">Anwesenheit eintragen</h3>
-            <span onclick="closeModalApp1('dayInfoModal')" style="font-size:28px; cursor:pointer;">&times;</span>
-        </div>
-        <div id="attendanceList"></div>
-        <div style="margin-top:15px; padding:10px; background:#e8f0fe; border-radius:8px; text-align:center; font-weight:bold; color:var(--primary);">
-            Gesamtes Personal heute: <span id="attTotal" style="font-size:18px;">0</span>
-        </div>
-        <div style="display:flex; gap:10px; margin-top:15px;">
-            <button style="flex:2; padding:14px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="saveAttendance()">Lokal Speichern</button>
-            <button style="flex:1; padding:14px; background:#17a2b8; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="saveAttendance(); backupToCloud();">☁️ Cloud</button>
-        </div>
-    </div>
-</div>
-
-<div id="backupReminderModal" class="modal" style="z-index:9999;">
-    <div class="modal-content" style="text-align:center; padding:25px;">
-        <h3 style="color:var(--primary); margin-top:0;">Guten Morgen! ☕</h3>
-        <p style="font-size:14px; margin-bottom:20px;">Zeit für das tägliche Backup der Logistik-Daten.</p>
-        <button onclick="backupToCloud()" style="background:#4285F4; color:white; border:none; padding:15px; border-radius:8px; font-weight:bold; width:100%; margin-bottom:15px; cursor:pointer;">☁️ In der Cloud speichern</button>
-        <button onclick="closeBackupModal()" style="background:none; border:none; color:#777; font-size:14px; font-weight:bold; cursor:pointer;">Später erinnern</button>
-    </div>
-</div>
-
-<div id="edit-sup-modal" class="modal">
-    <div class="modal-content" style="background: #ffffff; width: 100%; max-width: 400px; border-radius: 16px; padding: 20px; box-sizing: border-box; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <h3 style="margin:0; font-size: 18px; color: var(--primary);">✏️ Lieferant umbenennen</h3>
-            <span onclick="document.getElementById('edit-sup-modal').style.display='none'" style="font-size:26px; color: #999; cursor:pointer; line-height: 1;">&times;</span>
-        </div>
-        
-        <input type="hidden" id="edit-sup-old-name">
-        <div class="input-area" style="padding:0; margin:0; box-shadow:none; border:none; background:transparent;">
-            <div class="field">
-                <label>Neuer Name</label>
-                <input type="text" id="edit-sup-new-name">
-            </div>
-        </div>
-        <p style="font-size:11px; color:var(--danger); margin-top: 10px; margin-bottom: 20px; background: #ffebee; padding: 10px; border-radius: 8px;">Hinweis: Verknüpfte Artikel werden in der Datenbank automatisch mit aktualisiert.</p>
-        
-        <button onclick="saveSupplierEdit()" style="width: 100%; padding: 15px; font-size: 16px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">💾 Speichern</button>
-    </div>
-</div>
-
 <div id="custom-confirm-modal" class="modal" style="z-index: 9999;">
     <div class="modal-content" style="max-width: 350px; text-align: center; padding: 25px;">
         <h3 style="margin-top: 0; color: var(--primary);">Bestätigung</h3>
@@ -1005,6 +987,20 @@
     </div>
 </div>
 
+<div id="brandenburg-summary-modal" class="modal" style="z-index: 10000;">
+    <div class="modal-content" style="border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+            <h3 style="margin:0; font-size: 18px; color: #8e44ad;">📑 Zusammenfassung</h3>
+            <span onclick="document.getElementById('brandenburg-summary-modal').style.display='none'" style="font-size: 26px; color: #999; cursor: pointer; line-height: 1;">&times;</span>
+        </div>
+        <div id="bb-summary-content" style="font-size: 14px; margin-bottom: 20px;"></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button onclick="document.getElementById('brandenburg-summary-modal').style.display='none'" style="padding: 12px; background: #eee; color: #333; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Schließen</button>
+            <button onclick="printBrandenburgSummary()" style="padding: 12px; background: #34495e; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">🖨️ Drucken</button>
+        </div>
+    </div>
+</div>
+
 <div id="changelog-modal" class="modal" style="z-index: 10005;">
     <div class="modal-content" style="text-align: center; padding: 25px;">
         <h2 style="color: var(--primary); margin-top: 0;">🚀 Update Erfolgreich!</h2>
@@ -1014,13 +1010,117 @@
     </div>
 </div>
 
-<script src="script.js?v=61"></script>
-<script src="rechner.js?v=61"></script>
-<script src="rechner_scanner.js?v=61"></script>
-<script src="rechner_druck.js?v=61"></script>
-<script src="rechner_reklamation.js?v=61"></script>
-<script src="rechner_leergut.js?v=61"></script>
-<script src="logistik.js?v=61"></script>
+<div id="logistik-edit-modal" class="modal">
+    <div class="modal-content" style="border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3 id="logModalTitle" style="margin:0; font-size: 18px; color: var(--primary);"></h3>
+            <span onclick="closeModalApp1('logistik-edit-modal')" style="font-size:26px; color: #999; cursor:pointer; line-height: 1;">&times;</span>
+        </div>
+        
+        <div class="input-area" style="padding:0; margin:0; box-shadow:none; border:none; background:transparent;">
+            <div style="display:flex; gap:10px;">
+                <div class="field" style="flex:1;">
+                    <label>Datum</label>
+                    <input type="date" id="editTotalDate">
+                </div>
+                <div class="field" style="flex:1;">
+                    <label>Gesamtgewicht (kg)</label>
+                    <input type="number" id="editTotalKg" inputmode="decimal">
+                </div>
+            </div>
+            <button style="width:100%; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; margin-bottom: 10px;" onclick="updateDeliveryData()">Änderungen speichern</button>
+            
+            <div id="openKgBox" style="background:none; padding:0; margin:0 0 10px 0; text-align:center; font-weight:bold; color:var(--primary); border: none;">Noch offen: <span id="openKgLabel" style="font-size: 18px;">0</span> kg</div>
+            
+            <div style="text-align:center; margin-bottom: 15px;">
+                <label style="cursor:pointer; font-size: 12px; font-weight:bold; color:var(--danger);">
+                    <input type="checkbox" id="modalFullySortedCb" onchange="toggleFullySorted()" style="width: auto; height: auto; margin-right: 5px; vertical-align: middle; padding: 0;">
+                    Restmenge nicht mehr zuweisbar (Gilt als erledigt)
+                </label>
+            </div>
+
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <select id="modalWorkerSelect" style="flex:1;"></select>
+                <input type="number" id="modalKgInput" placeholder="kg" style="width:80px;" inputmode="decimal">
+            </div>
+            <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
+                <label style="font-size:12px; color:#555; white-space:nowrap; font-weight:bold;">Sortier-Datum:</label>
+                <input type="date" id="modalDateInput" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
+            </div>
+        </div>
+        <div style="display:flex; gap:8px; margin-bottom:15px;"><button style="background:var(--primary); color:white; flex:1; padding:12px; border:none; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="addAllRemainingShare()">Voll</button><button style="background:var(--success); color:white; flex:1; padding:12px; border:none; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="addWorkerShare()">Teil</button></div>
+        <div id="shareList" style="margin-bottom: 15px;"></div>
+        <button style="background:#ffebee; color:var(--danger); border:1px solid #ffcdd2; width:100%; padding: 12px; border-radius: 8px; font-weight:bold; cursor:pointer;" onclick="deleteEntry()">🗑️ Ganzen Eintrag löschen</button>
+    </div>
+</div>
+
+<div id="dayInfoModal" class="modal" style="z-index: 10002;">
+    <div class="modal-content" style="border-radius: 16px; padding: 20px; max-height: 85vh; overflow-y: auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3 style="margin:0; color:var(--primary); font-size:18px;">👥 Personal / Anwesenheit</h3>
+            <span onclick="closeModalApp1('dayInfoModal')" style="font-size:26px; color:#999; cursor:pointer; line-height:1;">&times;</span>
+        </div>
+        <p style="font-size:13px; color:#666; margin-top:0;">Mitarbeiter antippen = Anwesenheit umschalten. Stunden unten wählen.</p>
+        <div id="attendanceList" style="margin-bottom:15px;"></div>
+        <p style="text-align:center; font-weight:bold; margin-bottom:15px;">Gesamt-Personal: <span id="attTotal">0</span></p>
+        <button onclick="saveAttendance()" style="width:100%; padding:14px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">💾 Speichern</button>
+    </div>
+</div>
+
+<div id="edit-sup-modal" class="modal" style="z-index: 10002;">
+    <div class="modal-content" style="border-radius: 16px; padding: 20px; max-width: 400px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3 style="margin:0; color:var(--primary);">✏️ Lieferant umbenennen</h3>
+            <span onclick="document.getElementById('edit-sup-modal').style.display='none'" style="font-size:26px; color:#999; cursor:pointer; line-height:1;">&times;</span>
+        </div>
+        <input type="hidden" id="edit-sup-old-name">
+        <label style="font-size:12px; font-weight:bold; color:#666;">Neuer Name</label>
+        <input type="text" id="edit-sup-new-name" style="width:100%; padding:12px; border-radius:8px; border:1px solid #ccc; margin:8px 0 15px; box-sizing:border-box;">
+        <div style="display:flex; gap:10px;">
+            <button onclick="document.getElementById('edit-sup-modal').style.display='none'" style="flex:1; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer;">Abbrechen</button>
+            <button onclick="saveSupplierEdit()" style="flex:1; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<div id="pdf-share-modal" class="modal" style="z-index: 10015;">
+    <div class="modal-content" style="border-radius: 16px; padding: 25px; text-align:center; max-width: 360px;">
+        <h3 style="margin-top:0; color:var(--primary);">📄 PDF erstellt</h3>
+        <p style="font-size:14px; color:#666;">Was möchtest du damit machen?</p>
+        <button onclick="triggerShare()" style="width:100%; padding:14px; margin-bottom:10px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">📤 Teilen</button>
+        <button onclick="if(generatedPdfFile) saveBlobAsFile(generatedPdfFile, generatedPdfFilename + '.pdf'); document.getElementById('pdf-share-modal').style.display='none'; showToast('Heruntergeladen!', 'success');" style="width:100%; padding:14px; margin-bottom:10px; background:#107c41; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">💾 Herunterladen</button>
+        <button onclick="document.getElementById('pdf-share-modal').style.display='none'" style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer;">Schließen</button>
+    </div>
+</div>
+
+<div id="backupReminderModal" class="modal" style="z-index: 10003;">
+    <div class="modal-content" style="border-radius: 16px; padding: 25px; text-align:center; max-width: 360px;">
+        <h3 style="margin-top:0; color:var(--primary);">☁️ Cloud-Sicherung</h3>
+        <p style="font-size:14px; color:#666;">Hast du heute schon deine Daten in der Cloud gesichert?</p>
+        <button onclick="backupToCloud(); closeBackupModal();" style="width:100%; padding:14px; margin-bottom:10px; background:#17a2b8; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Jetzt sichern</button>
+        <button onclick="closeBackupModal()" style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer;">Später</button>
+    </div>
+</div>
+
+<div id="cloud-url-modal" class="modal" style="z-index: 10001;">
+    <div class="modal-content" style="max-width: 400px;">
+        <h3 style="margin-top:0; color:var(--primary);">⚙️ Server-Adresse ändern</h3>
+        <p style="font-size:13px; color:#666; margin-bottom:15px;">Gib hier die URL deiner Firebase Realtime Database ein. Leer lassen, um den Standard-Server zu verwenden.</p>
+        <input type="text" id="cloud-url-input" placeholder="https://....firebaseio.com" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:15px; box-sizing:border-box;">
+        <div style="display:flex; gap:10px;">
+            <button style="flex:1; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="document.getElementById('cloud-url-modal').style.display='none'">Abbrechen</button>
+            <button style="flex:1; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="saveCustomCloudUrl()">💾 Speichern</button>
+        </div>
+    </div>
+</div>
+
+<script src="script.js?v=81"></script>
+<script src="rechner.js?v=80"></script>
+<script src="rechner_scanner.js?v=80"></script>
+<script src="rechner_druck.js?v=80"></script>
+<script src="rechner_reklamation.js?v=80"></script>
+<script src="rechner_leergut.js?v=80"></script>
+<script src="logistik.js?v=80"></script>
 
 </body>
 </html>

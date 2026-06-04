@@ -355,6 +355,7 @@
                 <p style="font-size:12px; color:#666;">Hier siehst du alle erfassten Lieferungen (auch aus der Vergangenheit), bei denen noch Rest-Gewicht offen ist.</p>
                 <div id="admin-open-deliveries-list" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-top: 15px;"></div>
             </div>
+            <button class="btn btn-success" onclick="pushToCloud()" style="margin: 25px auto; display: flex; justify-content: center; width: 50%; max-width: 400px;">☁️ Änderungen in der Cloud speichern</button>
         </div>
 
         <div id="tab-artikel" class="tab-content">
@@ -410,6 +411,7 @@
                     <tbody id="v10-tableBody"></tbody>
                 </table>
             </div>
+            <button class="btn btn-success" onclick="pushToCloud()" style="margin: 25px auto; display: flex; justify-content: center; width: 50%; max-width: 400px;">☁️ Änderungen in der Cloud speichern</button>
         </div>
 
         <div id="tab-lieferanten" class="tab-content">
@@ -442,6 +444,7 @@
                     <tbody id="sup-body"></tbody>
                 </table>
             </div>
+            <button class="btn btn-success" onclick="pushToCloud()" style="margin: 25px auto; display: flex; justify-content: center; width: 50%; max-width: 400px;">☁️ Änderungen in der Cloud speichern</button>
         </div>
 
         <div id="tab-sortimente" class="tab-content">
@@ -459,12 +462,14 @@
                     <div id="assign-right-list" class="scroll-list"></div>
                 </div>
             </div>
+            <button class="btn btn-success" onclick="pushToCloud()" style="margin: 25px auto; display: flex; justify-content: center; width: 50%; max-width: 400px;">☁️ Änderungen in der Cloud speichern</button>
         </div>
 
         <div id="tab-noelke" class="tab-content">
             <h1>📝 Nölke-Produktkatalog</h1>
             <div class="card"><input type="text" id="new-noelke-val" placeholder="z.B. [Nr. 1] aro - Geflügel Paprikalyoner (200g) | EAN: ..."><button class="btn btn-success" onclick="saveNoelkeItem()" style="margin-top:15px;">+ Produkt hinzufügen</button></div>
             <div class="card"><input type="text" id="noelke-search" placeholder="🔍 Im Katalog suchen..." oninput="renderNoelkeList()" style="margin-bottom:15px;"><table style="width:100%; border-collapse:collapse; text-align:left;"><tbody id="noelke-body"></tbody></table></div>
+            <button class="btn btn-success" onclick="pushToCloud()" style="margin: 25px auto; display: flex; justify-content: center; width: 50%; max-width: 400px;">☁️ Änderungen in der Cloud speichern</button>
         </div>
 
         <div id="tab-sonderposten" class="tab-content">
@@ -477,6 +482,7 @@
                 <input type="text" id="sonder-tpl-search" class="v10-search" placeholder="🔍 Suchen nach Name oder EAN..." onkeyup="renderAdminSonderTpl()">
                 <div id="admin-sonder-tpl-list" class="scroll-list" style="margin-top:15px; padding: 10px;"></div>
             </div>
+            <button class="btn btn-success" onclick="pushToCloud()" style="margin: 25px auto; display: flex; justify-content: center; width: 50%; max-width: 400px;">☁️ Änderungen in der Cloud speichern</button>
         </div>
 
         <div id="tab-qm" class="tab-content">
@@ -495,6 +501,7 @@
                 </div>
                 <div id="qm-list" class="scroll-list" style="margin-top:15px; max-height:500px;"><p style="padding:15px; color:#666;">Bitte auf "Neu laden" klicken...</p></div>
             </div>
+            <button class="btn btn-success" onclick="pushToCloud()" style="margin: 25px auto; display: flex; justify-content: center; width: 50%; max-width: 400px;">☁️ Änderungen in der Cloud speichern</button>
         </div>
 
         <div id="tab-company" class="tab-content">
@@ -567,6 +574,7 @@
                 <input type="text" id="stats-query" placeholder="🔍 Suchbegriff eingeben..." style="width: 100%; padding: 12px; border: 2px solid var(--primary); border-radius: 8px;" onkeyup="runStatsQuery()">
                 <div id="stats-results" class="scroll-list" style="margin-top: 15px; padding: 15px; background: #f8f9fa;"><p style="color:#999; margin:0;">Bitte Suchbegriff eingeben...</p></div>
             </div>
+            <button class="btn btn-success" onclick="pushToCloud()" style="margin: 25px auto; display: flex; justify-content: center; width: 50%; max-width: 400px;">☁️ Änderungen in der Cloud speichern</button>
         </div>
 
         <div id="tab-raw" class="tab-content"><h1>📝 Raw JSON Editor</h1><div class="card"><textarea id="raw-json-input" rows="25" style="width:100%; font-family:monospace; padding:10px;"></textarea><button class="btn btn-orange" onclick="saveRawJson()" style="margin-top:15px;">💾 Text Speichern & Anwenden</button></div></div>
@@ -959,8 +967,7 @@
             if(!db.company) return;
             document.getElementById('comp-name').value = db.company.name || "Tresch & Sohn";
             document.getElementById('comp-color').value = db.company.color || "#004b93";
-            let lgVal = db.company.leergut || "E2:2.0, H1:18.0, Euro:21.0, WK2:1.5";
-            if (lgVal === "E2:2.0, Herta:2.5, H1:18.0, Euro:21.0" || lgVal === "E2:2.0, H1:18.0, Euro:21.0") lgVal = "E2:2.0, H1:18.0, Euro:21.0, WK2:1.5";
+            let lgVal = db.company.leergut || "E2:2.0, Herta:2.5, H1:18.0, Euro:21.0";
             document.getElementById('comp-leergut').value = lgVal;
             if(db.company.modules) {
                 let m = db.company.modules;
