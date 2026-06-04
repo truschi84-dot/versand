@@ -29,7 +29,7 @@
             background: var(--bg);
             color: var(--text);
             line-height: 1.45;
-            padding-bottom: calc(80px + var(--safe-bottom));
+            padding-bottom: calc(16px + var(--safe-bottom));
         }
         header {
             position: relative;
@@ -87,17 +87,13 @@
         }
         .btn-primary { background: var(--primary); color: #fff; flex: 1; min-width: 120px; }
         .btn-primary:active { transform: scale(0.98); }
-        .btn-wa {
-            background: #25d366;
-            color: #fff;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            width: 100%;
-        }
         .btn-ghost { background: #e8f5e9; color: var(--primary-dark); }
-        .btn-copy { background: #fff8e1; color: #e65100; }
+        .status-row { display: flex; gap: 8px; align-items: stretch; margin-bottom: 12px; }
+        .status-row .status-bar { flex: 1; margin-bottom: 0; }
+        .btn-refresh { flex-shrink: 0; padding: 8px 12px; font-size: 0.82rem; white-space: nowrap; }
+        .my-days-empty { padding: 12px 0; color: var(--muted); font-size: 0.88rem; margin: 0; }
+        .entry-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+        .entry-actions button { padding: 8px 10px; font-size: 0.75rem; }
         .status-bar {
             font-size: 0.8rem;
             padding: 8px 12px;
@@ -247,18 +243,6 @@
         .overview-list li:last-child { border-bottom: none; }
         .overview-list .empty-day { color: var(--muted); font-style: italic; }
         .winner { color: var(--primary-dark); font-weight: 700; }
-        footer.share-bar {
-            position: fixed;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            padding: 10px 12px calc(10px + var(--safe-bottom));
-            background: rgba(255,255,255,0.96);
-            border-top: 1px solid var(--border);
-            backdrop-filter: blur(8px);
-            z-index: 50;
-        }
-        footer.share-bar .wrap { padding: 0; }
         details.help { font-size: 0.82rem; color: var(--muted); }
         details.help summary { cursor: pointer; font-weight: 700; color: var(--primary-dark); }
         code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; word-break: break-all; }
@@ -337,15 +321,10 @@
 </header>
 
 <div class="wrap">
-    <section id="open-hint" class="card open-hint" hidden>
-        <h2>Seite richtig öffnen</h2>
-        <p class="hint" id="open-hint-text"></p>
-        <p style="margin:10px 0 0">
-            <a id="open-hint-link" href="http://localhost:8080/kaninchen.html" style="font-weight:800;color:var(--primary-dark);word-break:break-all">http://localhost:8080/kaninchen.html</a>
-        </p>
-        <button type="button" class="btn-ghost" id="open-hint-dismiss" style="margin-top:10px;width:100%">Hinweis ausblenden</button>
-    </section>
-    <div id="sync-status" class="status-bar" role="status"></div>
+    <div class="status-row">
+        <div id="sync-status" class="status-bar" role="status"></div>
+        <button type="button" class="btn-ghost btn-refresh" id="refresh-btn" title="Liste neu laden">↻</button>
+    </div>
 
     <section class="card dash-card unclear-days" id="card-unclear" hidden>
         <h2 id="unclear-title">❓ Noch klären</h2>
@@ -355,19 +334,19 @@
 
     <section class="card">
         <h2>Dein Name</h2>
-        <p class="hint">Name jederzeit ändern und erneut <strong>Name speichern</strong> tippen. Tage unten oder im Kalender an- und abwählen.</p>
+        <p class="hint">Jeder in der Gruppe trägt sich selbst ein. Name ändern → erneut <strong>Speichern</strong>. Einträge darunter bearbeiten.</p>
         <label for="user-name">Name</label>
         <input type="text" id="user-name" placeholder="z. B. Max Mustermann" maxlength="40" autocomplete="name">
         <div class="row">
-            <button type="button" class="btn-primary" id="save-name">Name speichern / ändern</button>
+            <button type="button" class="btn-primary" id="save-name">Speichern</button>
         </div>
     </section>
 
     <section class="card" id="my-entries-card" hidden>
         <h2>Deine Einträge bearbeiten</h2>
-        <p class="hint">Einzelne Tage abmelden oder alle auf einmal.</p>
+        <p class="hint">Nur deine eigenen Meldungen – jeder sieht alle, ändert aber nur das Seine.</p>
         <ul id="my-days-list" class="my-days-list"></ul>
-        <button type="button" class="btn-remove-day" id="clear-all-days" style="width:100%">Alle meine Tage abmelden</button>
+        <button type="button" class="btn-remove-day" id="clear-all-days" style="width:100%" hidden>Alle meine Tage abmelden</button>
     </section>
 
     <section class="card">
@@ -392,21 +371,10 @@
     <section class="card">
         <details class="help">
             <summary>Kurzanleitung</summary>
-            <p style="margin-top:10px">1. Name speichern · 2. Im Kalender Tage antippen · 3. Bei mehreren Kandidaten abstimmen oder „Ich füttere“ wählen · 4. Unten „Wer füttert wann“ prüfen.</p>
-            <p>Link zum Teilen:<br><code id="public-url-hint">https://truschi84-dot.github.io/versand/kaninchen.html</code></p>
+            <p style="margin-top:10px">Name speichern → Kalender antippen → bei Bedarf „Ich füttere“ oder abstimmen → unten „Wer füttert wann“ prüfen. Änderungen jederzeit unter „Deine Einträge bearbeiten“.</p>
         </details>
     </section>
 </div>
-
-<footer class="share-bar">
-    <div class="wrap">
-        <button type="button" class="btn-wa" id="share-wa">📲 Link per WhatsApp teilen</button>
-        <div class="row" style="margin-top:8px">
-            <button type="button" class="btn-copy" id="copy-link" style="flex:1">Link kopieren</button>
-            <button type="button" class="btn-ghost" id="refresh-btn" style="flex:1">Aktualisieren</button>
-        </div>
-    </div>
-</footer>
 
 <div id="day-overlay" class="overlay" aria-hidden="true">
     <div class="sheet" role="dialog" aria-labelledby="sheet-title">
@@ -420,12 +388,10 @@
 
 <script>
 (function () {
-    const LIVE_URL = 'https://truschi84-dot.github.io/versand/kaninchen.html';
     const FIREBASE_URL = 'https://tresch-versand-default-rtdb.firebaseio.com/kaninchen_futter_2026.json';
     const STORAGE_ID = 'kaninchen_user_id';
     const STORAGE_NAME = 'kaninchen_user_name';
     const LOCAL_STATE_KEY = 'kaninchen_local_state';
-    const HINT_DISMISS_KEY = 'kaninchen_hint_dismissed';
     const YEAR = 2026;
     const MONTH = 6; // Juli (0-basiert)
     const DAY_START = 1;
@@ -444,10 +410,6 @@
     let useLocalOnly = false;
 
     const el = {
-        openHint: document.getElementById('open-hint'),
-        openHintText: document.getElementById('open-hint-text'),
-        openHintLink: document.getElementById('open-hint-link'),
-        openHintDismiss: document.getElementById('open-hint-dismiss'),
         name: document.getElementById('user-name'),
         saveName: document.getElementById('save-name'),
         calendar: document.getElementById('calendar'),
@@ -458,10 +420,7 @@
         sheetPeople: document.getElementById('sheet-people'),
         toggleSelf: document.getElementById('toggle-self'),
         closeSheet: document.getElementById('close-sheet'),
-        shareWa: document.getElementById('share-wa'),
-        copyLink: document.getElementById('copy-link'),
         refreshBtn: document.getElementById('refresh-btn'),
-        publicUrlHint: document.getElementById('public-url-hint'),
         listUnclear: document.getElementById('list-unclear'),
         listOk: document.getElementById('list-ok'),
         cardUnclear: document.getElementById('card-unclear'),
@@ -515,10 +474,6 @@
             localStorage.setItem(STORAGE_ID, userId);
         }
         return userId;
-    }
-
-    function getShareUrl() {
-        return LIVE_URL;
     }
 
     function normalizeState(raw) {
@@ -652,35 +607,6 @@
         localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(state));
     }
 
-    function setupOpenHint() {
-        const isFile = location.protocol === 'file:';
-        const dismissed = localStorage.getItem(HINT_DISMISS_KEY) === '1';
-        const localUrl = 'http://localhost:8080/kaninchen.html';
-        if (el.openHintLink) {
-            el.openHintLink.href = localUrl;
-            el.openHintLink.textContent = localUrl;
-        }
-        if (isFile) {
-            useLocalOnly = true;
-            if (el.openHintText) {
-                el.openHintText.textContent =
-                    'Die Datei wurde direkt geöffnet (Doppelklick) – das führt oft zu Fehlern. Bitte den Büro-Server starten und diese Adresse im Browser öffnen:';
-            }
-            if (el.openHint) el.openHint.hidden = false;
-            return;
-        }
-        if (!dismissed && location.hostname === 'localhost') {
-            if (el.openHintText) {
-                el.openHintText.textContent =
-                    'Lokale Vorschau. Der WhatsApp-Button teilt bereits den Online-Link.';
-            }
-            if (el.openHint) el.openHint.hidden = false;
-        }
-        if (location.hostname.indexOf('github.io') >= 0 && el.openHint) {
-            el.openHint.hidden = true;
-        }
-    }
-
     async function loadState() {
         if (location.protocol === 'file:') {
             state = loadLocalState();
@@ -700,14 +626,7 @@
         } catch (e) {
             useLocalOnly = true;
             state = loadLocalState();
-            showStatus('Cloud nicht erreichbar – Vorschau nur auf diesem Gerät. Für alle zusammen: Firebase-Regel (Hilfe unten).', 'warn');
-            if (el.openHint && localStorage.getItem(HINT_DISMISS_KEY) !== '1') {
-                if (el.openHintText) {
-                    el.openHintText.textContent =
-                        'Die Seite läuft im Vorschau-Modus auf deinem Gerät. Damit alle dieselbe Liste sehen, Firebase-Regel einrichten – oder erst lokal testen unter:';
-                }
-                el.openHint.hidden = false;
-            }
+            showStatus('Offline – nur auf diesem Gerät. Bitte Internet prüfen und ↻ tippen.', 'warn');
             renderAll();
             return false;
         }
@@ -873,26 +792,57 @@
     }
 
     function renderMyEntries() {
-        const id = userId;
-        if (!id || !el.myDaysList) return;
+        const id = ensureUserId();
+        if (!el.myDaysList || !el.myEntriesCard) return;
+        if (!userName.trim()) {
+            el.myEntriesCard.hidden = true;
+            return;
+        }
+        el.myEntriesCard.hidden = false;
         const myDays = [];
         for (let day = DAY_START; day <= DAY_END; day++) {
             const key = dateKey(day);
             if (dayData(key).volunteers.includes(id)) myDays.push({ day: day, key: key });
         }
-        if (el.myEntriesCard) el.myEntriesCard.hidden = myDays.length === 0;
         el.myDaysList.innerHTML = '';
+        if (el.clearAllDays) el.clearAllDays.hidden = myDays.length === 0;
+        if (!myDays.length) {
+            const li = document.createElement('li');
+            li.innerHTML = '<p class="my-days-empty">Noch keine Tage – im <strong>Kalender</strong> einen Tag antippen und dich eintragen.</p>';
+            el.myDaysList.appendChild(li);
+            return;
+        }
         myDays.forEach(function (item) {
             const li = document.createElement('li');
-            const feeder = getFeederId(item.key) === id;
-            li.innerHTML = '<span>' + escapeHtml(dayLabelShort(item.day)) +
-                (feeder ? ' <span class="feeder-badge">Du fütterst</span>' : '') + '</span>';
-            const b = document.createElement('button');
-            b.type = 'button';
-            b.className = 'btn-remove-day';
-            b.textContent = 'Abmelden';
-            b.addEventListener('click', function () { removeMyDay(item.key); });
-            li.appendChild(b);
+            const isFeeder = getFeederId(item.key) === id;
+            const label = document.createElement('span');
+            label.innerHTML = escapeHtml(dayLabelShort(item.day)) +
+                (isFeeder ? ' <span class="feeder-badge">Du fütterst</span>' : '');
+            const actions = document.createElement('div');
+            actions.className = 'entry-actions';
+            if (!isFeeder) {
+                const claim = document.createElement('button');
+                claim.type = 'button';
+                claim.className = 'btn-primary';
+                claim.textContent = 'Ich füttere';
+                claim.addEventListener('click', function () { setExplicitFeeder(item.key, id); });
+                actions.appendChild(claim);
+            } else if (dayData(item.key).feeder === id) {
+                const unclaim = document.createElement('button');
+                unclaim.type = 'button';
+                unclaim.className = 'btn-ghost';
+                unclaim.textContent = 'Fütterer abgeben';
+                unclaim.addEventListener('click', function () { clearExplicitFeeder(item.key); });
+                actions.appendChild(unclaim);
+            }
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'btn-remove-day';
+            remove.textContent = 'Abmelden';
+            remove.addEventListener('click', function () { removeMyDay(item.key); });
+            actions.appendChild(remove);
+            li.appendChild(label);
+            li.appendChild(actions);
             el.myDaysList.appendChild(li);
         });
     }
@@ -1047,6 +997,7 @@
         }
         if (!userId) ensureUserId();
         registerPerson(name);
+        userName = name;
         saveState().then(function () {
             renderAll();
             if (selectedDate) openDaySheet(selectedDate);
@@ -1066,27 +1017,7 @@
         if (e.target === el.overlay) closeSheet();
     });
 
-    el.shareWa.addEventListener('click', function () {
-        const url = getShareUrl();
-        const text = 'Hallo! 🐰 Kaninchen-Futterplan Juli (1.7.–29.7.): Hier eintragen, wer wann füttert:\n' + url;
-        window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
-    });
-
-    el.copyLink.addEventListener('click', function () {
-        const url = getShareUrl();
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(url).then(function () {
-                showStatus('Link kopiert!', 'ok');
-            }).catch(fallbackCopy);
-        } else {
-            fallbackCopy();
-        }
-        function fallbackCopy() {
-            prompt('Link kopieren (Strg+C):', url);
-        }
-    });
-
-    el.refreshBtn.addEventListener('click', loadState);
+    if (el.refreshBtn) el.refreshBtn.addEventListener('click', loadState);
 
     if (el.clearAllDays) {
         el.clearAllDays.addEventListener('click', function () {
@@ -1095,18 +1026,10 @@
     }
 
     el.name.value = userName;
-    if (el.publicUrlHint) {
-        el.publicUrlHint.textContent = LIVE_URL;
-    }
+    el.name.addEventListener('input', function () {
+        if (userName.trim() && el.myEntriesCard) el.myEntriesCard.hidden = false;
+    });
 
-    if (el.openHintDismiss) {
-        el.openHintDismiss.addEventListener('click', function () {
-            localStorage.setItem(HINT_DISMISS_KEY, '1');
-            if (el.openHint) el.openHint.hidden = true;
-        });
-    }
-
-    setupOpenHint();
     loadState();
     if (location.protocol !== 'file:') {
         pollTimer = setInterval(loadState, 8000);
