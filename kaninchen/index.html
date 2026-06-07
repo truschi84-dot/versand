@@ -761,7 +761,11 @@
         }
         try {
             const res = await fetch(FIREBASE_URL + '?t=' + Date.now(), { cache: 'no-store' });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
+            if (!res.ok) {
+                const err = new Error('HTTP ' + res.status);
+                err.status = res.status;
+                throw err;
+            }
             const data = await res.json();
             state = normalizeState(data);
             syncUserIdentity();
@@ -773,7 +777,13 @@
             useLocalOnly = true;
             state = loadLocalState();
             syncUserIdentity();
-            showStatus('Offline – nur auf diesem Gerät. Bitte Internet prüfen und ↻ tippen.', 'warn');
+            let msg = 'Offline – nur auf diesem Gerät. Bitte Internet prüfen und ↻ tippen.';
+            if (e.status === 401 || e.status === 403) {
+                msg = 'Cloud-Zugang gesperrt – gemeinsame Liste nicht erreichbar. ↻ tippen oder Admin informieren.';
+            } else if (e.status >= 500) {
+                msg = 'Cloud-Server antwortet nicht – nur lokal auf diesem Gerät. Später ↻ tippen.';
+            }
+            showStatus(msg, 'warn');
             renderAll();
             return false;
         }
