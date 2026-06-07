@@ -11,7 +11,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.1";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 95;
+const WEB_BUILD_VERSION = 96;
 /** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
 const OFFICE_LAN_URL = 'http://192.168.2.204:8080';
 let pendingOtaUpdate = null;
@@ -634,8 +634,10 @@ async function clearAppBrowserCache() {
 }
 
 // START LOGIK
-window.onload = () => { 
+window.onload = async () => {
     initLeanStorageHygiene();
+
+    if (await initOtaApkBootstrap()) return;
 
     // HARD-CACHE PURGE V7 (BETA MERGE): Zwingt Browser/Tablets, alte Beta-Dateien und fehlerhafte Versionen endgültig zu verwerfen.
     if (AppStorage.getRaw('hard_purge_v70') !== 'done') {
@@ -777,16 +779,108 @@ function setUpdateAvailableUI(visible, remoteVer) {
 
 function openOtaUpdatePrompt() {
     if (pendingOtaUpdate) {
-        showOtaUpdateModal(pendingOtaUpdate.remoteVer, pendingOtaUpdate.remoteBase);
+        showOtaUpdateModal(pendingOtaUpdate.remoteVer, pendingOtaUpdate.remoteBase, pendingOtaUpdate.webBase);
     } else {
         checkForWebUpdate(true);
     }
 }
 
-/** Kein Server-Abruf beim Start – nur lokaler Versionsstand (GitHub nur per Knopf). */
+function isBundledApkPage() {
+    if (!isNativeAndroidApp()) return false;
+    if (location.protocol === 'file:') return true;
+    return /android_asset/i.test(location.href);
+}
+
+function normalizeOtaBase(url) {
+    return String(url || '').replace(/\/$/, '');
+}
+
+async function probeOtaBase(base) {
+    const b = normalizeOtaBase(base);
+    if (!b) return false;
+    try {
+        await fetchJsonNoCache(b + '/app-version.json?t=' + Date.now());
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+async function pickReachableOtaBase(candidates) {
+    const seen = new Set();
+    for (const raw of candidates) {
+        const base = normalizeOtaBase(raw);
+        if (!base || seen.has(base)) continue;
+        seen.add(base);
+        if (await probeOtaBase(base)) return base;
+    }
+    return '';
+}
+
+async function getOtaConfigBases() {
+    let office = normalizeOtaBase(OFFICE_LAN_URL);
+    let web = normalizeOtaBase(OTA_REMOTE_CONFIG_URL.replace(/\/app-update\.json$/i, ''));
+    const configUrls = [getOtaConfigUrl(), OTA_REMOTE_CONFIG_URL];
+    for (const url of configUrls) {
+        if (!url) continue;
+        try {
+            const cfg = await fetchJsonNoCache(url + '?t=' + Date.now());
+            if (cfg?.officeWebBaseUrl) office = normalizeOtaBase(cfg.officeWebBaseUrl);
+            if (cfg?.webBaseUrl) web = normalizeOtaBase(cfg.webBaseUrl);
+        } catch (_) {}
+    }
+    try {
+        const bundled = await loadBundledOtaConfig();
+        if (bundled?.officeWebBaseUrl) office = normalizeOtaBase(bundled.officeWebBaseUrl);
+        if (bundled?.webBaseUrl) web = normalizeOtaBase(bundled.webBaseUrl);
+    } catch (_) {}
+    return { office, web };
+}
+
+function navigateToOtaUrl(url) {
+    try {
+        if (typeof AndroidApp !== 'undefined' && typeof AndroidApp.clearWebViewCache === 'function') {
+            AndroidApp.clearWebViewCache();
+        }
+    } catch (_) {}
+    try {
+        if (typeof AndroidApp !== 'undefined' && typeof AndroidApp.loadUrl === 'function') {
+            AndroidApp.loadUrl(url);
+            return;
+        }
+    } catch (_) {}
+    location.replace(url);
+}
+
+async function initOtaApkBootstrap() {
+    if (!isBundledApkPage() || !navigator.onLine) return false;
+    const saved = AppStorage.getRaw('ota_web_base_url');
+    const { office, web } = await getOtaConfigBases();
+    const installBase = await pickReachableOtaBase([saved, web, office]);
+    if (!installBase) return false;
+    try {
+        const v = await fetchJsonNoCache(installBase + '/app-version.json?t=' + Date.now());
+        const remoteVer = Number(v?.webVersion || 0);
+        const shouldUseWeb = remoteVer > getRunningWebVersion() || (saved && normalizeOtaBase(saved) === installBase);
+        if (!shouldUseWeb) return false;
+        AppStorage.setRaw('ota_web_base_url', installBase);
+        navigateToOtaUrl(installBase + '/index.html?t=' + Date.now());
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+/** Kein Server-Abruf beim Start – nur lokaler Versionsstand; APK springt bei Bedarf auf Web-URL. */
 function initOtaUpdateWatch() {
     syncInstalledWebVersionStorage();
     recordInstalledWebVersionFromPage();
+    if (location.protocol === 'https:' || location.protocol === 'http:') {
+        if (!isBundledApkPage()) {
+            AppStorage.setRaw('ota_web_base_url', normalizeOtaBase(location.origin));
+        }
+        recordInstalledWebVersion(getRunningWebVersion());
+    }
 }
 
 let _otaCheckBusy = false;
@@ -828,20 +922,39 @@ function hideOtaUpdateModal() {
     if (modal) modal.style.display = 'none';
 }
 
-function applyOtaUpdate(remoteVer, remoteBase) {
+async function applyOtaUpdate(remoteVer, remoteBase, webBase) {
+    const confirmBtn = document.getElementById('ota-update-confirm');
+    if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Wird geladen …';
+    }
+    const { office, web } = await getOtaConfigBases();
+    const installBase = await pickReachableOtaBase([
+        webBase,
+        web,
+        remoteBase,
+        office,
+        AppStorage.getRaw('ota_web_base_url'),
+        OTA_REMOTE_CONFIG_URL.replace(/\/app-update\.json$/i, '')
+    ]);
+    if (!installBase) {
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Jetzt installieren';
+        }
+        showOtaInfoModal(
+            'Install fehlgeschlagen',
+            'Weder GitHub noch Büro-Server erreichbar.<br>Bitte Internet/WLAN prüfen – im Büro Laptop mit <code>start-buero-server.ps1</code> starten.',
+            '⚠️'
+        );
+        return;
+    }
     hideOtaUpdateModal();
     setUpdateAvailableUI(false);
-    AppStorage.setRaw('ota_banner_dismissed', String(remoteVer));
-    recordInstalledWebVersion(remoteVer);
-    let otherHost = false;
-    try {
-        if (remoteBase) otherHost = location.hostname !== new URL(remoteBase).hostname;
-    } catch (_) {}
-    if (remoteBase && (location.protocol === 'file:' || otherHost)) {
-        location.href = remoteBase + '/index.html?t=' + Date.now();
-    } else {
-        location.reload(true);
-    }
+    AppStorage.remove('ota_banner_dismissed');
+    AppStorage.setRaw('ota_web_base_url', installBase);
+    pendingOtaUpdate = null;
+    navigateToOtaUrl(installBase + '/index.html?t=' + Date.now());
 }
 
 function restoreOtaUpdateModalLayout() {
@@ -890,18 +1003,19 @@ function showOtaInfoModal(title, message, icon) {
     modal.style.display = 'flex';
 }
 
-function showOtaUpdateModal(remoteVer, remoteBase) {
+function showOtaUpdateModal(remoteVer, remoteBase, webBase) {
     const modal = document.getElementById('ota-update-modal');
     const confirmBtn = document.getElementById('ota-update-confirm');
     const laterBtn = document.getElementById('ota-update-later');
     if (!modal || !confirmBtn) return;
     restoreOtaUpdateModalLayout();
     const verEl = document.getElementById('ota-update-ver');
-    pendingOtaUpdate = { remoteVer, remoteBase };
+    pendingOtaUpdate = { remoteVer, remoteBase, webBase };
     if (verEl) verEl.textContent = String(remoteVer);
     modal.style.display = 'flex';
     setUpdateAvailableUI(true, remoteVer);
-    confirmBtn.onclick = () => applyOtaUpdate(remoteVer, remoteBase);
+    confirmBtn.disabled = false;
+    confirmBtn.onclick = () => applyOtaUpdate(remoteVer, remoteBase, webBase);
     if (laterBtn) {
         laterBtn.style.display = '';
         laterBtn.onclick = () => {
@@ -961,8 +1075,8 @@ async function loadBundledOtaConfig() {
 
 async function fetchRemoteUpdateVersion() {
     let remoteVer = 0;
-    let remoteBase = '';
-    let preferOffice = true;
+    let officeBase = normalizeOtaBase(OFFICE_LAN_URL);
+    let webBase = normalizeOtaBase(OTA_REMOTE_CONFIG_URL.replace(/\/app-update\.json$/i, ''));
     const configUrls = [];
     const primary = getOtaConfigUrl();
     if (primary) configUrls.push(primary);
@@ -972,12 +1086,8 @@ async function fetchRemoteUpdateVersion() {
         try {
             const cfg = await fetchJsonNoCache(baseUrl + '?t=' + Date.now());
             remoteVer = Math.max(remoteVer, Number(cfg?.webVersion || 0));
-            preferOffice = cfg?.preferOfficeLan !== false;
-            const office = (cfg?.officeWebBaseUrl || '').replace(/\/$/, '');
-            const web = (cfg?.webBaseUrl || '').replace(/\/$/, '');
-            if (preferOffice && office) remoteBase = office;
-            else if (web) remoteBase = web;
-            else if (office) remoteBase = office;
+            if (cfg?.officeWebBaseUrl) officeBase = normalizeOtaBase(cfg.officeWebBaseUrl);
+            if (cfg?.webBaseUrl) webBase = normalizeOtaBase(cfg.webBaseUrl);
         } catch (e) {
             console.warn('OTA config fetch failed:', baseUrl, e);
         }
@@ -988,32 +1098,28 @@ async function fetchRemoteUpdateVersion() {
             const bundled = await loadBundledOtaConfig();
             if (bundled) {
                 remoteVer = Number(bundled.webVersion || 0);
-                const office = (bundled.officeWebBaseUrl || '').replace(/\/$/, '');
-                const web = (bundled.webBaseUrl || '').replace(/\/$/, '');
-                if (web) remoteBase = web;
-                else if (office) remoteBase = office;
+                if (bundled.officeWebBaseUrl) officeBase = normalizeOtaBase(bundled.officeWebBaseUrl);
+                if (bundled.webBaseUrl) webBase = normalizeOtaBase(bundled.webBaseUrl);
             }
         } catch (_) {}
     }
 
-    const officeCandidate = remoteBase || (AppStorage.getRaw('last_office_lan_url') || OFFICE_LAN_URL).replace(/\/$/, '');
-    if (officeCandidate && navigator.onLine) {
-        try {
-            const v = await fetchJsonNoCache(officeCandidate + '/app-version.json?t=' + Date.now());
-            const officeVer = Number(v?.webVersion || 0);
-            if (officeVer > remoteVer) {
-                remoteVer = officeVer;
-                remoteBase = officeCandidate;
-            } else if (!remoteBase && officeVer) {
-                remoteBase = officeCandidate;
-            }
-        } catch (_) {}
+    if (navigator.onLine) {
+        for (const candidate of [officeBase, webBase]) {
+            if (!candidate) continue;
+            try {
+                const v = await fetchJsonNoCache(candidate + '/app-version.json?t=' + Date.now());
+                remoteVer = Math.max(remoteVer, Number(v?.webVersion || 0));
+            } catch (_) {}
+        }
     }
 
-    if (!remoteBase) {
-        remoteBase = (AppStorage.getRaw('last_office_lan_url') || OFFICE_LAN_URL).replace(/\/$/, '');
-    }
-    return { remoteVer, remoteBase };
+    const remoteBase = await pickReachableOtaBase([
+        webBase,
+        officeBase,
+        AppStorage.getRaw('ota_web_base_url')
+    ]);
+    return { remoteVer, remoteBase, webBase, officeBase };
 }
 
 async function checkForWebUpdate(manual) {
@@ -1035,8 +1141,9 @@ async function checkForWebUpdate(manual) {
     const installedVer = getRunningWebVersion();
     let remoteVer = 0;
     let remoteBase = '';
+    let webBase = '';
     try {
-        ({ remoteVer, remoteBase } = await fetchRemoteUpdateVersion());
+        ({ remoteVer, remoteBase, webBase } = await fetchRemoteUpdateVersion());
     } catch (e) {
         console.error('Update-Server Fehler', e);
     }
@@ -1061,7 +1168,7 @@ async function checkForWebUpdate(manual) {
         return;
     }
 
-    pendingOtaUpdate = { remoteVer, remoteBase };
+    pendingOtaUpdate = { remoteVer, remoteBase, webBase };
     setUpdateAvailableUI(true, remoteVer);
 
     if (!manual && dismissed >= remoteVer) {
@@ -1069,7 +1176,7 @@ async function checkForWebUpdate(manual) {
         return;
     }
 
-    showOtaUpdateModal(remoteVer, remoteBase);
+    showOtaUpdateModal(remoteVer, remoteBase, webBase);
 }
 
 /** APK: Statusleiste, Zurück-Taste, Portrait – siehe ANDROID_APK.md */
