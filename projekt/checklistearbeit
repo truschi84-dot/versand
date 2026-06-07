@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Arbeits-Checkliste</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Checkbox Styling */
+        input[type="checkbox"] {
+            width: 1.5rem;
+            height: 1.5rem;
+            accent-color: #3b82f6;
+            cursor: pointer;
+        }
+        
+        .task-enter {
+            animation: slideIn 0.3s ease-out forwards;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Pulse animation for the microphone */
+        @keyframes pulse-mic {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .recording {
+            animation: pulse-mic 1.5s infinite;
+            background-color: #fee2e2 !important;
+            color: #ef4444 !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased h-screen flex flex-col overflow-hidden">
+
+    <div class="max-w-md w-full mx-auto bg-white h-full sm:h-auto sm:min-h-[800px] sm:mt-8 sm:rounded-2xl sm:shadow-xl flex flex-col relative border-x sm:border-slate-200">
+        
+        <!-- Header -->
+        <div class="bg-blue-600 text-white p-6 pb-4 shadow-md z-10 shrink-0">
+            <h1 class="text-2xl font-bold mb-1">Mein Arbeitstag</h1>
+            <p class="text-blue-100 text-sm mb-4">Morgenroutine & Notizen</p>
+            
+            <!-- Tabs -->
+            <div class="flex bg-blue-700/50 rounded-lg p-1">
+                <button id="tab-morning" onclick="switchTab('morning')" class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors bg-white text-blue-700 shadow">
+                    Morgen-Check
+                </button>
+                <button id="tab-adhoc" onclick="switchTab('adhoc')" class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors text-blue-100 hover:text-white">
+                    Zusatzaufgaben
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= MORNING CHECK VIEW ================= -->
+        <div id="view-morning" class="flex-1 flex flex-col overflow-hidden bg-slate-50">
+            <!-- Progress Bar -->
+            <div class="px-6 pt-4 pb-2 bg-white shrink-0">
+                <div class="w-full bg-slate-200 rounded-full h-2.5 mb-1">
+                    <div id="progress-bar" class="bg-green-400 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <p id="progress-text" class="text-xs text-slate-500 text-right">0/0 erledigt</p>
+            </div>
+
+            <!-- Task List Morning -->
+            <div class="flex-1 p-4 overflow-y-auto">
+                <ul id="morning-list" class="space-y-3"></ul>
+                
+                <div id="morning-empty" class="hidden text-center py-10 text-slate-400">
+                    <p>Keine Aufgaben vorhanden.</p>
+                </div>
+            </div>
+
+            <!-- Controls Morning -->
+            <div class="p-4 bg-white border-t border-slate-200 shrink-0">
+                <form id="form-morning" class="flex gap-2 mb-4">
+                    <input type="text" id="input-morning" placeholder="Morgen-Aufgabe hinzufügen..." class="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" autocomplete="off">
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-sm flex items-center justify-center w-12">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    </button>
+                </form>
+                <button id="reset-btn" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Neuer Tag: Alle Haken entfernen
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= ADHOC TASKS VIEW ================= -->
+        <div id="view-adhoc" class="hidden flex-1 flex flex-col overflow-hidden bg-slate-50">
+            
+            <div class="px-6 pt-4 pb-2 bg-white shrink-0 border-b border-slate-100">
+                <p class="text-sm text-slate-500">Aufgaben, die sich tagsüber ergeben.</p>
+            </div>
+
+            <!-- Task List Adhoc -->
+            <div class="flex-1 p-4 overflow-y-auto">
+                <ul id="adhoc-list" class="space-y-3"></ul>
+                
+                <div id="adhoc-empty" class="hidden text-center py-12 text-slate-400">
+                    <div class="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                    </div>
+                    <p class="font-medium text-slate-600">Keine offenen Zusatzaufgaben.</p>
+                    <p class="text-sm mt-1">Trage sie per Text oder Sprache ein.</p>
+                </div>
+            </div>
+
+            <!-- Controls Adhoc -->
+            <div class="p-4 bg-white border-t border-slate-200 shrink-0">
+                <form id="form-adhoc" class="flex gap-2">
+                    <!-- Microphone Button -->
+                    <button type="button" id="mic-btn" class="bg-slate-100 text-slate-600 hover:bg-slate-200 p-3 rounded-xl transition-colors flex items-center justify-center w-12 shrink-0" title="Spracheingabe">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                    </button>
+                    
+                    <input type="text" id="input-adhoc" placeholder="Aufgabe tippen..." class="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" autocomplete="off">
+                    
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-sm flex items-center justify-center w-12 shrink-0">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    </button>
+                </form>
+                <div id="mic-hint" class="text-xs text-center text-slate-400 mt-2 hidden">
+                    Mikrofon nicht unterstützt in diesem Browser.
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modals / Messages -->
+    <div id="toast-message" class="fixed bottom-20 sm:bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-5 py-3 rounded-full shadow-lg opacity-0 pointer-events-none transition-opacity duration-300 z-50 text-sm font-medium whitespace-nowrap">
+        Nachricht hier
+    </div>
+
+    <script>
+        // Data Keys
+        const STORAGE_MORNING = 'morgen_checkliste_data';
+        const STORAGE_ADHOC = 'morgen_checkliste_adhoc_data';
+
+        // Default tasks for morning
+        const defaultMorningTasks = [
+            { id: 1, text: "Schauen ob genug Europaletten da sind", completed: false },
+            { id: 2, text: "Prüfen ob die Türen offen sind", completed: false },
+            { id: 3, text: "Sind die Kühlhäuser aufgeräumt?", completed: false },
+            { id: 4, text: "Prüfen ob es eine WM-Liste gibt", completed: false },
+            { id: 5, text: "Wie sieht es an der Waage aus?", completed: false },
+            { id: 6, text: "Wie sieht es bei Martin aus? (Kommissionierung)", completed: false }
+        ];
+
+        let morningTasks = [];
+        let adhocTasks = [];
+
+        // UI Elements
+        const toastEl = document.getElementById('toast-message');
+        
+        function init() {
+            // Load Morning Tasks
+            const savedMorning = localStorage.getItem(STORAGE_MORNING);
+            if (savedMorning) {
+                try { morningTasks = JSON.parse(savedMorning); } 
+                catch (e) { morningTasks = [...defaultMorningTasks]; }
+            } else {
+                morningTasks = [...defaultMorningTasks];
+            }
+
+            // Load Adhoc Tasks
+            const savedAdhoc = localStorage.getItem(STORAGE_ADHOC);
+            if (savedAdhoc) {
+                try { adhocTasks = JSON.parse(savedAdhoc); } 
+                catch (e) { adhocTasks = []; }
+            }
+
+            renderMorning();
+            renderAdhoc();
+            setupSpeechRecognition();
+        }
+
+        // --- TAB SWITCHING ---
+        window.switchTab = function(tab) {
+            const btnM = document.getElementById('tab-morning');
+            const btnA = document.getElementById('tab-adhoc');
+            const viewM = document.getElementById('view-morning');
+            const viewA = document.getElementById('view-adhoc');
+
+            if (tab === 'morning') {
+                viewM.classList.remove('hidden');
+                viewA.classList.add('hidden');
+                
+                btnM.classList.replace('text-blue-100', 'text-blue-700');
+                btnM.classList.replace('hover:text-white', 'bg-white');
+                btnM.classList.add('shadow');
+                
+                btnA.classList.replace('text-blue-700', 'text-blue-100');
+                btnA.classList.replace('bg-white', 'hover:text-white');
+                btnA.classList.remove('shadow');
+            } else {
+                viewA.classList.remove('hidden');
+                viewM.classList.add('hidden');
+                
+                btnA.classList.replace('text-blue-100', 'text-blue-700');
+                btnA.classList.replace('hover:text-white', 'bg-white');
+                btnA.classList.add('shadow');
+                
+                btnM.classList.replace('text-blue-700', 'text-blue-100');
+                btnM.classList.replace('bg-white', 'hover:text-white');
+                btnM.classList.remove('shadow');
+            }
+        }
+
+        // --- RENDER LOGIC ---
+        function renderList(tasks, listElementId, emptyElementId, toggleFuncName, deleteFuncName) {
+            const listEl = document.getElementById(listElementId);
+            const emptyEl = document.getElementById(emptyElementId);
+            listEl.innerHTML = '';
+            
+            if (tasks.length === 0) {
+                emptyEl.classList.remove('hidden');
+            } else {
+                emptyEl.classList.add('hidden');
+                
+                const sortedTasks = [...tasks].sort((a, b) => (a.completed === b.completed) ? 0 : a.completed ? 1 : -1);
+
+                sortedTasks.forEach(task => {
+                    const li = document.createElement('li');
+                    li.className = `task-enter flex items-center justify-between p-3 rounded-xl border transition-all duration-200 ${
+                        task.completed ? 'bg-green-50 border-green-200 text-slate-500' : 'bg-white border-slate-200 text-slate-800 shadow-sm'
+                    }`;
+                    
+                    li.innerHTML = `
+                        <label class="flex items-center gap-3 flex-1 cursor-pointer min-w-0">
+                            <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="${toggleFuncName}(${task.id})"
+                                class="flex-shrink-0 rounded text-blue-600">
+                            <span class="text-sm font-medium leading-tight truncate ${task.completed ? 'line-through text-slate-400' : ''}">
+                                ${escapeHTML(task.text)}
+                            </span>
+                        </label>
+                        <button onclick="${deleteFuncName}(${task.id})" class="ml-2 p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    `;
+                    listEl.appendChild(li);
+                });
+            }
+        }
+
+        function renderMorning() {
+            renderList(morningTasks, 'morning-list', 'morning-empty', 'toggleMorning', 'deleteMorning');
+            
+            // Progress logic
+            const total = morningTasks.length;
+            const completed = morningTasks.filter(t => t.completed).length;
+            const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
+            
+            const pBar = document.getElementById('progress-bar');
+            pBar.style.width = `${percentage}%`;
+            document.getElementById('progress-text').innerText = `${completed}/${total} erledigt`;
+            if (percentage === 100 && total > 0) pBar.className = 'bg-green-400 h-2.5 rounded-full transition-all duration-300';
+            else pBar.className = 'bg-blue-400 h-2.5 rounded-full transition-all duration-300';
+            
+            localStorage.setItem(STORAGE_MORNING, JSON.stringify(morningTasks));
+        }
+
+        function renderAdhoc() {
+            renderList(adhocTasks, 'adhoc-list', 'adhoc-empty', 'toggleAdhoc', 'deleteAdhoc');
+            localStorage.setItem(STORAGE_ADHOC, JSON.stringify(adhocTasks));
+        }
+
+        // --- ACTIONS MORNING ---
+        document.getElementById('form-morning').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('input-morning');
+            if (input.value.trim().length > 0) {
+                morningTasks.push({ id: Date.now(), text: input.value.trim(), completed: false });
+                input.value = ''; input.blur();
+                renderMorning();
+                showToast("Aufgabe hinzugefügt");
+            }
+        });
+
+        window.toggleMorning = (id) => {
+            const task = morningTasks.find(t => t.id === id);
+            if (task) { task.completed = !task.completed; renderMorning(); }
+        };
+
+        window.deleteMorning = (id) => {
+            morningTasks = morningTasks.filter(t => t.id !== id);
+            renderMorning();
+            showToast("Aufgabe gelöscht");
+        };
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            if(morningTasks.length === 0) return;
+            if (confirm("Möchtest du alle Haken entfernen, um einen neuen Tag zu starten?")) {
+                morningTasks = morningTasks.map(t => ({ ...t, completed: false }));
+                renderMorning();
+                showToast("Bereit für einen neuen Tag!");
+            }
+        });
+
+        // --- ACTIONS ADHOC ---
+        function addAdhocTask(text) {
+            if (text.trim().length > 0) {
+                // Add to top of list
+                adhocTasks.unshift({ id: Date.now(), text: text.trim(), completed: false });
+                renderAdhoc();
+                showToast("Zusatzaufgabe hinzugefügt");
+            }
+        }
+
+        document.getElementById('form-adhoc').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('input-adhoc');
+            addAdhocTask(input.value);
+            input.value = ''; input.blur();
+        });
+
+        window.toggleAdhoc = (id) => {
+            const task = adhocTasks.find(t => t.id === id);
+            if (task) { task.completed = !task.completed; renderAdhoc(); }
+        };
+
+        window.deleteAdhoc = (id) => {
+            adhocTasks = adhocTasks.filter(t => t.id !== id);
+            renderAdhoc();
+            showToast("Aufgabe gelöscht");
+        };
+
+        // --- SPEECH RECOGNITION ---
+        function setupSpeechRecognition() {
+            const micBtn = document.getElementById('mic-btn');
+            const micHint = document.getElementById('mic-hint');
+            
+            // Check browser support
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (SpeechRecognition) {
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'de-DE';
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                micBtn.addEventListener('click', () => {
+                    try {
+                        recognition.start();
+                        micBtn.classList.add('recording');
+                        showToast("Spreche jetzt...");
+                    } catch(e) {
+                        // If already started, stop it
+                        recognition.stop();
+                        micBtn.classList.remove('recording');
+                    }
+                });
+
+                recognition.onresult = (event) => {
+                    const speechResult = event.results[0][0].transcript;
+                    addAdhocTask(speechResult);
+                };
+
+                recognition.onspeechend = () => {
+                    recognition.stop();
+                    micBtn.classList.remove('recording');
+                };
+
+                recognition.onerror = (event) => {
+                    micBtn.classList.remove('recording');
+                    if (event.error === 'not-allowed') {
+                        showToast("Mikrofon-Zugriff verweigert.");
+                    } else {
+                        showToast("Fehler bei Spracherkennung.");
+                    }
+                };
+            } else {
+                // Not supported
+                micBtn.style.opacity = '0.5';
+                micBtn.onclick = () => alert("Spracherkennung wird von deinem Browser leider nicht unterstützt.");
+                micHint.classList.remove('hidden');
+            }
+        }
+
+        // --- UTILS ---
+        function showToast(message) {
+            toastEl.innerText = message;
+            toastEl.classList.remove('opacity-0', 'translate-y-4');
+            toastEl.classList.add('opacity-100', 'translate-y-0');
+            setTimeout(() => {
+                toastEl.classList.remove('opacity-100', 'translate-y-0');
+                toastEl.classList.add('opacity-0', 'translate-y-4');
+            }, 2500);
+        }
+
+        function escapeHTML(str) {
+            const div = document.createElement('div');
+            div.innerText = str;
+            return div.innerHTML;
+        }
+
+        // Start App
+        init();
+    </script>
+</body>
+</html>
+
+
+```
+

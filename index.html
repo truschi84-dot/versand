@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
@@ -17,9 +17,8 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/versand/icons/app-icon-180.png?v=10">
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="html5-qrcode.min.js?v=92"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <link rel="stylesheet" href="style.css?v=92">
+    <script src="lib/html5-qrcode.min.js?v=93"></script>
+    <link rel="stylesheet" href="css/style.css?v=93">
     <style>
         /* Burger Menu Icon design */
         .burger { font-size: 22px !important; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(255,255,255,0.18); color: white; border: 1px solid rgba(255,255,255,0.35); box-shadow: 0 4px 10px rgba(0,0,0,0.12); transition: transform 0.2s ease, background 0.2s ease; cursor: pointer; user-select: none; }
@@ -40,42 +39,7 @@
         #drawer2 .drawer-item.small-note { font-size: 14px; opacity: 0.85; font-weight: 600; }
         #drawer2 .drawer-separator { border: 0; border-top: 1px solid rgba(0,0,0,0.08); margin: 16px 0; }
         #overlay2 { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); z-index: 2999; display: none; }
-        body.dark-mode #drawer2 { background-color: #191b22 !important; color: #fff !important; border-right: 1px solid #333; }
-        body.dark-mode #drawer2 .drawer-item { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.08); color: #f1f1f1; }
-        body.dark-mode #drawer2 .drawer-item:hover { background: rgba(255,255,255,0.08); }
-        body.dark-mode #drawer2 .drawer-item.active { background: #004b93; box-shadow: 0 18px 30px rgba(0,0,0,0.4); }
-
-        body.dark-mode { background-color: #121212 !important; color: #ffffff !important; }
-        body.dark-mode #app2_wrapper, body.dark-mode #app1_wrapper { background-color: #121212 !important; }
-        body.dark-mode header { background: #1f1f1f !important; color: #ffffff !important; border-bottom: 1px solid #333 !important; }
-        body.dark-mode .card, body.dark-mode .summary-card, body.dark-mode .leergut-card, body.dark-mode .palette-card,
-        body.dark-mode .input-area, body.dark-mode .sonder-box, body.dark-mode .select-trigger,
-        body.dark-mode .worker-list-item, body.dark-mode #artSupplierCheckboxes,
-        body.dark-mode .analysis-table th, body.dark-mode .analysis-table td,
-        body.dark-mode .day-summary-card, body.dark-mode #openKgBox { background-color: #1e1e1e !important; border-color: #333 !important; color: #ffffff !important; box-shadow: 0 2px 5px rgba(0,0,0,0.5) !important; }
-        body.dark-mode .modal-content, body.dark-mode .drawer { background-color: #1e1e1e !important; color: #ffffff !important; border: 1px solid #333 !important; }
-        body.dark-mode input, body.dark-mode select, body.dark-mode .search-box, body.dark-mode textarea { background-color: #2c2c2c !important; color: #ffffff !important; border: 1px solid #444 !important; }
-        body.dark-mode input:disabled { background-color: #1a1a1a !important; color: #777 !important; }
-        body.dark-mode .header-btn, body.dark-mode .tab-btn { background-color: #2c2c2c !important; color: #ffffff !important; border-color: #444 !important; }
-        body.dark-mode .tab-btn.active { background-color: var(--primary, #004b93) !important; color: #fff !important; }
-        body.dark-mode .bottom-nav { background-color: #1f1f1f !important; border-top: 1px solid #333 !important; }
-        body.dark-mode .bottom-nav .nav-item { color: #ffffff !important; }
-        body.dark-mode .bottom-nav .nav-item.active { color: #64b5f6 !important; }
-        body.dark-mode .c-btn { background-color: #2c2c2c !important; color: #ffffff !important; }
-        body.dark-mode .c-btn.c-op { background-color: #3a3a3a !important; }
-        body.dark-mode #calc-modal { background-color: #121212 !important; border-color: #333 !important; }
-        body.dark-mode .calc-header { background-color: #1f1f1f !important; color: #ffffff !important; }
-        body.dark-mode .sup-item-box { background-color: #2c2c2c !important; border-color: #444 !important; }
-        body.dark-mode #selected-sorte-display, body.dark-mode #selected-noelke-display { background-color: #2c2c2c !important; color: #ffffff !important; }
-        body.dark-mode .drawer-item { color: #ffffff !important; }
-        body.dark-mode .drawer-item:hover { background-color: #333 !important; }
-        body.dark-mode label[style*="background:#fff"], body.dark-mode label[style*="background: #fff"], body.dark-mode label[style*="background: white"], body.dark-mode div[style*="background:#f0f0f0"], body.dark-mode thead[style*="background:#f8f9fa"], body.dark-mode div[style*="background:#fff"], body.dark-mode div[style*="background: #fff"], body.dark-mode div[style*="background: white"], body.dark-mode div[style*="background:white"], body.dark-mode div[style*="background:#fafafa"], body.dark-mode div[style*="background:#f4f6f9"], body.dark-mode div[style*="background:#e9ecef"], body.dark-mode div[style*="background:#e6e9ed"], body.dark-mode div[style*="background: #fafafa"] { background-color: #2c2c2c !important; color: #ffffff !important; border-top-color: #444 !important; border-right-color: #444 !important; border-bottom-color: #444 !important; }
-        
-        body.dark-mode button[style*="background:#f5f5f5"], body.dark-mode button[style*="background:#eee"], body.dark-mode div[style*="background:#eee"], body.dark-mode div[style*="background: #eee"] { background-color: #3a3a3a !important; color: #ffffff !important; border: 1px solid #555 !important; }
-        body.dark-mode .clear-btn, body.dark-mode div[style*="background: #ffebee"], body.dark-mode button[style*="background:#ffebee"] { background-color: #3b1c1c !important; color: #ff5555 !important; border-color: #552222 !important; }
-        body.dark-mode label, body.dark-mode .field label, body.dark-mode small, body.dark-mode .sup-leergut-inline, body.dark-mode p, body.dark-mode div[style*="color:#777"], body.dark-mode div[style*="color: #777"], body.dark-mode div[style*="color:#666"], body.dark-mode div[style*="color: #666"], body.dark-mode div[style*="color:#999"], body.dark-mode div[style*="color: #999"], body.dark-mode span[style*="color:#666"], body.dark-mode span[style*="color: #666"], body.dark-mode span[style*="color:#555"], body.dark-mode span[style*="color: #555"], body.dark-mode div[style*="color:#333"], body.dark-mode div[style*="color: #333"], body.dark-mode div[style*="color:#444"], body.dark-mode span[style*="color:#444"], body.dark-mode b[style*="color:#333"], body.dark-mode b[style*="color: #333"], body.dark-mode b[style*="color:#444"], body.dark-mode td[style*="color:#000"], body.dark-mode td[style*="color: #000"], body.dark-mode div[style*="color:#000"], body.dark-mode div[style*="color: #000"], body.dark-mode span[style*="color:#000"], body.dark-mode span[style*="color: #000"] { color: #e0e0e0 !important; }
-        body.dark-mode .result-item { color: #ffffff !important; border-bottom: 1px solid #333 !important; }
-
+        /* Dark mode: siehe css/style.css body.dark-mode */
         .side-menu { position: fixed; right: -350px; top: 0; width: 320px; height: 100%; background: white; border-left: 2px solid #ccc; transition: 0.3s; z-index: 2000; padding: 15px; display: flex; flex-direction: column; box-shadow: -2px 0 10px rgba(0,0,0,0.2); box-sizing: border-box; }
         .side-menu.open { right: 0 !important; }
         .toggle-btn { flex: 1; padding: 14px; text-align: center; cursor: pointer; font-weight: bold; color: #5f6368; transition: 0.3s; border-radius: 10px; border: none; }
@@ -116,13 +80,11 @@
 <body>
 
 <div id="pin-protection-overlay" class="pin-overlay">
-    <h2 id="pin-title">Logistik-Bereich gesperrt</h2>
-    <p id="pin-desc">Bitte Admin-PIN eingeben</p>
+    <h2 id="pin-title">App gesperrt</h2>
+    <p id="pin-desc">Bitte Firmen-PIN eingeben (Rechner &amp; Logistik)</p>
     <input type="password" id="pin-input" pattern="[0-9]*" inputmode="numeric" autocomplete="one-time-code" enterkeyhint="go">
-    <p id="pin-attempts-msg" class="pin-attempts">Noch 2 Versuche</p>
     <button id="pin-submit-btn" class="pin-btn pin-btn-primary">Entsperren</button>
-    <button id="pin-email-btn" class="pin-btn pin-btn-email" style="display: none;">Admin kontaktieren</button>
-    <button type="button" class="pin-btn pin-btn-ghost" onclick="document.getElementById('pin-protection-overlay').style.display='none'">Abbrechen</button>
+    <button type="button" id="pin-cancel-btn" class="pin-btn pin-btn-ghost" style="display:none; margin-top:10px;">Abbrechen</button>
     <div class="pin-settings-link" onclick="promptCustomCloudUrl()">⚙️ Server-Adresse ändern</div>
 </div>
 
@@ -145,10 +107,6 @@
             <div class="drawer-title">Rechner Menü</div>
             <button class="drawer-close" onclick="toggleMenuApp2(false)">✕</button>
         </div>
-        <div class="drawer-item small-note" onclick="switchApp(1)">
-            <span class="item-icon">⇋</span>
-            <span>Zur Logistik</span>
-        </div>
         <hr class="drawer-separator">
         <div class="drawer-item menu-tab" id="menu-tab-lkw" onclick="switchTabAndCloseMenu('lkw')"><span class="item-icon">🚛</span><span>LKW</span></div>
         <div class="drawer-item menu-tab" id="menu-tab-sort" onclick="switchTabAndCloseMenu('sort')"><span class="item-icon">📦</span><span>Sortierung</span></div>
@@ -161,6 +119,13 @@
         <div class="drawer-item" onclick="clearAppBrowserCache(); toggleMenuApp2(false);"><span class="item-icon">🧹</span><span>App-Cache leeren</span></div>
         <div class="drawer-item" onclick="toggleDarkMode(); toggleMenuApp2(false);" style="display: flex; align-items: center; gap: 10px;"><span class="item-icon dark-mode-icon">🌙</span><span class="dark-mode-label">Dunkelmodus</span></div>
         <div class="drawer-item" onclick="toggleCalc(true); toggleMenuApp2(false);" style="display: flex; align-items: center; gap: 10px;"><span class="item-icon">🖩</span><span>Taschenrechner</span></div>
+        <div class="drawer-item admin-only-drawer" onclick="openPrivateNotesModal(); toggleMenuApp2(false);" style="display:none; opacity:0.85;">
+            <span class="item-icon">📝</span><span>Meine Notizen</span><span style="font-size:10px; margin-left:auto; opacity:0.6;">privat</span>
+        </div>
+        <hr class="drawer-separator admin-only-drawer" style="display:none;">
+        <div class="drawer-item" onclick="requestAuswertungAccess();" style="opacity:0.85;">
+            <span class="item-icon">📊</span><span>LKW-Auswertung</span><span style="font-size:11px; margin-left:auto; opacity:0.7;">🔒</span>
+        </div>
     </nav>
 
     <header>
@@ -169,7 +134,7 @@
         </div>
         <div class="header-center">
             <p class="head-title">Tresch & Sohn</p>
-            <p class="head-subtitle">Update-Test v90</p>
+            <p class="head-subtitle">Logistik & Rechner</p>
         </div>
         <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
             <button type="button" class="update-available-chip header-update-chip" style="display:none;" onclick="openOtaUpdatePrompt()" title="Neues Update installieren">UPDATE</button>
@@ -177,8 +142,14 @@
         </div>
     </header>
 
+    <div id="team-day-banner" class="team-day-banner" style="display:none;" onclick="openTeamDayPanel()" role="button" tabindex="0" aria-live="polite">
+        <span class="team-day-banner-icon">📢</span>
+        <span id="team-day-banner-text" class="team-day-banner-text"></span>
+        <span id="team-day-banner-badge" class="team-day-banner-badge" style="display:none;"></span>
+    </div>
+
     <div id="tab-lkw" class="tab-content active">
-        <button onclick="openReklamationModal()" style="background:#d32f2f; color:white; width:100%; padding:12px; border-radius:8px; border:none; font-size: 16px; font-weight:bold; margin-bottom:15px; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">⚠️ Reklamation / Mangel erfassen</button>
+        <button type="button" class="btn-reklamation" onclick="openReklamationModal()">⚠️ Reklamation / Mangel erfassen</button>
         <div class="input-area">
             <div class="field"><label>Lieferant / Fahrer</label>
                 <div style="display:flex; gap:5px;">
@@ -264,7 +235,10 @@
             </div>
             <div id="dynamic-leergut-sort"></div>
             </div>
-            <button onclick="sortierungDrucken()" style="background: #ff6b00; color: white; width: 100%; padding: 15px; border-radius: 8px; border: none; font-size: 18px; font-weight: bold; margin-top: 10px; cursor: pointer;">🖨️ Wiegeschein Drucken</button>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+                <button onclick="sortierungDrucken()" style="flex:1; background: #ff6b00; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 15px; font-weight: bold; cursor: pointer;">🖨️ Wiegeschein</button>
+                <button onclick="exportWiegescheinExcel()" style="flex:1; background: #107c41; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 15px; font-weight: bold; cursor: pointer;">📊 Excel</button>
+            </div>
         </div>
         <div class="list-area" id="list-sort"></div>
     </div>
@@ -296,9 +270,10 @@
         
         <div class="list-area" id="list-noelke"></div>
         
-        <div style="display:flex; gap:10px; margin-top: 15px; padding: 0 10px;">
-            <button onclick="listeDrucken()" style="flex:1; background: #ff6b00; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 14px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ A4 Liste</button>
-            <button onclick="printSelectedZebraLabels()" style="flex:1; background: #ffc107; color: black; padding: 15px; border-radius: 8px; border: none; font-size: 14px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🦓 Etiketten</button>
+        <div style="display:flex; gap:8px; margin-top: 15px; padding: 0 10px;">
+            <button onclick="listeDrucken()" style="flex:1; background: #ff6b00; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ Liste</button>
+            <button onclick="exportNoelkeExcel()" style="flex:1; background: #107c41; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">📊 Excel</button>
+            <button onclick="printSelectedZebraLabels()" style="flex:1; background: #ffc107; color: black; padding: 15px; border-radius: 8px; border: none; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🦓 Etiketten</button>
         </div>
         <p style="text-align: center; font-size: 11px; color: #777; margin-top: 5px;">Häkchen in der Liste setzen für Zebra-Druck</p>
 
@@ -330,9 +305,10 @@
                     <button onclick="importFromLadeplan()" style="flex:1; background:#fff3e0; color:#e65100; border:1px solid #ffcc80; padding:10px; border-radius:8px; font-weight:bold; font-size:12px; cursor:pointer;">📤 Ladeplan übernehmen<br><small style="font-weight:normal;">(als Geladen)</small></button>
                 </div>
 
-                <div style="display:flex; gap:10px; margin-top:20px;">
+                <div style="display:flex; gap:8px; margin-top:20px;">
                     <button onclick="resetLgZaehler()" style="flex:1; padding:12px; background:#ffebee; color:#c62828; border:1px solid #ffcdd2; border-radius:8px; font-weight:bold;">🗑️ Reset</button>
-                    <button onclick="printLgZaehler()" style="flex:2; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ Beleg drucken</button>
+                    <button onclick="printLgZaehler()" style="flex:1; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ Drucken</button>
+                    <button onclick="exportLeergutExcel()" style="flex:1; padding:12px; background:#107c41; color:white; border:none; border-radius:8px; font-weight:bold;">📊 Excel</button>
                 </div>
             </div>
         </div>
@@ -414,6 +390,10 @@
             <div id="brandenburg-debug" style="display:none; text-align:left; font-size:12px; color:#333; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; margin-bottom:10px; white-space: pre-wrap; max-height:120px; overflow:auto;"></div>
             
             <div id="brandenburg-data-form" style="display: none;">
+                <div class="field" style="margin-bottom:10px;">
+                    <label>LS-Nummer</label>
+                    <input type="text" id="bb-ls-nummer" placeholder="z. B. 12345678" inputmode="numeric" oninput="saveBrandenburgLsNummer()">
+                </div>
                 <div style="display:flex; gap:10px; margin-bottom:10px;">
                     <div class="field" style="flex:1;"><label>Artikel</label><input type="text" id="bb-artikel" readonly style="background: #eee;"></div>
                     <div class="field" style="flex:1;"><label>Charge</label><input type="text" id="bb-charge" readonly style="background: #eee;"></div>
@@ -437,7 +417,7 @@
                 <div class="field" style="margin-bottom:15px;"><label>Ist-Netto (Berechnet)</label><input type="text" id="bb-netto-ist" readonly style="font-weight: bold; font-size: 18px;"></div>
                 
                 <div style="display:flex; gap:10px;">
-                    <button class="clear-btn" onclick="resetBrandenburgScanner()">↺</button>
+                    <button class="clear-btn" onclick="resetBrandenburgForm()">↺</button>
                     <button class="add-btn" style="flex:1; background:#8e44ad;" onclick="saveBrandenburgPalette()">+ Palette speichern</button>
                 </div>
             </div>
@@ -458,6 +438,7 @@
         </div>
 
         <div id="checklist-view-morning" class="checklist-view">
+            <p class="checklist-template-hint" style="font-size:12px; color:#666; margin:0 0 10px; text-align:center;">Morgen-Routinen kommen vom Büro (Control Center)</p>
             <div class="card" style="padding: 10px; margin-bottom: 10px;">
                 <div id="checklist-progress-bar-container">
                     <div id="checklist-progress-bar"></div>
@@ -493,41 +474,42 @@
     <div class="overlay" id="overlay" onclick="toggleMenuApp1(false)"></div>
     <nav class="drawer" id="drawer">
         <div class="drawer-header">
-            <span style="font-size: 28px; line-height: 1;">⚙️</span> <span>Logistik Pro</span>
+            <div class="drawer-title">Logistik</div>
+            <button type="button" class="drawer-close" onclick="toggleMenuApp1(false)" aria-label="Menü schließen">✕</button>
         </div>
-        <div style="padding-bottom: 20px;">
+        <div class="drawer-body">
             <div class="drawer-item highlight-item" onclick="switchApp(2)">
-                <span style="font-size:20px;">⇋</span> <span>Zum Rechner (V7)</span>
+                <span class="item-icon">⇋</span><span>Zum Rechner</span>
             </div>
             <div class="drawer-item" onclick="navTo('today')">
-                <span style="font-size:20px;">📅</span> <span>Erfassung Heute</span>
+                <span class="item-icon">📅</span><span>Erfassung Heute</span>
             </div>
             <div class="drawer-item" onclick="navTo('stats')">
-                <span style="font-size:20px;">📊</span> <span>Journal / Statistik</span>
+                <span class="item-icon">📊</span><span>Journal / Statistik</span>
             </div>
             <div class="drawer-item" onclick="navTo('summary')">
-                <span style="font-size:20px;">📋</span> <span>Übersicht & Cloud-Log</span>
+                <span class="item-icon">📋</span><span>Übersicht & Cloud-Log</span>
             </div>
             <div class="drawer-item" onclick="navTo('backup')">
-                <span style="font-size:20px;">☁️</span> <span>Datensicherung</span>
+                <span class="item-icon">☁️</span><span>Datensicherung</span>
             </div>
             <div class="drawer-item" onclick="navTo('comparison')">
-                <span style="font-size:20px;">📈</span> <span>Wochen-Analyse</span>
+                <span class="item-icon">📈</span><span>Wochen-Analyse</span>
             </div>
             <div class="drawer-item" onclick="navTo('articles')">
-                <span style="font-size:20px;">📦</span> <span>Artikel-Zuordnung</span>
+                <span class="item-icon">📦</span><span>Artikel-Zuordnung</span>
             </div>
             <div class="drawer-item" onclick="navTo('sortimente')">
-                <span style="font-size:20px;">🔗</span> <span>Sortimente zuweisen</span>
+                <span class="item-icon">🔗</span><span>Sortimente zuweisen</span>
             </div>
             <div class="drawer-item" onclick="navTo('suppliers')">
-                <span style="font-size:20px;">🏢</span> <span>Lieferanten-Liste</span>
+                <span class="item-icon">🏢</span><span>Lieferanten</span>
             </div>
             <div class="drawer-item" onclick="navTo('customers')">
-                <span style="font-size:20px;">🚚</span> <span>Speditionen / Kunden</span>
+                <span class="item-icon">🚚</span><span>Speditionen / Kunden</span>
             </div>
             <div class="drawer-item" onclick="navTo('workers')">
-                <span style="font-size:20px;">👥</span> <span>Mitarbeiter & Farben</span>
+                <span class="item-icon">👥</span><span>Mitarbeiter & Farben</span>
             </div>
         </div>
     </nav>
@@ -535,7 +517,7 @@
     <header>
         <div style="display:flex; align-items:center; gap: 15px;">
             <div class="modern-burger" onclick="toggleMenuApp1(true)">☰</div>
-            <div id="headerTitle" class="modern-header-title"><span>⚙️</span> Logistik Pro</div>
+            <div id="headerTitle" class="modern-header-title">Logistik</div>
         </div>
         <div style="display:flex; align-items:center; gap: 10px;">
             <button onclick="location.reload(true)" class="modern-btn" title="Neu laden">🔄</button>
@@ -583,11 +565,9 @@
         <button onclick="exportLogistikToExcel()" style="width:100%; margin-top:15px; background:#107c41; color:white; padding:12px; border-radius:8px; border:none; font-weight:bold; font-size:16px; cursor:pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">📊 Logistik als Excel exportieren</button>
         <button onclick="backupToCloud()" style="width: 100%; margin-top: 15px; background: #17a2b8; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">☁️ In Cloud sichern</button>
         
-        <div class="card" style="margin-top: 20px; border-top: 4px solid #4285F4;">
-            <h3 style="margin-top:0; color:#4285F4;">☁️ Letzte Cloud-Bewegungen</h3>
-            <div id="app-cloud-log-list" style="max-height: 250px; overflow-y: auto; font-size: 13px; color: #00ff00; background: #000; font-family: 'Consolas', 'Courier New', monospace; padding: 15px; border-radius: 0; border: 4px solid #333; line-height: 1.4; text-shadow: 0px 0px 4px #00ff00; overflow-x: hidden;">
-                <i>Warte auf System-Eingabe...</i>
-            </div>
+        <div class="card cloud-log-card" style="margin-top: 20px;">
+            <h3>Letzte Cloud-Aktionen</h3>
+            <div id="app-cloud-log-list" class="activity-log"></div>
         </div>
     </div>
 
@@ -598,7 +578,7 @@
                 <h3 style="margin:0; text-align:center;" id="weekTitle">Woche</h3>
                 <button onclick="changeWeek(1)" style="width:auto; padding:8px 15px; background:var(--primary); color:white; border-radius:6px; font-weight:bold;">Vor &rarr;</button>
             </div>
-            <button onclick="window.print()" style="width:100%; margin-bottom:10px; background:var(--success); border:none; color:white; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer;">🖨️ Drucken</button>
+            <button onclick="printAnalysisTable()" style="width:100%; margin-bottom:10px; background:var(--success); border:none; color:white; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer;">🖨️ Liste drucken</button>
             <button onclick="exportLogistikToExcel()" style="width:100%; margin-bottom:15px; background:#107c41; color:white; padding:12px; border-radius:8px; border:none; font-weight:bold; font-size:16px; cursor:pointer;">📊 Als Excel exportieren</button>
             <button onclick="silentPushToCloud(); showToast('☁️ Änderungen werden gespeichert...', 'info');" style="width: 100%; margin-top: 15px; background: #17a2b8; color: white; padding: 12px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">☁️ In Cloud sichern</button>
             <div id="analysisContainer"></div>
@@ -827,10 +807,10 @@
     </div>
 </div>
 
-<div id="search-modal" class="modal">
-    <div class="modal-content">
+<div id="search-modal" class="modal search-modal">
+    <div class="modal-content search-modal-content">
         <h3 id="modal-title" style="margin-top:0; color:var(--primary); text-align:center;">Suchen</h3>
-        <input type="text" id="modal-search-input" class="search-box" placeholder="Tippen zum Filtern..." oninput="filterResults()">
+        <input type="text" id="modal-search-input" class="search-box" placeholder="Tippen zum Filtern..." oninput="filterResults()" onfocus="typeof updateSearchModalViewport==='function'&&updateSearchModalViewport()">
         
         <div id="modal-sonder-filter-bar" style="display: none; margin-top: 10px; margin-bottom: 10px;">
             <select id="modal-sonder-lief-filter" onchange="filterResults()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; background: #fff3e0; color: #e65100; font-weight: bold;"></select>
@@ -892,9 +872,13 @@
     </div>
 </div>
 
-<div id="calc-modal" class="modal">
-    <div class="calc-header"><button class="header-btn" style="background:#eee; color:#333; border:none;" onclick="toggleCalc(false)">↘ Zurück</button><span>Taschenrechner</span><button class="header-btn" style="background:#eee; color:#333; border:none;" onclick="document.getElementById('c-disp').value='0'">C</button></div>
-    <input type="text" id="c-disp" value="0" readonly>
+<div id="calc-modal" class="calc-screen">
+    <div class="calc-header">
+        <button type="button" class="calc-header-btn" onclick="toggleCalc(false)">↘ Zurück</button>
+        <span>Taschenrechner</span>
+        <button type="button" class="calc-header-btn" onclick="clearCalc()">C</button>
+    </div>
+    <input type="text" id="c-disp" value="0" readonly inputmode="none" aria-label="Anzeige">
     <div class="c-grid" id="c-grid-btns"></div>
 </div>
 
@@ -996,9 +980,10 @@
             <span onclick="document.getElementById('brandenburg-summary-modal').style.display='none'" style="font-size: 26px; color: #999; cursor: pointer; line-height: 1;">&times;</span>
         </div>
         <div id="bb-summary-content" style="font-size: 14px; margin-bottom: 20px;"></div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
             <button onclick="document.getElementById('brandenburg-summary-modal').style.display='none'" style="padding: 12px; background: #eee; color: #333; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Schließen</button>
             <button onclick="printBrandenburgSummary()" style="padding: 12px; background: #34495e; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">🖨️ Drucken</button>
+            <button onclick="exportBrandenburgExcel()" style="padding: 12px; background: #107c41; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">📊 Excel</button>
         </div>
     </div>
 </div>
@@ -1085,16 +1070,6 @@
     </div>
 </div>
 
-<div id="pdf-share-modal" class="modal" style="z-index: 10015;">
-    <div class="modal-content" style="border-radius: 16px; padding: 25px; text-align:center; max-width: 360px;">
-        <h3 style="margin-top:0; color:var(--primary);">📄 PDF erstellt</h3>
-        <p style="font-size:14px; color:#666;">Was möchtest du damit machen?</p>
-        <button onclick="triggerShare()" style="width:100%; padding:14px; margin-bottom:10px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">📤 Teilen</button>
-        <button onclick="if(generatedPdfFile) saveBlobAsFile(generatedPdfFile, generatedPdfFilename + '.pdf'); document.getElementById('pdf-share-modal').style.display='none'; showToast('Heruntergeladen!', 'success');" style="width:100%; padding:14px; margin-bottom:10px; background:#107c41; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">💾 Herunterladen</button>
-        <button onclick="document.getElementById('pdf-share-modal').style.display='none'" style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer;">Schließen</button>
-    </div>
-</div>
-
 <div id="backupReminderModal" class="modal" style="z-index: 10003;">
     <div class="modal-content" style="border-radius: 16px; padding: 25px; text-align:center; max-width: 360px;">
         <h3 style="margin-top:0; color:var(--primary);">☁️ Cloud-Sicherung</h3>
@@ -1116,13 +1091,17 @@
     </div>
 </div>
 
-<script src="script.js?v=92"></script>
-<script src="rechner.js?v=80"></script>
-<script src="rechner_scanner.js?v=91"></script>
-<script src="rechner_druck.js?v=80"></script>
-<script src="rechner_reklamation.js?v=80"></script>
-<script src="rechner_leergut.js?v=80"></script>
-<script src="logistik.js?v=80"></script>
+<script src="js/druck_utils.js?v=1"></script>
+<script src="js/cloud_secrets.embed.js?v=1"></script>
+<script src="js/cloud_auth.js?v=2"></script>
+<script src="js/script.js?v=93"></script>
+<script src="js/team_brief.js?v=1"></script>
+<script src="js/rechner.js?v=84"></script>
+<script src="js/rechner_scanner.js?v=93"></script>
+<script src="js/rechner_druck.js?v=80"></script>
+<script src="js/rechner_reklamation.js?v=80"></script>
+<script src="js/rechner_leergut.js?v=80"></script>
+<script src="js/logistik.js?v=80"></script>
 
 </body>
 </html>

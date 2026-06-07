@@ -1,7 +1,0 @@
-{
-  "androidProject": "C:\\Pfad\\zu\\deinem\\AndroidStudioProjekt",
-  "assetsPath": "app/src/main/assets",
-  "gradleTask": "installDebug",
-  "apkPath": "app/build/outputs/apk/debug/app-debug.apk",
-  "webBaseUrl": "https://truschi84-dot.github.io/versand"
-}

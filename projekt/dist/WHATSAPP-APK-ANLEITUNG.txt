@@ -1,0 +1,26 @@
+TRESCH Kombi-App (Android) – einmalig installieren
+==============================================
+
+Datei: Tresch-Kombi-App.apk (ca. 6 MB)
+Stand: Web-Version 92
+
+INSTALLATION (einmalig)
+-----------------------
+1) APK-Datei aus WhatsApp speichern (Downloads).
+2) Datei antippen → Installieren.
+3) Falls gefragt: „Unbekannte Apps installieren“ für Dateien/WhatsApp erlauben.
+4) App öffnen → Kamera & Mikrofon erlauben (für Scanner).
+
+APP-UPDATES (ohne neue APK)
+---------------------------
+Wenn es etwas Neues gibt, sagt dir das Büro Bescheid:
+
+1) App öffnen → Menü ☰
+2) „App-Update prüfen“ tippen
+3) Bei neuer Version → „Jetzt installieren“
+
+Kein automatischer Download im Hintergrund – spart Datenvolumen.
+
+iPhone: kein APK – Link und Anleitung separat (IPHONE_KOLLEGEN.md).
+
+Fragen: [Ansprechpartner eintragen]
