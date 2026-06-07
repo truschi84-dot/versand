@@ -13,8 +13,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Kaninchen">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="icon" type="image/png" sizes="192x192" href="/versand/icons/kaninchen-icon-192.png?v=10">
-    <link rel="apple-touch-icon" href="/versand/icons/kaninchen-icon-180.png?v=10">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/kaninchen-icon-192.png?v=10">
+    <link rel="apple-touch-icon" href="icons/kaninchen-icon-180.png?v=10">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta name="kaninchen-build" content="10">
@@ -377,6 +377,7 @@
             #printArea tr.ok td { background: #f1f8f4; }
         }
     </style>
+    <script src="../druck_utils.js?v=1"></script>
 </head>
 <body>
 
@@ -1098,9 +1099,13 @@
     }
 
     function printOverview() {
-        if (!el.printArea) return;
-        el.printArea.innerHTML = buildPrintOverview();
-        window.print();
+        const bodyHtml = buildPrintOverview();
+        if (typeof printCleanDocument === 'function') {
+            printCleanDocument({ bodyHtml: bodyHtml });
+        } else if (el.printArea) {
+            el.printArea.innerHTML = bodyHtml;
+            window.print();
+        }
     }
 
     function getMyFeedingDays() {
