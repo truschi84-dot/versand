@@ -11,7 +11,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.1";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 93;
+const WEB_BUILD_VERSION = 94;
 /** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
 const OFFICE_LAN_URL = 'http://192.168.2.204:8080';
 let pendingOtaUpdate = null;
@@ -657,6 +657,7 @@ window.onload = () => {
     runDataMigration();
     initMobileApp();
     initOtaUpdateWatch();
+    initOtaUpdateMenuButton();
 
     if (AppStorage.getRaw('kombi_dark_mode') === 'true') {
         document.body.classList.add('dark-mode');
@@ -725,26 +726,39 @@ function initMobileApp() {
     }
 }
 
+/** Laufende Version = WEB_BUILD_VERSION in dieser script.js (nicht veralteter localStorage). */
+function getRunningWebVersion() {
+    return WEB_BUILD_VERSION;
+}
+
 function getInstalledWebVersion() {
-    return Number(AppStorage.getRaw('installed_web_version') || WEB_BUILD_VERSION);
+    const stored = Number(AppStorage.getRaw('installed_web_version') || 0);
+    if (stored > WEB_BUILD_VERSION) return WEB_BUILD_VERSION;
+    return stored || WEB_BUILD_VERSION;
 }
 
 function recordInstalledWebVersion(ver) {
     const v = Number(ver) || WEB_BUILD_VERSION;
-    if (v >= getInstalledWebVersion()) {
+    if (v >= getRunningWebVersion()) {
         AppStorage.setRaw('installed_web_version', String(v));
     }
 }
 
-function recordInstalledWebVersionFromPage() {
-    const v = getInstalledWebVersion() || WEB_BUILD_VERSION;
-    recordInstalledWebVersion(v);
-    updateVersionSubtitle(v);
+function syncInstalledWebVersionStorage() {
+    const stored = Number(AppStorage.getRaw('installed_web_version') || 0);
+    if (!stored || stored !== WEB_BUILD_VERSION) {
+        AppStorage.setRaw('installed_web_version', String(WEB_BUILD_VERSION));
+    }
 }
 
-function updateVersionSubtitle(installedVer) {
+function recordInstalledWebVersionFromPage() {
+    syncInstalledWebVersionStorage();
+    updateVersionSubtitle();
+}
+
+function updateVersionSubtitle() {
     const sub = document.querySelector('#app2_wrapper .head-subtitle');
-    if (sub) sub.textContent = 'v' + installedVer + ' · Logistik & Rechner';
+    if (sub) sub.textContent = 'v' + getRunningWebVersion() + ' · Logistik & Rechner';
 }
 
 function setUpdateAvailableUI(visible, remoteVer) {
@@ -772,17 +786,38 @@ function openOtaUpdatePrompt() {
 
 /** Kein Server-Abruf beim Start – nur lokaler Versionsstand (GitHub nur per Knopf). */
 function initOtaUpdateWatch() {
-    if (!AppStorage.getRaw('installed_web_version')) {
-        recordInstalledWebVersion(WEB_BUILD_VERSION);
-    }
+    syncInstalledWebVersionStorage();
     recordInstalledWebVersionFromPage();
 }
 
 /** Menü: einmal online prüfen, ob eine neuere webVersion da ist. */
 function checkForWebUpdateManual() {
-    if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
-    showToast('Prüfe auf App-Update …', 'info');
-    checkForWebUpdate(true);
+    try {
+        if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
+        showToast('Prüfe auf App-Update …', 'info');
+        checkForWebUpdate(true).catch((e) => {
+            console.error('Update-Prüfung fehlgeschlagen', e);
+            showToast('Update-Prüfung fehlgeschlagen.', 'error');
+            showOtaInfoModal('Update-Prüfung', 'Die Prüfung ist fehlgeschlagen.<br>Bitte Internet/WLAN prüfen und erneut versuchen.', '⚠️');
+        });
+    } catch (e) {
+        console.error('Update-Prüfung fehlgeschlagen', e);
+        showOtaInfoModal('Update-Prüfung', 'Die Prüfung ist fehlgeschlagen. Bitte Internet/WLAN prüfen und erneut versuchen.', '⚠️');
+        showToast('Update-Prüfung fehlgeschlagen.', 'error');
+    }
+}
+window.checkForWebUpdateManual = checkForWebUpdateManual;
+window.openOtaUpdatePrompt = openOtaUpdatePrompt;
+
+function initOtaUpdateMenuButton() {
+    const btn = document.getElementById('menu-wlan-update-item');
+    if (!btn || btn.dataset.otaBound === '1') return;
+    btn.dataset.otaBound = '1';
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        checkForWebUpdateManual();
+    });
 }
 
 /** Rechner-Menü: Update manuell vom Laptop im WLAN laden. */
@@ -819,18 +854,66 @@ function applyOtaUpdate(remoteVer, remoteBase) {
     }
 }
 
-function showOtaUpdateModal(remoteVer, remoteBase) {
+function restoreOtaUpdateModalLayout() {
     const modal = document.getElementById('ota-update-modal');
+    if (!modal) return;
+    const h2 = modal.querySelector('h2');
+    const textEl = document.getElementById('ota-update-text');
     const verEl = document.getElementById('ota-update-ver');
     const confirmBtn = document.getElementById('ota-update-confirm');
     const laterBtn = document.getElementById('ota-update-later');
+    const iconEl = modal.querySelector('.ota-update-icon');
+    if (h2) h2.textContent = 'App-Update verfügbar';
+    if (iconEl) iconEl.textContent = '📲';
+    if (textEl) {
+        textEl.innerHTML = 'Version <strong id="ota-update-ver">—</strong> ist bereit.<br>Nach dem Bestätigen wird die neue Version installiert.';
+    }
+    if (confirmBtn) {
+        confirmBtn.textContent = 'Jetzt installieren';
+        confirmBtn.style.display = '';
+        confirmBtn.style.background = '';
+    }
+    if (laterBtn) laterBtn.style.display = '';
+}
+
+function showOtaInfoModal(title, message, icon) {
+    const modal = document.getElementById('ota-update-modal');
+    if (!modal) {
+        showToast(message, 'info');
+        return;
+    }
+    restoreOtaUpdateModalLayout();
+    const h2 = modal.querySelector('h2');
+    const textEl = document.getElementById('ota-update-text');
+    const confirmBtn = document.getElementById('ota-update-confirm');
+    const laterBtn = document.getElementById('ota-update-later');
+    const iconEl = modal.querySelector('.ota-update-icon');
+    if (h2) h2.textContent = title;
+    if (iconEl) iconEl.textContent = icon || '✓';
+    if (textEl) textEl.innerHTML = message;
+    if (confirmBtn) {
+        confirmBtn.textContent = 'OK';
+        confirmBtn.style.background = 'var(--primary)';
+        confirmBtn.onclick = () => hideOtaUpdateModal();
+    }
+    if (laterBtn) laterBtn.style.display = 'none';
+    modal.style.display = 'flex';
+}
+
+function showOtaUpdateModal(remoteVer, remoteBase) {
+    const modal = document.getElementById('ota-update-modal');
+    const confirmBtn = document.getElementById('ota-update-confirm');
+    const laterBtn = document.getElementById('ota-update-later');
     if (!modal || !confirmBtn) return;
+    restoreOtaUpdateModalLayout();
+    const verEl = document.getElementById('ota-update-ver');
     pendingOtaUpdate = { remoteVer, remoteBase };
     if (verEl) verEl.textContent = String(remoteVer);
     modal.style.display = 'flex';
     setUpdateAvailableUI(true, remoteVer);
     confirmBtn.onclick = () => applyOtaUpdate(remoteVer, remoteBase);
     if (laterBtn) {
+        laterBtn.style.display = '';
         laterBtn.onclick = () => {
             AppStorage.setRaw('ota_banner_dismissed', String(remoteVer));
             hideOtaUpdateModal();
@@ -838,42 +921,144 @@ function showOtaUpdateModal(remoteVer, remoteBase) {
     }
 }
 
+async function fetchJsonNoCache(url) {
+    try {
+        const res = await fetch(url, { cache: 'no-store', mode: 'cors' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+    } catch (fetchErr) {
+        return fetchJsonViaXhr(url);
+    }
+}
+
+function fetchJsonViaXhr(url) {
+    return new Promise((resolve, reject) => {
+        try {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.responseType = 'json';
+            xhr.timeout = 15000;
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(xhr.response || JSON.parse(xhr.responseText || '{}'));
+                } else {
+                    reject(new Error('HTTP ' + xhr.status));
+                }
+            };
+            xhr.onerror = () => reject(new Error('Netzwerkfehler'));
+            xhr.ontimeout = () => reject(new Error('Timeout'));
+            xhr.send();
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+async function loadBundledOtaConfig() {
+    const paths = [
+        'app-update.json',
+        './app-update.json',
+        'file:///android_asset/app-update.json'
+    ];
+    for (const p of paths) {
+        try {
+            const cfg = await fetchJsonNoCache(p + '?t=' + Date.now());
+            if (cfg && Number(cfg.webVersion)) return cfg;
+        } catch (_) {}
+    }
+    return null;
+}
+
 async function fetchRemoteUpdateVersion() {
     let remoteVer = 0;
-    let remoteBase = (AppStorage.getRaw('last_office_lan_url') || OFFICE_LAN_URL).replace(/\/$/, '');
-    const officeVerUrl = remoteBase + '/app-version.json?t=' + Date.now();
-    try {
-        const v = await fetch(officeVerUrl, { cache: 'no-store' }).then(r => r.json());
-        remoteVer = Math.max(remoteVer, Number(v?.webVersion || 0));
-    } catch (_) {}
-    try {
-        const cfg = await fetch(getOtaConfigUrl() + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
-        remoteVer = Math.max(remoteVer, Number(cfg?.webVersion || 0));
-        const office = (cfg?.officeWebBaseUrl || '').replace(/\/$/, '');
-        const web = (cfg?.webBaseUrl || '').replace(/\/$/, '');
-        if (office) remoteBase = office;
-        else if (web) remoteBase = web;
-    } catch (_) {}
+    let remoteBase = '';
+    let preferOffice = true;
+    const configUrls = [];
+    const primary = getOtaConfigUrl();
+    if (primary) configUrls.push(primary);
+    if (!configUrls.includes(OTA_REMOTE_CONFIG_URL)) configUrls.push(OTA_REMOTE_CONFIG_URL);
+
+    for (const baseUrl of configUrls) {
+        try {
+            const cfg = await fetchJsonNoCache(baseUrl + '?t=' + Date.now());
+            remoteVer = Math.max(remoteVer, Number(cfg?.webVersion || 0));
+            preferOffice = cfg?.preferOfficeLan !== false;
+            const office = (cfg?.officeWebBaseUrl || '').replace(/\/$/, '');
+            const web = (cfg?.webBaseUrl || '').replace(/\/$/, '');
+            if (preferOffice && office) remoteBase = office;
+            else if (web) remoteBase = web;
+            else if (office) remoteBase = office;
+        } catch (e) {
+            console.warn('OTA config fetch failed:', baseUrl, e);
+        }
+    }
+
+    if (!remoteVer) {
+        try {
+            const bundled = await loadBundledOtaConfig();
+            if (bundled) {
+                remoteVer = Number(bundled.webVersion || 0);
+                const office = (bundled.officeWebBaseUrl || '').replace(/\/$/, '');
+                const web = (bundled.webBaseUrl || '').replace(/\/$/, '');
+                if (web) remoteBase = web;
+                else if (office) remoteBase = office;
+            }
+        } catch (_) {}
+    }
+
+    const officeCandidate = remoteBase || (AppStorage.getRaw('last_office_lan_url') || OFFICE_LAN_URL).replace(/\/$/, '');
+    if (officeCandidate && navigator.onLine) {
+        try {
+            const v = await fetchJsonNoCache(officeCandidate + '/app-version.json?t=' + Date.now());
+            const officeVer = Number(v?.webVersion || 0);
+            if (officeVer > remoteVer) {
+                remoteVer = officeVer;
+                remoteBase = officeCandidate;
+            } else if (!remoteBase && officeVer) {
+                remoteBase = officeCandidate;
+            }
+        } catch (_) {}
+    }
+
+    if (!remoteBase) {
+        remoteBase = (AppStorage.getRaw('last_office_lan_url') || OFFICE_LAN_URL).replace(/\/$/, '');
+    }
     return { remoteVer, remoteBase };
 }
 
 async function checkForWebUpdate(manual) {
-    if (!document.getElementById('ota-update-modal')) return;
+    const modal = document.getElementById('ota-update-modal');
+    if (!modal) {
+        if (manual) showToast('Update-Dialog fehlt – Seite neu laden.', 'error');
+        return;
+    }
     if (!navigator.onLine) {
         hideOtaUpdateModal();
         setUpdateAvailableUI(false);
         pendingOtaUpdate = null;
-        if (manual) showToast('Kein Netz – Update-Prüfung nicht möglich.', 'error');
+        if (manual) {
+            showToast('Kein Netz – Update-Prüfung nicht möglich.', 'error');
+            showOtaInfoModal('Kein Netz', 'Ohne Internet/WLAN kann nicht geprüft werden.<br>Im Büro-WLAN alternativ über den Laptop-Server laden.', '⚠️');
+        }
         return;
     }
 
-    const installedVer = getInstalledWebVersion();
-    const { remoteVer, remoteBase } = await fetchRemoteUpdateVersion();
+    const installedVer = getRunningWebVersion();
+    let remoteVer = 0;
+    let remoteBase = '';
+    try {
+        ({ remoteVer, remoteBase } = await fetchRemoteUpdateVersion());
+    } catch (e) {
+        console.error('Update-Server Fehler', e);
+    }
     if (!remoteVer) {
         hideOtaUpdateModal();
         setUpdateAvailableUI(false);
         pendingOtaUpdate = null;
-        if (manual) showToast('Update-Server nicht erreichbar.', 'error');
+        if (manual) {
+            showToast('Update-Server nicht erreichbar.', 'error');
+            showOtaInfoModal('Server nicht erreichbar', 'GitHub oder Büro-Server antwortet nicht.<br>Bitte WLAN/Internet prüfen oder später erneut versuchen.', '⚠️');
+        }
         return;
     }
 
@@ -882,7 +1067,10 @@ async function checkForWebUpdate(manual) {
         hideOtaUpdateModal();
         setUpdateAvailableUI(false);
         pendingOtaUpdate = null;
-        if (manual) showToast('App ist aktuell (v' + installedVer + ').', 'success');
+        if (manual) {
+            showToast('App ist aktuell (v' + installedVer + ').', 'success');
+            showOtaInfoModal('App ist aktuell', 'Du hast bereits die neueste Version <strong>v' + installedVer + '</strong>.<br>Online steht v' + remoteVer + ' bereit.', '✓');
+        }
         return;
     }
 

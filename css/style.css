@@ -1077,7 +1077,7 @@ body.dark-mode .activity-msg { color: #e0e0e0; }
 .toast.show { opacity: 1; transform: translateY(0); }
 .toast.success { background: linear-gradient(135deg, #388e3c, var(--success)); }
 .toast.error { background: linear-gradient(135deg, #ef5350, var(--danger)); }
-.toast.warning { background: linear-gradient(135deg, #fb8c00, var(--warning)); color: #fff; }
+.toast.info { background: linear-gradient(135deg, #1976d2, var(--primary)); color: #fff; }
 
 /* Rechner: Reklamation-Button */
 #app2_wrapper button[onclick*="openReklamationModal"] {
