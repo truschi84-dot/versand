@@ -973,9 +973,18 @@ function buildAppUI() {
         const active = mod == null ? true : (typeof mod === 'object' ? mod.active !== false : mod !== false);
         if (!active) { el.style.display = 'none'; return; }
         el.style.display = '';
-        const spans = el.querySelectorAll('span');
-        const labelEl = spans.length >= 2 ? spans[spans.length - 1] : el;
-        labelEl.textContent = (typeof mod === 'object' && mod.name) ? mod.name : fallback;
+        const raw = (typeof mod === 'object' && mod.name) ? mod.name : fallback;
+        let icon = '';
+        let label = raw;
+        const sp = raw.indexOf(' ');
+        if (sp > 0 && sp <= 4) {
+            icon = raw.slice(0, sp);
+            label = raw.slice(sp + 1);
+        }
+        const iconEl = el.querySelector('.item-icon');
+        const labelEl = el.querySelector('span:not(.item-icon):not(.update-available-chip):not(.menu-chip)');
+        if (iconEl && icon) iconEl.textContent = icon;
+        if (labelEl) labelEl.textContent = label;
     };
     syncDrawerTab('menu-tab-lkw', company.modules.lkw, '🚛 LKW');
     syncDrawerTab('menu-tab-sort', company.modules.sort, '📦 Sortierung');

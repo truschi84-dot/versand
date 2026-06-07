@@ -64,6 +64,12 @@ if (-not (Test-Path $adb)) { throw "adb nicht gefunden." }
 if (-not (Test-Path $apksigner)) { throw "apksigner nicht gefunden." }
 if (-not (Test-Path $debugKs)) { throw "debug.keystore nicht gefunden." }
 
+$jbr = "C:\Program Files\Android\Android Studio\jbr"
+if (Test-Path "$jbr\bin\java.exe") {
+    $env:JAVA_HOME = $jbr
+    $env:PATH = "$jbr\bin;" + $env:PATH
+}
+
 if (-not $SourceApk) {
     $distApk = Join-Path $ProjektRoot "dist\Tresch-Kombi-App.apk"
     $pulled = Join-Path $work "base.apk"
@@ -112,4 +118,4 @@ Write-Host ""
 Write-Host "Installiere auf Handy ..."
 & $adb install -r $signedApk
 if ($LASTEXITCODE -ne 0) { throw "adb install fehlgeschlagen" }
-Write-Host "OK – App mit aktuellen Web-Dateien installiert."
+Write-Host "OK - App mit aktuellen Web-Dateien installiert."

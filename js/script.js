@@ -11,7 +11,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.1";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 94;
+const WEB_BUILD_VERSION = 95;
 /** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
 const OFFICE_LAN_URL = 'http://192.168.2.204:8080';
 let pendingOtaUpdate = null;
@@ -657,7 +657,6 @@ window.onload = () => {
     runDataMigration();
     initMobileApp();
     initOtaUpdateWatch();
-    initOtaUpdateMenuButton();
 
     if (AppStorage.getRaw('kombi_dark_mode') === 'true') {
         document.body.classList.add('dark-mode');
@@ -790,35 +789,26 @@ function initOtaUpdateWatch() {
     recordInstalledWebVersionFromPage();
 }
 
+let _otaCheckBusy = false;
+
 /** Menü: einmal online prüfen, ob eine neuere webVersion da ist. */
 function checkForWebUpdateManual() {
+    if (_otaCheckBusy) return;
+    _otaCheckBusy = true;
     try {
         if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
-        showToast('Prüfe auf App-Update …', 'info');
         checkForWebUpdate(true).catch((e) => {
             console.error('Update-Prüfung fehlgeschlagen', e);
-            showToast('Update-Prüfung fehlgeschlagen.', 'error');
             showOtaInfoModal('Update-Prüfung', 'Die Prüfung ist fehlgeschlagen.<br>Bitte Internet/WLAN prüfen und erneut versuchen.', '⚠️');
-        });
+        }).finally(() => { _otaCheckBusy = false; });
     } catch (e) {
+        _otaCheckBusy = false;
         console.error('Update-Prüfung fehlgeschlagen', e);
         showOtaInfoModal('Update-Prüfung', 'Die Prüfung ist fehlgeschlagen. Bitte Internet/WLAN prüfen und erneut versuchen.', '⚠️');
-        showToast('Update-Prüfung fehlgeschlagen.', 'error');
     }
 }
 window.checkForWebUpdateManual = checkForWebUpdateManual;
 window.openOtaUpdatePrompt = openOtaUpdatePrompt;
-
-function initOtaUpdateMenuButton() {
-    const btn = document.getElementById('menu-wlan-update-item');
-    if (!btn || btn.dataset.otaBound === '1') return;
-    btn.dataset.otaBound = '1';
-    btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        checkForWebUpdateManual();
-    });
-}
 
 /** Rechner-Menü: Update manuell vom Laptop im WLAN laden. */
 function loadWlanUpdateNow() {
@@ -1037,7 +1027,6 @@ async function checkForWebUpdate(manual) {
         setUpdateAvailableUI(false);
         pendingOtaUpdate = null;
         if (manual) {
-            showToast('Kein Netz – Update-Prüfung nicht möglich.', 'error');
             showOtaInfoModal('Kein Netz', 'Ohne Internet/WLAN kann nicht geprüft werden.<br>Im Büro-WLAN alternativ über den Laptop-Server laden.', '⚠️');
         }
         return;
@@ -1056,7 +1045,6 @@ async function checkForWebUpdate(manual) {
         setUpdateAvailableUI(false);
         pendingOtaUpdate = null;
         if (manual) {
-            showToast('Update-Server nicht erreichbar.', 'error');
             showOtaInfoModal('Server nicht erreichbar', 'GitHub oder Büro-Server antwortet nicht.<br>Bitte WLAN/Internet prüfen oder später erneut versuchen.', '⚠️');
         }
         return;
@@ -1068,8 +1056,7 @@ async function checkForWebUpdate(manual) {
         setUpdateAvailableUI(false);
         pendingOtaUpdate = null;
         if (manual) {
-            showToast('App ist aktuell (v' + installedVer + ').', 'success');
-            showOtaInfoModal('App ist aktuell', 'Du hast bereits die neueste Version <strong>v' + installedVer + '</strong>.<br>Online steht v' + remoteVer + ' bereit.', '✓');
+            showOtaInfoModal('App ist aktuell', 'Du hast bereits die neueste Version <strong>v' + installedVer + '</strong>.', '✓');
         }
         return;
     }
@@ -1082,7 +1069,6 @@ async function checkForWebUpdate(manual) {
         return;
     }
 
-    if (manual) showToast('Neues Update v' + remoteVer + ' verfügbar.', 'warning');
     showOtaUpdateModal(remoteVer, remoteBase);
 }
 
