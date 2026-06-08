@@ -11,7 +11,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.1";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 97;
+const WEB_BUILD_VERSION = 99;
 /** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
 const OFFICE_LAN_URL = 'http://192.168.211.135:8080';
 let pendingOtaUpdate = null;
@@ -219,18 +219,11 @@ function cacheSettingsPins(settings) {
 async function validateAdminPin(enteredPin) {
     const pin = String(enteredPin).trim();
     if (!pin) return false;
-    try {
-        await CloudAuth.ensureAuth();
-        const base = FIREBASE_CLOUD_BACKUP.replace(/\/backup\/?$/, '');
-        const res = await cloudFetch(base + '/backup/settings.json?t=' + Date.now());
-        if (res.ok) {
-            const settings = await res.json();
-            cacheSettingsPins(settings);
-            const adminPin = String(settings?.adminPin ?? APP_CONFIG.ADMIN_PIN).trim();
-            return pin === adminPin;
-        }
-    } catch (e) {
-        console.warn('Admin-PIN-Prüfung (offline/Fehler):', e.message || e);
+    const settings = await fetchSettingsForPinCheck();
+    if (settings) {
+        cacheSettingsPins(settings);
+        const adminPin = String(settings?.adminPin ?? APP_CONFIG.ADMIN_PIN).trim();
+        return pin === adminPin;
     }
     const cached = getAppSetting('adminPin', APP_CONFIG.ADMIN_PIN);
     return pin === String(cached).trim();
@@ -251,26 +244,42 @@ function ensureAppVisible() {
     if (a2) a2.style.display = 'flex';
 }
 
-async function validatePinAndUnlock(enteredPin) {
+async function fetchSettingsForPinCheck() {
+    const base = FIREBASE_CLOUD_BACKUP.replace(/\/backup\/?$/, '');
+    const url = base + '/backup/settings.json?t=' + Date.now();
     try {
         await CloudAuth.ensureAuth();
-        const base = FIREBASE_CLOUD_BACKUP.replace(/\/backup\/?$/, '');
-        const res = await cloudFetch(base + '/backup/settings.json?t=' + Date.now());
-        if (res.ok) {
-            const settings = await res.json();
-            const cloudPin = String(settings?.logistikPin ?? APP_CONFIG.LOGISTIK_PIN).trim();
-            const cloudPinVersion = parseInt(settings?.pinVersion, 10) || 1;
-            if (String(enteredPin).trim() !== cloudPin) return false;
-            setAppAuthenticated(true);
-            AppStorage.setRaw('app_pin_version', String(cloudPinVersion));
-            cacheSettingsPins(settings);
-            return true;
-        }
+        const res = await cloudFetch(url);
+        if (res.ok) return await res.json();
     } catch (e) {
-        console.warn('Cloud-PIN-Prüfung (offline/Fehler):', e.message || e);
+        console.warn('Cloud-PIN (auth):', e.message || e);
     }
-    const cachedPin = getAppSetting('logistikPin', '');
-    if (cachedPin && String(enteredPin).trim() === String(cachedPin).trim()) {
+    try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (res.ok) return await res.json();
+    } catch (e) {
+        console.warn('Cloud-PIN (öffentlich):', e.message || e);
+    }
+    return null;
+}
+
+async function validatePinAndUnlock(enteredPin) {
+    const pin = String(enteredPin).trim();
+    if (!pin) return false;
+
+    const settings = await fetchSettingsForPinCheck();
+    if (settings) {
+        const cloudPin = String(settings?.logistikPin ?? APP_CONFIG.LOGISTIK_PIN).trim();
+        const cloudPinVersion = parseInt(settings?.pinVersion, 10) || 1;
+        if (pin !== cloudPin) return false;
+        setAppAuthenticated(true);
+        AppStorage.setRaw('app_pin_version', String(cloudPinVersion));
+        cacheSettingsPins(settings);
+        return true;
+    }
+
+    const cachedPin = getAppSetting('logistikPin', APP_CONFIG.LOGISTIK_PIN);
+    if (pin === String(cachedPin).trim()) {
         setAppAuthenticated(true);
         return true;
     }

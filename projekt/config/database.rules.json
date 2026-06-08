@@ -3,6 +3,10 @@
     ".read": false,
     ".write": false,
     "backup": {
+      "settings": {
+        ".read": true,
+        ".write": "auth != null"
+      },
       ".read": "auth != null",
       ".write": "auth != null"
     },

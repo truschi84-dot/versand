@@ -28,7 +28,7 @@ function Write-EmbeddedSecrets($destJsDir) {
 
 function Copy-AssetsTo($destAssets) {
     if (-not (Test-Path $destAssets)) { New-Item -ItemType Directory -Path $destAssets -Force | Out-Null }
-    $rootFiles = @("index.html", "manifest.webmanifest", "sw.js", "app-update.json", "app-version.json", "app-shell.json")
+    $rootFiles = @("index.html", "manifest.webmanifest", "sw.js", "app-update.json", "app-version.json", "app-shell.json", "app-secrets.json")
     foreach ($name in $rootFiles) {
         $src = Join-Path $AppRoot $name
         if (-not (Test-Path $src)) { continue }
