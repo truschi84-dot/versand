@@ -11,9 +11,9 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.1";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 96;
+const WEB_BUILD_VERSION = 97;
 /** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
-const OFFICE_LAN_URL = 'http://192.168.2.204:8080';
+const OFFICE_LAN_URL = 'http://192.168.211.135:8080';
 let pendingOtaUpdate = null;
 const APP_CHANGELOG = "<b>Was ist neu in 7.1?</b><br><br>• 📲 <b>OTA-Updates:</b> App kann sich von eurem Web-Server aktualisieren – keine neue APK für jedes HTML/JS-Update.<br>• 🎨 <b>Handy-Layout:</b> Scrollen und Safe-Area in der APK verbessert.";
 /** APK (file://): Update-Config nur bei manueller Prüfung – nicht beim Start. */
@@ -806,6 +806,31 @@ async function probeOtaBase(base) {
     }
 }
 
+async function readOtaVersion(base) {
+    try {
+        const v = await fetchJsonNoCache(normalizeOtaBase(base) + '/app-version.json?t=' + Date.now());
+        return Number(v?.webVersion || 0);
+    } catch (_) {
+        return 0;
+    }
+}
+
+/** Büro-LAN bevorzugen, wenn dort die gleiche oder neuere Version liegt. */
+async function pickBestOtaInstallBase(webBase, officeBase) {
+    const web = normalizeOtaBase(webBase);
+    const office = normalizeOtaBase(officeBase);
+    const webOk = web && await probeOtaBase(web);
+    const officeOk = office && await probeOtaBase(office);
+    let webVer = 0;
+    let officeVer = 0;
+    if (webOk) webVer = await readOtaVersion(web);
+    if (officeOk) officeVer = await readOtaVersion(office);
+    if (officeOk && officeVer >= webVer) return office;
+    if (webOk) return web;
+    if (officeOk) return office;
+    return pickReachableOtaBase([office, web]);
+}
+
 async function pickReachableOtaBase(candidates) {
     const seen = new Set();
     for (const raw of candidates) {
@@ -856,7 +881,7 @@ async function initOtaApkBootstrap() {
     if (!isBundledApkPage() || !navigator.onLine) return false;
     const saved = AppStorage.getRaw('ota_web_base_url');
     const { office, web } = await getOtaConfigBases();
-    const installBase = await pickReachableOtaBase([saved, web, office]);
+    const installBase = await pickBestOtaInstallBase(web, office);
     if (!installBase) return false;
     try {
         const v = await fetchJsonNoCache(installBase + '/app-version.json?t=' + Date.now());
@@ -929,14 +954,7 @@ async function applyOtaUpdate(remoteVer, remoteBase, webBase) {
         confirmBtn.textContent = 'Wird geladen …';
     }
     const { office, web } = await getOtaConfigBases();
-    const installBase = await pickReachableOtaBase([
-        webBase,
-        web,
-        remoteBase,
-        office,
-        AppStorage.getRaw('ota_web_base_url'),
-        OTA_REMOTE_CONFIG_URL.replace(/\/app-update\.json$/i, '')
-    ]);
+    const installBase = await pickBestOtaInstallBase(webBase || web, remoteBase || office);
     if (!installBase) {
         if (confirmBtn) {
             confirmBtn.disabled = false;
@@ -1114,11 +1132,7 @@ async function fetchRemoteUpdateVersion() {
         }
     }
 
-    const remoteBase = await pickReachableOtaBase([
-        webBase,
-        officeBase,
-        AppStorage.getRaw('ota_web_base_url')
-    ]);
+    const remoteBase = await pickBestOtaInstallBase(webBase, officeBase);
     return { remoteVer, remoteBase, webBase, officeBase };
 }
 
