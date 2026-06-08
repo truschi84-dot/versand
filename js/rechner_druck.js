@@ -81,6 +81,9 @@ function buildNoelkeListData() {
     let einheit = "E2";
     const config = getLeergutConfig();
     if (config.length > 0) einheit = config[0].name;
+    const esc = (typeof escapePrintHtml === 'function')
+        ? escapePrintHtml
+        : (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const sortierteDaten = [...daten].sort((a, b) => a.prod.localeCompare(b.prod));
     const rows = sortierteDaten.map(item => ({
         "Produkt": item.prod,
@@ -91,10 +94,37 @@ function buildNoelkeListData() {
     }));
     let printHtml = '<table><thead><tr><th>Produkt</th><th>MHD</th><th>Menge</th><th>Einheit</th><th>Gewicht (kg)</th></tr></thead><tbody>';
     rows.forEach(r => {
-        printHtml += `<tr><td>${r["Produkt"]}</td><td>${r["MHD"]}</td><td>${r["Menge"]}</td><td>${r["Einheit"]}</td><td>${r["Gewicht (kg)"]}</td></tr>`;
+        printHtml += `<tr><td>${esc(r["Produkt"])}</td><td>${esc(r["MHD"])}</td><td>${esc(r["Menge"])}</td><td>${esc(r["Einheit"])}</td><td>${esc(r["Gewicht (kg)"])}</td></tr>`;
     });
     printHtml += '</tbody></table>';
     return { rows, printHtml, datum: new Date().toLocaleDateString('de-DE') };
+}
+
+function buildNoelkeShareText() {
+    const data = buildNoelkeListData();
+    if (!data) return null;
+    const sep = '────────────────────────';
+    const lines = [
+        'NÖLKE LIEFERSCHEIN',
+        'Tresch & Sohn · ' + data.datum,
+        sep
+    ];
+    data.rows.forEach((r, i) => {
+        lines.push('');
+        lines.push((i + 1) + '. ' + r['Produkt']);
+        lines.push('   MHD: ' + r['MHD'] + '  ·  ' + r['Menge'] + ' ' + r['Einheit'] + '  ·  ' + r['Gewicht (kg)'] + ' kg');
+    });
+    lines.push('');
+    lines.push(sep);
+    lines.push('Positionen: ' + data.rows.length);
+    return { text: lines.join('\n'), subject: 'Nölke Liste ' + data.datum };
+}
+
+function shareNoelkeListePdf() {
+    const share = buildNoelkeShareText();
+    if (!share) { showToast('Liste ist leer!', 'warning'); return; }
+    if (typeof sharePlainText === 'function' && sharePlainText(share.text, share.subject)) return;
+    showToast('Teilen nicht verfügbar.', 'error');
 }
 
 function listeDrucken() {
@@ -108,15 +138,6 @@ function listeDrucken() {
             printCleanDocument({ title: 'Nölke Lieferschein', subtitle: 'Tresch & Sohn · ' + data.datum, bodyHtml: html });
         }
     }, 100);
-}
-
-function exportNoelkeExcel() {
-    const data = buildNoelkeListData();
-    if (!data) { showToast("Liste ist leer!", "warning"); return; }
-    if (typeof downloadExcelSheet === 'function') {
-        downloadExcelSheet(data.rows, 'Noelke', 'Noelke_Liste_' + new Date().toISOString().split('T')[0] + '.xlsx');
-        showToast("Excel Download gestartet!", "success");
-    }
 }
 
 function sortierungDrucken() {

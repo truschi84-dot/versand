@@ -7,9 +7,11 @@ Die App selbst (Root): siehe `../README.md`
 
 | Was | Wo öffnen / Befehl |
 |-----|-------------------|
-| **Handy-App** | `../index.html` oder `scripts/start-buero-server.ps1` → http://localhost:8080 |
-| **PC Control Center** | `pc/control-center.html` → http://localhost:8080/projekt/pc/control-center.html |
-| **Deploy Android** | `scripts/deploy-android.ps1` |
+| **Control Center (Desktop)** | Einmal: `scripts/Control-Center-Desktop.bat` → Verknüpfung auf dem Desktop |
+| **Control Center starten** | Desktop-Verknüpfung **oder** `scripts/Control-Center-Starten.bat` |
+| **Handy-App** | `../index.html` oder Server → http://localhost:8080 |
+| **PC Control Center** | http://localhost:8080/projekt/pc/control-center.html → Tab **Updates & Deploy** |
+| **Deploy Android (USB)** | Im Control Center oder `scripts/deploy-android.ps1` |
 | **Firebase sichern** | `docs/FIREBASE_SICHERHEIT.md` |
 
 ```powershell
@@ -56,4 +58,13 @@ assets/                          ← Firmen-App (nur das aufs Handy)
 
 - **Nicht auf GitHub:** `../app-secrets.json`, `deploy.config.json`
 - **PC-Dateien** (`pc/`) und **projekt/** werden nicht in die APK kopiert
+- **Kaninchen** (`../kaninchen/`) liegt im Root für GitHub-URL, geht **nicht** in die Firmen-APK
+- **Lokale Backups (später):** `backups-local/` – getrennt von Firebase `/backup`
 - **Firebase Hosting** (`firebase.json`) veröffentlicht nur den App-Root (`..`), nicht `projekt/`
+
+---
+
+## Geplant nach Urlaub (noch nichts verschoben)
+
+Siehe `docs/ROADMAP-NACH-URLAUB.md` – Aufräumen Hasen-App, Archiv-Ordner, Backups trennen.  
+**Bis dahin:** alles bleibt an den jetzigen Pfaden, damit App + GitHub + Deploy weiterlaufen.

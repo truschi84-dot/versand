@@ -24,6 +24,10 @@ Tägliche Web-Änderungen + Installation gehen aus **Cursor** mit einem Klick.
 
 ## Aus Cursor deployen
 
+**Am einfachsten (Einsteiger):** Doppelklick auf  
+`projekt/scripts/Control-Center-Starten.bat`  
+→ Browser öffnet Control Center → Tab **„Updates & Deploy“** → Knöpfe für USB und GitHub.
+
 **Terminal → Aufgabe ausführen:**
 
 - **Kombi: Web kopieren + auf Handy installieren (USB)**  

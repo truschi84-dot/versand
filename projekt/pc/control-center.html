@@ -16,7 +16,9 @@
         .sidebar-header .app-link { display: inline-block; margin-top: 10px; font-size: 12px; color: rgba(255,255,255,0.9); text-decoration: none; padding: 6px 12px; border-radius: 6px; background: rgba(255,255,255,0.14); }
         .sidebar-header .app-link:hover { background: rgba(255,255,255,0.24); color: #fff; }
         .nav-section { padding: 14px 20px 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #6b7280; }
-        .nav-section.admin-section { margin-top: auto; padding-top: 20px; border-top: 1px solid #2a3140; }
+        .sidebar-nav-main { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+        .sidebar-nav-admin { flex-shrink: 0; border-top: 1px solid #2a3140; background: var(--sidebar); }
+        .nav-section.admin-section { margin-top: 0; padding-top: 14px; }
         .nav-item { padding: 11px 20px; cursor: pointer; transition: background 0.15s, color 0.15s; display: flex; align-items: center; gap: 10px; user-select: none; font-size: 14px; border-left: 3px solid transparent; }
         .nav-item:hover { background: var(--sidebar-hover); }
         .nav-item.active { background: rgba(0,75,147,0.35); border-left-color: #ff9800; color: #fff; }
@@ -60,9 +62,21 @@
         .briefing-task-row input[type="text"] { flex: 1; }
         .checklist-template-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #eee; }
         .checklist-template-row input[type="text"] { flex: 1; }
+        .deploy-log-box { background: #0d1117; color: #e6edf3; font-family: Consolas, 'Courier New', monospace; font-size: 12px; line-height: 1.45; padding: 14px 16px; border-radius: 8px; max-height: 320px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+        .deploy-status-ok { color: var(--success); font-weight: 700; }
+        .deploy-status-warn { color: #ff9800; font-weight: 700; }
+        .deploy-status-err { color: var(--todo); font-weight: 700; }
+        .deploy-step { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .deploy-step-num { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }
 
         input, select, textarea { padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; box-sizing: border-box; font-family: inherit; }
         input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,75,147,0.12); }
+        .cc-wide-text { width: 100%; min-height: 72px; resize: vertical; line-height: 1.45; word-break: break-word; }
+        .noelke-cell-text { word-break: break-word; white-space: normal; line-height: 1.45; }
+        .new-article-fields { display: flex; flex-direction: column; gap: 10px; }
+        .new-article-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+        .new-article-row .nr-field { flex: 0 0 140px; min-width: 120px; }
+        .new-article-row .name-field { flex: 1; min-width: 220px; }
         .btn { padding: 10px 18px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 13px; color: white; transition: transform 0.12s, box-shadow 0.12s; display: inline-flex; align-items: center; gap: 7px; }
         .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
         .btn-save { background: var(--primary); }
@@ -193,12 +207,50 @@
                 </div>
                 <div>
                     <label style="font-size: 11px; font-weight: bold; color: #444;">NAME IN DER APP (inklusive Klammern)</label>
-                    <input type="text" id="edit-fertig-name" style="width: 100%; font-weight: bold; border: 2px solid var(--primary); padding: 10px; border-radius: 4px;">
+                    <textarea id="edit-fertig-name" rows="3" class="cc-wide-text" style="font-weight: bold; border: 2px solid var(--primary);"></textarea>
                 </div>
             </div>
             <div style="display: flex; gap: 10px; margin-top: 20px;">
                 <button class="btn btn-save" style="flex:1;" onclick="saveEditFertig()">💾 Speichern</button>
                 <button class="btn btn-black" style="flex:1;" onclick="closeEditFertigModal()">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-pool-overlay" class="overlay">
+        <div class="modal-content" style="max-width: 520px;">
+            <div style="font-weight: bold; border-bottom: 2px solid #0056b3; padding-bottom: 10px; font-size: 16px;">
+                ✏️ <span id="edit-pool-title">Artikel bearbeiten</span>
+            </div>
+            <div style="margin-top: 15px; display:flex; flex-direction:column; gap:15px;">
+                <div>
+                    <label style="font-size: 11px; font-weight: bold; color: #444;">ARTIKEL-NR.</label>
+                    <input type="text" id="edit-pool-nr" style="width: 100%; border: 1px solid #ccc; padding: 10px; border-radius: 4px;">
+                </div>
+                <div>
+                    <label style="font-size: 11px; font-weight: bold; color: #444;">BEZEICHNUNG</label>
+                    <textarea id="edit-pool-name" rows="4" class="cc-wide-text"></textarea>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-save" style="flex:1;" onclick="saveEditPool()">💾 Speichern</button>
+                <button class="btn btn-black" style="flex:1;" onclick="closeEditPoolModal()">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-noelke-overlay" class="overlay">
+        <div class="modal-content" style="max-width: 640px;">
+            <div style="font-weight: bold; border-bottom: 2px solid var(--noelke); padding-bottom: 10px; font-size: 16px;">
+                ✏️ Nölke-Produkt bearbeiten
+            </div>
+            <div style="margin-top: 15px;">
+                <label style="font-size: 11px; font-weight: bold; color: #444;">PRODUKTZEILE (wie in der App)</label>
+                <textarea id="edit-noelke-val" rows="4" class="cc-wide-text" style="margin-top: 6px;"></textarea>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" style="flex:1;" onclick="saveEditNoelke()">💾 Speichern</button>
+                <button class="btn btn-black" style="flex:1;" onclick="closeEditNoelkeModal()">Abbrechen</button>
             </div>
         </div>
     </div>
@@ -228,24 +280,30 @@
             <div class="sub">Logistik & Rechner · PC</div>
             <a class="app-link" href="../../index.html" target="_blank">📱 Tablet-App öffnen</a>
         </div>
+        <div class="sidebar-nav-main">
         <div class="nav-section">Verwaltung</div>
         <div class="nav-item active" onclick="showTab('home', this)">🏠 Übersicht</div>
         <div class="nav-item" onclick="showTab('artikel', this)">📦 Artikel-Zuordnung</div>
         <div class="nav-item" onclick="showTab('lieferanten', this)">🚚 Lieferanten</div>
-        <div class="nav-item" onclick="showTab('mitarbeiter', this)">👥 Mitarbeiter</div>
+        <div class="nav-item" id="nav-mitarbeiter" onclick="showTab('mitarbeiter', this)">👥 Mitarbeiter</div>
         <div class="nav-item" id="nav-briefing" onclick="showTab('briefing', this)">📢 Tages-Briefing</div>
         <div class="nav-item" onclick="showTab('sortimente', this)">🔗 Sortimente</div>
         <div class="nav-item" onclick="showTab('noelke', this)">📝 Nölke-Katalog</div>
         <div class="nav-item" onclick="showTab('sonderposten', this)">📦 Sonderposten</div>
         <div class="nav-item" onclick="showTab('qm', this)">🛡️ Reklamationen</div>
-        <div class="nav-item" onclick="showTab('company', this)">⚙️ App-Einstellungen</div>
+        </div>
+        <div class="sidebar-nav-admin">
         <div class="nav-section admin-section">Admin</div>
-        <div class="nav-item" id="admin-toggle" onclick="toggleAdminMenu()">🔒 Erweitert ▾</div>
+        <div class="nav-item" id="admin-toggle" onclick="toggleAdminMenu()">🔒 Admin ▾</div>
         <div class="sub-menu" id="admin-submenu">
             <div class="nav-item sub-item" onclick="showTab('erfassung', this)">📅 Tages-Erfassung</div>
             <div class="nav-item sub-item" onclick="showTab('stats', this)">📊 Statistiken</div>
+            <div class="nav-item sub-item" onclick="showTab('company', this)">⚙️ App-Einstellungen</div>
+            <div class="nav-item sub-item" id="nav-system" onclick="showTab('system', this)">🔧 System & PINs</div>
+            <div class="nav-item sub-item" id="nav-handy-update" onclick="showTab('handy-update', this)">🚀 Updates & Deploy</div>
             <div class="nav-item sub-item" onclick="showTab('raw', this)">📝 JSON Editor</div>
-            <div class="nav-item sub-item" onclick="showTab('cloud', this)">💾 System & Backup</div>
+            <div class="nav-item sub-item" onclick="showTab('cloud', this)">💾 Cloud & Backup</div>
+        </div>
         </div>
     </div>
 
@@ -375,6 +433,17 @@
                 <div class="stat-card accent"><div class="num" id="home-stat-open-del">0</div><div class="lbl">LKW offen</div></div>
             </div>
             <div id="home-warn-cards" class="warn-cards"></div>
+            <div class="card" style="margin-bottom:20px; border-left:4px solid #25D366;">
+                <h3 style="margin-top:0;">🚀 App updaten (USB & GitHub)</h3>
+                <p style="font-size:13px; color:var(--text-muted); margin:0 0 8px;">Control Center starten: Doppelklick <code>Control-Center-Starten.bat</code></p>
+                <p style="font-size:12px; color:#888; margin:0 0 12px;">Einmalig Desktop-Icon: <code>projekt/scripts/Control-Center-Desktop.bat</code></p>
+                <button class="btn btn-success" style="background:#25D366;" onclick="showTab('handy-update', document.getElementById('nav-handy-update'))">Updates & Deploy öffnen →</button>
+            </div>
+            <div class="card" style="margin-bottom:20px; border-left:4px solid var(--sonder, #673ab7);">
+                <h3 style="margin-top:0;">🔧 System & PINs</h3>
+                <p style="font-size:13px; color:var(--text-muted); margin:0 0 12px;">Drucker, Tablet-PIN, Admin-PIN und Auto-Sperre.</p>
+                <button class="btn btn-save" style="background:var(--sonder, #673ab7);" onclick="showTab('system', document.getElementById('nav-system'))">Einstellungen öffnen →</button>
+            </div>
             <div class="card" id="home-briefing-quick" style="margin-bottom: 20px;">
                 <h3 style="margin-top:0; color:var(--primary);">📢 Tages-Briefing (für alle Tablets)</h3>
                 <p style="font-size:13px; color:var(--text-muted); margin:0 0 12px;">Kurzinfo und Aufgaben erscheinen oben in der App — jeder sieht, was heute noch offen ist.</p>
@@ -441,20 +510,24 @@
             </div>
 
             <div class="new-article-box" style="display:flex; gap:15px; background: white; padding: 15px; border-bottom: 2px solid #ccc; flex-wrap:wrap;">
-                <div style="flex:1; border: 1px solid #ccc; border-radius: 8px; padding: 15px; border-top: 4px solid var(--primary); min-width: 300px;">
+                <div style="flex:1; border: 1px solid #ccc; border-radius: 8px; padding: 15px; border-top: 4px solid var(--primary); min-width: 320px;">
                     <h4 style="margin-top:0; color:var(--primary);">📦 Neuen FERTIG-Artikel anlegen (Offen)</h4>
-                    <div style="display:flex; gap:10px; align-items:flex-end;">
-                        <div style="flex:1;"><label style="font-size:11px; font-weight:bold; color:#444;">FERTIG-NR.</label><input type="text" id="create-fertig-nr" placeholder="z.B. 80346" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"></div>
-                        <div style="flex:2;"><label style="font-size:11px; font-weight:bold; color:#444;">BEZEICHNUNG</label><input type="text" id="create-fertig-name" placeholder="Artikelname..." style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"></div>
-                        <button class="btn btn-save" style="padding: 8px 15px; height: 35px;" onclick="saveNewFertigArticle()">Anlegen</button>
+                    <div class="new-article-fields">
+                        <div class="new-article-row">
+                            <div class="nr-field"><label style="font-size:11px; font-weight:bold; color:#444;">FERTIG-NR.</label><input type="text" id="create-fertig-nr" placeholder="z.B. 80346" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"></div>
+                            <button class="btn btn-save" style="padding: 8px 15px; height: 35px; margin-left: auto;" onclick="saveNewFertigArticle()">Anlegen</button>
+                        </div>
+                        <div class="name-field"><label style="font-size:11px; font-weight:bold; color:#444;">BEZEICHNUNG</label><textarea id="create-fertig-name" rows="3" class="cc-wide-text" placeholder="Artikelname…" style="padding:8px; border:1px solid #ccc; border-radius:4px;"></textarea></div>
                     </div>
                 </div>
-                <div style="flex:1; border: 1px solid #ccc; border-radius: 8px; padding: 15px; border-top: 4px solid #ffc107; min-width: 300px;">
+                <div style="flex:1; border: 1px solid #ccc; border-radius: 8px; padding: 15px; border-top: 4px solid #ffc107; min-width: 320px;">
                     <h4 style="margin-top:0; color:#333;">🍔 Neuen LOSE-Artikel anlegen (Rohware)</h4>
-                    <div style="display:flex; gap:10px; align-items:flex-end;">
-                        <div style="flex:1;"><label style="font-size:11px; font-weight:bold; color:#444;">LOSE-NR.</label><input type="text" id="create-lose-nr" placeholder="z.B. 70714" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"></div>
-                        <div style="flex:2;"><label style="font-size:11px; font-weight:bold; color:#444;">BEZEICHNUNG</label><input type="text" id="create-lose-name" placeholder="Name..." style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"></div>
-                        <button class="btn" style="background:#ffc107; color:black; padding: 8px 15px; height: 35px;" onclick="saveNewLoseArticle()">Anlegen</button>
+                    <div class="new-article-fields">
+                        <div class="new-article-row">
+                            <div class="nr-field"><label style="font-size:11px; font-weight:bold; color:#444;">LOSE-NR.</label><input type="text" id="create-lose-nr" placeholder="z.B. 70714" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;"></div>
+                            <button class="btn" style="background:#ffc107; color:black; padding: 8px 15px; height: 35px; margin-left: auto;" onclick="saveNewLoseArticle()">Anlegen</button>
+                        </div>
+                        <div class="name-field"><label style="font-size:11px; font-weight:bold; color:#444;">BEZEICHNUNG</label><textarea id="create-lose-name" rows="3" class="cc-wide-text" placeholder="Name…" style="padding:8px; border:1px solid #ccc; border-radius:4px;"></textarea></div>
                     </div>
                 </div>
             </div>
@@ -602,7 +675,11 @@
 
         <div id="tab-noelke" class="tab-content">
             <h1>📝 Nölke-Produktkatalog</h1>
-            <div class="card"><input type="text" id="new-noelke-val" placeholder="z.B. [Nr. 1] aro - Geflügel Paprikalyoner (200g) | EAN: ..."><button class="btn btn-success" onclick="saveNoelkeItem()" style="margin-top:15px;">+ Produkt hinzufügen</button></div>
+            <div class="card">
+                <label style="font-size:12px; font-weight:bold; color:#444;">Neues Produkt (komplette Zeile)</label>
+                <textarea id="new-noelke-val" rows="3" class="cc-wide-text" placeholder="z.B. [Nr. 1] aro - Geflügel Paprikalyoner (200g) | EAN: ..." style="margin-top:8px;"></textarea>
+                <button class="btn btn-success" onclick="saveNoelkeItem()" style="margin-top:15px;">+ Produkt hinzufügen</button>
+            </div>
             <div class="card"><input type="text" id="noelke-search" placeholder="🔍 Im Katalog suchen..." oninput="renderNoelkeList()" style="margin-bottom:15px;"><table style="width:100%; border-collapse:collapse; text-align:left;"><tbody id="noelke-body"></tbody></table></div>
         </div>
 
@@ -699,6 +776,113 @@
             <button class="btn btn-save" style="width:100%; justify-content:center; padding:15px; font-size:16px; background:#00bcd4;" onclick="saveCompanySettings()">💾 App-Einstellungen anwenden & synchronisieren</button>
         </div>
 
+        <div id="tab-handy-update" class="tab-content">
+            <div class="page-header">
+                <h1>🚀 Updates & Deploy</h1>
+                <p>Handy per USB · GitHub online · alles per Knopf — <strong>ohne Cursor-AI</strong>.</p>
+            </div>
+
+            <div id="deploy-offline-card" class="card" style="display:none; border:2px solid #ff9800; background:#fff8e1;">
+                <h3 style="margin-top:0; color:#e65100;">⚠️ Control Center noch nicht gestartet</h3>
+                <p style="font-size:14px; line-height:1.5; margin:0 0 12px;">Die Knöpfe funktionieren erst, wenn der kleine Server auf deinem PC läuft. Das geht mit <strong>einem Doppelklick</strong>:</p>
+                <p style="font-size:15px; font-weight:bold; background:#fff; padding:12px; border-radius:8px; border:1px dashed #ff9800; margin:0 0 12px;">
+                    📂 <code>projekt\scripts\Control-Center-Starten.bat</code>
+                </p>
+                <p style="font-size:13px; color:#666; margin:0;">Dann öffnet sich der Browser automatisch — diese Seite neu laden (F5) und die Knöpfe sind aktiv.</p>
+            </div>
+
+            <div class="card" style="border-top: 4px solid var(--primary);">
+                <h3 style="margin-top:0;">Status</h3>
+                <p id="deploy-server-hint" style="font-size:13px; color:var(--text-muted); margin:0 0 12px;">Prüfe…</p>
+                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:12px; margin-bottom:16px;">
+                    <div class="stat-card"><div class="num" id="deploy-stat-server" style="font-size:16px;">—</div><div class="lbl">Server</div></div>
+                    <div class="stat-card"><div class="num" id="deploy-stat-version" style="font-size:16px;">—</div><div class="lbl">Web-Version</div></div>
+                    <div class="stat-card"><div class="num" id="deploy-stat-config" style="font-size:16px;">—</div><div class="lbl">USB-Config</div></div>
+                    <div class="stat-card"><div class="num" id="deploy-stat-adb" style="font-size:16px;">—</div><div class="lbl">Handy USB</div></div>
+                </div>
+                <button class="btn btn-black" onclick="refreshDeployStatus()">🔄 Status aktualisieren</button>
+            </div>
+
+            <div class="card" style="border-top: 4px solid #25D366;">
+                <h3 style="margin-top:0;">📱 Handy per USB (empfohlen im Büro)</h3>
+                <p style="font-size:13px; color:#666; margin:0 0 12px;">Handy per Kabel — kein Internet auf dem Handy nötig. USB-Debugging muss an sein.</p>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button class="btn btn-success" id="btn-deploy-full" style="background:#25D366;" onclick="startUsbDeployFull()">▶ Web kopieren + auf Handy installieren</button>
+                    <button class="btn btn-save" id="btn-deploy-apk" onclick="startUsbDeployApkOnly()">📦 Nur APK installieren</button>
+                </div>
+            </div>
+
+            <div class="card" style="border-top: 4px solid #24292e;">
+                <h3 style="margin-top:0;">🌐 GitHub – für alle Handys online</h3>
+                <p style="font-size:13px; color:#666; margin:0 0 12px;">Erhöht die Versionsnummer, committed und pushed auf GitHub Pages. Handys holen das Update über <strong>App-Update prüfen</strong> ( braucht WLAN/Mobile).</p>
+                <label style="font-size:11px; font-weight:bold; color:#444;">Commit-Nachricht (optional)</label>
+                <input type="text" id="deploy-github-message" style="width:100%; margin:6px 0 12px;" placeholder="z.B. WhatsApp-Teilen + Control Center Updates">
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button class="btn btn-black" id="btn-deploy-github" style="background:#24292e;" onclick="startGithubPublish()">📤 Version +1 und auf GitHub veröffentlichen</button>
+                    <button class="btn btn-save" id="btn-deploy-github-local" onclick="startGithubLocalBump()">🔢 Nur Version lokal +1 (ohne Push)</button>
+                </div>
+                <p style="font-size:11px; color:#888; margin:12px 0 0;">Live-Check: <a href="https://truschi84-dot.github.io/versand/app-update.json" target="_blank" rel="noopener">app-update.json auf GitHub</a> · Git muss eingeloggt sein (<code>git push</code>).</p>
+            </div>
+
+            <div class="card" style="border-top: 4px solid #4285F4;">
+                <h3 style="margin-top:0;">☁️ Firebase OTA (optional)</h3>
+                <p style="font-size:13px; color:#666; margin:0 0 12px;">Alternative zu GitHub — nur wenn Firebase CLI installiert ist (<code>firebase login</code>).</p>
+                <button class="btn btn-cloud" id="btn-deploy-ota" onclick="startOtaFirebase()">Firebase Hosting deploy</button>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-top:0;">Protokoll</h3>
+                <div id="deploy-log-box" class="deploy-log-box">Noch nichts gestartet.</div>
+            </div>
+
+            <div class="card" style="background:#f0f7ff; border:1px solid #90caf9;">
+                <h3 style="margin-top:0;">📖 Kurz-Anleitung</h3>
+                <ol style="font-size:13px; line-height:1.7; margin:0; padding-left:22px;">
+                    <li><strong>Desktop-Icon (einmal):</strong> <code>Control-Center-Desktop.bat</code> im Ordner scripts</li>
+                    <li><strong>Jede Session:</strong> Doppelklick Desktop-Verknüpfung oder <code>Control-Center-Starten.bat</code></li>
+                    <li><strong>Büro + USB:</strong> Handy anschließen → „Web kopieren + installieren“</li>
+                    <li><strong>Alle Handys remote:</strong> „Version +1 und auf GitHub veröffentlichen“ → Handy „App-Update prüfen“</li>
+                    <li><strong>Nach Urlaub:</strong> Ordner aufräumen – <code>projekt/docs/ROADMAP-NACH-URLAUB.md</code></li>
+                </ol>
+            </div>
+        </div>
+
+        <div id="tab-system" class="tab-content">
+            <div class="page-header">
+                <h1>🔧 System & PINs</h1>
+                <p>Drucker, Passwörter, Auto-Sperre und ZPL-Vorlage — wird an alle Tablets synchronisiert.</p>
+            </div>
+            <div class="card" style="border-top: 5px solid var(--sonder, #673ab7);">
+                <h3 style="margin-top:0;">🔧 System-Konfiguration</h3>
+                <p style="font-size:12px; color:#666;">Diese Einstellungen werden an alle Geräte (Tablets) synchronisiert.</p>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <label style="font-size:11px; font-weight:bold; color:#444;">Zebra Drucker IP</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" id="set-printer-ip" style="flex:1; padding:10px;" placeholder="z.B. 192.168.211.40">
+                            <button class="btn btn-black" onclick="testZebraPrinter()" style="padding:10px; font-size:12px;">🖨️ Test</button>
+                        </div>
+                    </div>
+                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Formspree URL (E-Mails)</label><input type="text" id="set-notification-url" style="width:100%; padding:10px;" placeholder="https://formspree.io/f/..."></div>
+                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Logistik-App PIN (Tablet)</label><input type="text" id="set-logistik-pin" style="width:100%; padding:10px;"><small style="color:#d32f2f; font-size:10px;">Bei PIN-Änderung: pinVersion steigt – alte Geräte ohne neue PIN sind ausgesperrt.</small></div>
+                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Admin PIN (PC &amp; Handy-Auswertung)</label><input type="text" id="set-admin-pin" style="width:100%; padding:10px;"><small style="color:#666; font-size:10px;">Schützt Admin-Bereich im Control Center und LKW-Auswertung in der App.</small></div>
+                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Auto-Sperre nach (Minuten)</label><input type="number" id="set-inactivity-timeout" style="width:100%; padding:10px;" placeholder="0 = aus"><small style="color:#666; font-size:10px;">0 = keine Auto-Sperre. Sonst Minuten Inaktivität bis PIN wieder nötig.</small></div>
+                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Nölke Etikett: Art-Nr. Fallback</label><input type="text" id="set-noelke-artnr" style="width:100%; padding:10px;" placeholder="z.B. NÖLKE"></div>
+                    <div style="grid-column: 1 / -1; margin-top: 10px;">
+                        <label style="font-size:11px; font-weight:bold; color:#444;">Zebra ZPL-Druckvorlage (Etiketten-Code)</label>
+                        <p style="font-size:10px; color:#666; margin: 2px 0 5px 0;">Platzhalter: <b>{dateStr}, {timeStr}, {artNr}, {artName}, {charge}, {mhd}, {gewichtStr}, {menge}, {einheit}, {barcodeData}</b></p>
+                        <textarea id="set-zpl-template" rows="8" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; font-family:monospace; font-size:11px;"></textarea>
+                    </div>
+                    <div style="grid-column: 1 / -1; margin-top: 5px; padding-top: 15px; border-top: 1px dashed #ccc;">
+                        <label style="font-size:11px; font-weight:bold; color:#d32f2f;">Lokale Server-Adresse (Datenbank URL für diesen PC)</label>
+                        <input type="text" id="set-cloud-url" style="width:100%; padding:10px; border: 1px solid #d32f2f;" placeholder="https://deine-datenbank.firebaseio.com/backup">
+                        <small style="color:#666; font-size:10px; display:block; margin-top:4px;">Leer lassen für Standard-Server. Gilt nur für diesen PC.</small>
+                    </div>
+                </div>
+                <button class="btn" style="background:var(--sonder, #673ab7); color:white; margin-top:15px; width:100%; justify-content:center;" onclick="saveSystemSettings()">💾 Einstellungen anwenden & synchronisieren</button>
+            </div>
+        </div>
+
         <div id="tab-stats" class="tab-content">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h1 style="margin: 0;">📊 Statistiken & Abfrage</h1>
@@ -721,7 +905,7 @@
         <div id="tab-raw" class="tab-content"><h1>📝 Raw JSON Editor</h1><div class="card"><textarea id="raw-json-input" rows="25" style="width:100%; font-family:monospace; padding:10px;"></textarea><button class="btn btn-orange" onclick="saveRawJson()" style="margin-top:15px;">💾 Text Speichern & Anwenden</button></div></div>
         
         <div id="tab-cloud" class="tab-content">
-            <h1>⚙️ System & Backup</h1>
+            <h1>💾 Cloud & Backup</h1>
             <div class="card" style="border-top: 5px solid var(--primary);">
                 <h3>☁️ Cloud Sync (Firebase)</h3>
                 <p style="font-size:12px; color:#666; margin-top:0;">Am PC: <b>http://localhost:8080/projekt/pc/control-center.html</b> (<code>projekt\scripts\start-buero-server.ps1</code>), nicht per Doppelklick.</p>
@@ -734,35 +918,6 @@
                     </label>
                 </div>
                 <small id="cloud-secrets-status" style="color:#666;">Cloud-Zugang: wird geprüft…</small>
-            </div>
-            <div class="card" style="border-top: 5px solid var(--sonder, #673ab7);">
-                <h3 style="margin-top:0;">🔧 System-Konfiguration</h3>
-                <p style="font-size:12px; color:#666;">Diese Einstellungen werden an alle Geräte (Tablets) synchronisiert.</p>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div>
-                        <label style="font-size:11px; font-weight:bold; color:#444;">Zebra Drucker IP</label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="text" id="set-printer-ip" style="flex:1; padding:10px;" placeholder="z.B. 192.168.211.40">
-                            <button class="btn btn-black" onclick="testZebraPrinter()" style="padding:10px; font-size:12px;">🖨️ Test</button>
-                        </div>
-                    </div>
-                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Formspree URL (E-Mails)</label><input type="text" id="set-notification-url" style="width:100%; padding:10px;" placeholder="https://formspree.io/f/..."></div>
-                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Logistik-App PIN (Tablet)</label><input type="text" id="set-logistik-pin" style="width:100%; padding:10px;"><small style="color:#d32f2f; font-size:10px;">Bei PIN-Änderung: pinVersion steigt – alte Geräte ohne neue PIN sind ausgesperrt.</small></div>
-                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Admin PIN (PC &amp; Handy-Auswertung)</label><input type="text" id="set-admin-pin" style="width:100%; padding:10px;"><small style="color:#666; font-size:10px;">Schützt Control Center und LKW-Auswertung in der App (Restmengen, Sortier-Statistik).</small></div>
-                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Auto-Sperre nach (Minuten)</label><input type="number" id="set-inactivity-timeout" style="width:100%; padding:10px;" placeholder="0 = aus"><small style="color:#666; font-size:10px;">0 = keine Auto-Sperre (nur manuell über 🔒 Sperren). Sonst Minuten Inaktivität bis PIN wieder nötig.</small></div>
-                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Nölke Etikett: Art-Nr. Fallback</label><input type="text" id="set-noelke-artnr" style="width:100%; padding:10px;" placeholder="z.B. NÖLKE"></div>
-                    <div style="grid-column: 1 / -1; margin-top: 10px;">
-                        <label style="font-size:11px; font-weight:bold; color:#444;">Zebra ZPL-Druckvorlage (Etiketten-Code)</label>
-                        <p style="font-size:10px; color:#666; margin: 2px 0 5px 0;">Verfügbare Platzhalter: <b>{dateStr}, {timeStr}, {artNr}, {artName}, {charge}, {mhd}, {gewichtStr}, {menge}, {einheit}, {barcodeData}</b></p>
-                        <textarea id="set-zpl-template" rows="8" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; font-family:monospace; font-size:11px;"></textarea>
-                    </div>
-                    <div style="grid-column: 1 / -1; margin-top: 5px; padding-top: 15px; border-top: 1px dashed #ccc;">
-                        <label style="font-size:11px; font-weight:bold; color:#d32f2f;">Lokale Server-Adresse (Datenbank URL für diesen PC)</label>
-                        <input type="text" id="set-cloud-url" style="width:100%; padding:10px; border: 1px solid #d32f2f;" placeholder="https://deine-datenbank.firebaseio.com/backup">
-                        <small style="color:#666; font-size:10px; display:block; margin-top:4px;">Leer lassen, um den Standard-Server zu nutzen. (Wird nicht in die Cloud synchronisiert, sondern gilt nur für dieses Gerät)</small>
-                    </div>
-                </div>
-                <button class="btn" style="background:var(--sonder, #673ab7); color:white; margin-top:15px; width:100%; justify-content:center;" onclick="saveSystemSettings()">💾 Einstellungen anwenden & synchronisieren</button>
             </div>
             <div class="card" style="border-top: 5px solid #17a2b8;">
                 <h3>💾 Physisches Offline-Backup</h3>
@@ -911,7 +1066,9 @@
         let currentTargetId = null; 
         let lastAction = null;
         let statsWeekOffset = 0;
-        let editingFertigId = null; 
+        let editingFertigId = null;
+        let editingNoelkeIdx = null;
+        let editingPoolCtx = null;
 
         /** Spiegelt PC-db nach kombi_* (gleicher Browser / Notfall-Kompatibilität zur Kombi-App). */
         function mirrorToKombiStorage() {
@@ -1039,17 +1196,34 @@
 
             renderAll();
             renderCloudLogs();
+            if (location.hash === '#updates') {
+                showTab('handy-update', document.getElementById('nav-handy-update'));
+            }
         };
 
+        const ADMIN_TABS = ['raw', 'cloud', 'stats', 'erfassung', 'company', 'system', 'handy-update'];
+
+        function openAdminSubmenu() {
+            const sm = document.getElementById('admin-submenu');
+            if (sm) sm.style.display = 'flex';
+        }
+
+        function adminNavElement(tabId) {
+            return document.querySelector(`#admin-submenu .sub-item[onclick*="showTab('${tabId}'"]`)
+                || document.getElementById('admin-toggle');
+        }
+
         function showTab(id, element) {
-            if(['raw', 'cloud', 'stats', 'erfassung'].includes(id) && !isAdminUnlocked) {
+            if (ADMIN_TABS.includes(id) && !isAdminUnlocked) {
                 pendingTabId = id;
                 pendingTabElement = element;
+                openAdminSubmenu();
                 document.getElementById('pin-overlay').style.display = 'flex';
                 document.getElementById('pin-input').value = '';
                 document.getElementById('pin-input').focus();
                 return;
             }
+            if (ADMIN_TABS.includes(id)) openAdminSubmenu();
             executeShowTab(id, element);
         }
 
@@ -1077,7 +1251,7 @@
             document.getElementById('tab-'+id).classList.add('active');
             if(element) element.classList.add('active');
             const sticky = document.getElementById('sticky-save-bar');
-            if (sticky) sticky.style.display = (id === 'cloud') ? 'none' : 'flex';
+            if (sticky) sticky.style.display = (id === 'cloud' || id === 'system' || id === 'handy-update') ? 'none' : 'flex';
             if(id === 'raw') document.getElementById('raw-json-input').value = JSON.stringify(db, null, 4);
             if(id === 'erfassung') renderAdminDeliveries();
             if(id === 'noelke') renderNoelkeList();
@@ -1086,7 +1260,157 @@
             if(id === 'sonderposten') renderAdminSonderTpl();
             if(id === 'qm') loadReklamationen();
             if(id === 'company') loadCompanySettingsToUI();
+            if(id === 'handy-update') refreshDeployStatus();
             pendingTabId = null;
+        }
+
+        let deployPollTimer = null;
+        let deployApiBaseResolved = null;
+
+        function getDeployStatusCandidates() {
+            const list = [];
+            if (location.protocol !== 'file:' && location.port === '8080') {
+                list.push('');
+            }
+            list.push('http://127.0.0.1:8080');
+            list.push('http://localhost:8080');
+            return [...new Set(list)];
+        }
+
+        function deployApiBase() {
+            return deployApiBaseResolved;
+        }
+
+        function setDeployButtonsDisabled(disabled) {
+            ['btn-deploy-full', 'btn-deploy-apk', 'btn-deploy-github', 'btn-deploy-github-local', 'btn-deploy-ota'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = !!disabled;
+            });
+        }
+
+        function applyDeployStatusData(data) {
+            const offlineCard = document.getElementById('deploy-offline-card');
+            const hint = document.getElementById('deploy-server-hint');
+            const logBox = document.getElementById('deploy-log-box');
+            const elServer = document.getElementById('deploy-stat-server');
+            const elVersion = document.getElementById('deploy-stat-version');
+            const elConfig = document.getElementById('deploy-stat-config');
+            const elAdb = document.getElementById('deploy-stat-adb');
+
+            if (offlineCard) offlineCard.style.display = 'none';
+            if (elServer) {
+                elServer.textContent = data.deployRunning ? 'Läuft…' : 'Bereit';
+                elServer.className = 'num ' + (data.deployRunning ? 'deploy-status-warn' : 'deploy-status-ok');
+            }
+            if (elVersion && data.webVersion) {
+                elVersion.textContent = 'v' + (data.webVersion.webVersion || '?');
+                elVersion.className = 'num deploy-status-ok';
+            }
+            if (elConfig) {
+                const ok = data.deployConfig && data.deployConfig.ok;
+                elConfig.textContent = ok ? 'OK' : 'Fehlt';
+                elConfig.className = 'num ' + (ok ? 'deploy-status-ok' : 'deploy-status-err');
+            }
+            const devCount = (data.adb && data.adb.devices) ? data.adb.devices.length : 0;
+            if (elAdb) {
+                elAdb.textContent = devCount > 0 ? devCount + '×' : '—';
+                elAdb.className = 'num ' + (devCount > 0 ? 'deploy-status-ok' : 'deploy-status-warn');
+            }
+            if (hint) {
+                const parts = [];
+                if (!(data.deployConfig && data.deployConfig.ok)) parts.push('USB: deploy.config.json fehlt');
+                if (data.adb && data.adb.adbFound && devCount === 0) parts.push('Kein Handy per USB');
+                hint.innerHTML = parts.length ? '⚠️ ' + parts.join(' · ') : '✅ Server läuft — Knöpfe unten nutzen.';
+            }
+            if (logBox && data.deployLog && data.deployLog.length) {
+                logBox.textContent = data.deployLog.join('\n');
+                logBox.scrollTop = logBox.scrollHeight;
+            }
+            setDeployButtonsDisabled(!!data.deployRunning);
+            if (data.deployRunning && !deployPollTimer) {
+                deployPollTimer = setInterval(refreshDeployStatus, 2000);
+            } else if (!data.deployRunning && deployPollTimer) {
+                clearInterval(deployPollTimer);
+                deployPollTimer = null;
+            }
+        }
+
+        function showDeployOffline(reason) {
+            deployApiBaseResolved = null;
+            const offlineCard = document.getElementById('deploy-offline-card');
+            const hint = document.getElementById('deploy-server-hint');
+            const elServer = document.getElementById('deploy-stat-server');
+            if (offlineCard) offlineCard.style.display = 'block';
+            const urlHint = location.protocol === 'file:'
+                ? 'Du hast die HTML-Datei direkt geöffnet.'
+                : ('Aktuelle Adresse: <code>' + location.href + '</code>');
+            if (hint) {
+                hint.innerHTML = '❌ Server aus. ' + (reason || '') + '<br>' + urlHint
+                    + '<br><strong>Lösung:</strong> Doppelklick <code>Control-Center-Starten.bat</code>, dann diese Seite mit '
+                    + '<a href="http://127.0.0.1:8080/projekt/pc/control-center.html#updates">127.0.0.1:8080</a> öffnen und F5.';
+            }
+            if (elServer) { elServer.textContent = 'Aus'; elServer.className = 'num deploy-status-err'; }
+            setDeployButtonsDisabled(true);
+            if (deployPollTimer) { clearInterval(deployPollTimer); deployPollTimer = null; }
+        }
+
+        async function refreshDeployStatus() {
+            for (const base of getDeployStatusCandidates()) {
+                try {
+                    const res = await fetch(base + '/api/deploy/status', { cache: 'no-store' });
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    if (data && data.ok) {
+                        deployApiBaseResolved = base;
+                        applyDeployStatusData(data);
+                        return;
+                    }
+                } catch (e) { /* nächster Kandidat */ }
+            }
+            showDeployOffline('Port 8080 antwortet nicht.');
+        }
+
+        async function postDeployJob(url, confirmText) {
+            if (!deployApiBaseResolved) {
+                await refreshDeployStatus();
+            }
+            const base = deployApiBase();
+            if (!base && base !== '') {
+                alert('Server aus – bitte Control-Center-Starten.bat doppelklicken.');
+                return;
+            }
+            if (confirmText && !confirm(confirmText)) return;
+            const logBox = document.getElementById('deploy-log-box');
+            if (logBox) logBox.textContent = 'Starte…';
+            try {
+                const body = url.includes('github')
+                    ? JSON.stringify({ message: (document.getElementById('deploy-github-message') || {}).value || '' })
+                    : '{}';
+                const res = await fetch(base + url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body
+                });
+                const data = await res.json();
+                if (!data.ok) alert(data.error || 'Start fehlgeschlagen');
+                refreshDeployStatus();
+            } catch (e) { alert('Fehler: ' + e.message); }
+        }
+
+        function startUsbDeployFull() {
+            postDeployJob('/api/deploy/usb-full', 'Web-Dateien kopieren und App per USB installieren?');
+        }
+        function startUsbDeployApkOnly() {
+            postDeployJob('/api/deploy/usb-apk-only', 'Nur APK installieren (ohne Web-Dateien zu kopieren)?');
+        }
+        function startGithubPublish() {
+            postDeployJob('/api/deploy/github', 'Version erhöhen und auf GitHub pushen? (Handys können danach OTA updaten)');
+        }
+        function startGithubLocalBump() {
+            postDeployJob('/api/deploy/github-local', 'Nur Versionsnummer lokal erhöhen (ohne GitHub)?');
+        }
+        function startOtaFirebase() {
+            postDeployJob('/api/deploy/ota-firebase', 'Firebase Hosting deploy starten?');
         }
 
         function toggleAdminMenu() {
@@ -1261,14 +1585,13 @@
         }
 
         function jumpFromWarnCard(tab, admin) {
-            if (admin) {
-                const sub = document.querySelector('#admin-submenu .sub-item[onclick*="erfassung"]');
-                if (typeof toggleAdminMenu === 'function') { document.getElementById('admin-submenu').style.display = 'block'; }
-                showTab(tab, sub || document.getElementById('admin-toggle'));
+            if (admin || ADMIN_TABS.includes(tab)) {
+                openAdminSubmenu();
+                showTab(tab, adminNavElement(tab));
             } else if (tab === 'briefing') {
                 showTab('briefing', document.getElementById('nav-briefing'));
             } else {
-                const nav = document.querySelector(`.sidebar .nav-item[onclick*="${tab}"]`);
+                const nav = document.getElementById('nav-' + tab) || document.querySelector(`.sidebar-nav-main .nav-item[onclick*="'${tab}'"]`);
                 showTab(tab, nav);
             }
         }
@@ -2165,6 +2488,7 @@
                         const tr = document.createElement('tr');
                         tr.innerHTML = `<td><strong>${art.fertigNr}</strong></td><td>${art.name}</td>
                             <td style="display:flex; flex-wrap: wrap; gap: 4px; justify-content: space-between;">
+                                <button class="btn-action" style="background:#17a2b8; flex: 1 1 100%; margin:0;" onclick="openEditPoolModal('${art.fertigNr}', 'todo')">✏️ Bearbeiten</button>
                                 <button class="btn-action btn-to-lose" onclick="toLose('${art.fertigNr}')">Lose</button>
                                 <button class="btn-action btn-assign" onclick="openModal('${art.fertigNr}')">OK</button>
                                 <button class="btn-action btn-later" onclick="toLater('${art.fertigNr}')">Später</button>
@@ -2181,7 +2505,8 @@
                     if ((art.fertigNr || '').includes(s) || (art.name || '').toUpperCase().includes(s)) {
                         const tr = document.createElement('tr');
                         tr.innerHTML = `<td style="color:#17a2b8;"><strong>${art.fertigNr}</strong></td><td style="color:#17a2b8;">${art.name}</td>
-                            <td style="display:flex; gap:5px;">
+                            <td style="display:flex; gap:5px; flex-wrap:wrap;">
+                                <button class="btn-action" style="background:#17a2b8; flex:1; margin:0;" onclick="openEditPoolModal('${art.fertigNr}', 'later')">✏️</button>
                                 <button class="btn-action" style="background:#0056b3; flex:1; margin:0;" onclick="restoreFromPool('${art.fertigNr}', 'later')">Jetzt bearbeiten</button>
                                 <button class="btn-action" style="background:#dc3545; width:auto; margin:0; padding:8px 12px;" onclick="deleteArticle('${art.fertigNr}', 'later')">🗑️</button>
                             </td>`;
@@ -2209,7 +2534,8 @@
                     if ((art.fertigNr || '').includes(s) || (art.name || '').toUpperCase().includes(s)) {
                         const tr = document.createElement('tr');
                         tr.innerHTML = `<td style="color:#999;"><strong>${art.fertigNr}</strong></td><td style="color:#999;">${art.name}</td>
-                            <td style="display:flex; gap:5px;">
+                            <td style="display:flex; gap:5px; flex-wrap:wrap;">
+                                <button class="btn-action" style="background:#17a2b8; flex:1; margin:0;" onclick="openEditPoolModal('${art.fertigNr}', 'hidden')">✏️</button>
                                 <button class="btn-undo-action" style="background:#0056b3; flex:1; margin:0;" onclick="restoreFromPool('${art.fertigNr}', 'hidden')">Einblenden</button>
                                 <button class="btn-undo-action" style="background:#dc3545; width:auto; margin:0; padding:8px 12px;" onclick="deleteArticle('${art.fertigNr}', 'hidden')">🗑️</button>
                             </td>`;
@@ -2226,6 +2552,46 @@
             document.getElementById('edit-fertig-overlay').style.display = 'flex';
         }
         function closeEditFertigModal() { document.getElementById('edit-fertig-overlay').style.display = 'none'; editingFertigId = null; }
+
+        const POOL_EDIT_LABELS = { todo: 'Offener Artikel', later: 'Artikel (Später)', hidden: 'Versteckter Artikel', lose: 'Lose-Artikel' };
+
+        function openEditPoolModal(fertigNr, pool) {
+            const art = (db[pool] || []).find(a => a.fertigNr === fertigNr);
+            if (!art) return;
+            editingPoolCtx = { pool, oldId: fertigNr };
+            document.getElementById('edit-pool-title').innerText = POOL_EDIT_LABELS[pool] || 'Artikel bearbeiten';
+            document.getElementById('edit-pool-nr').value = art.fertigNr || '';
+            document.getElementById('edit-pool-name').value = art.name || '';
+            document.getElementById('edit-pool-overlay').style.display = 'flex';
+        }
+        function closeEditPoolModal() { document.getElementById('edit-pool-overlay').style.display = 'none'; editingPoolCtx = null; }
+
+        function poolArticleExists(nr, ignorePool, ignoreId) {
+            const pools = ['todo', 'later', 'hidden', 'lose'];
+            for (const p of pools) {
+                if (p === ignorePool) {
+                    if ((db[p] || []).some(a => a.fertigNr !== ignoreId && a.fertigNr === nr)) return true;
+                } else if ((db[p] || []).some(a => a.fertigNr === nr)) return true;
+            }
+            if ((db.articles || []).some(a => a.fertigNr === nr || a.nr === nr)) return true;
+            return false;
+        }
+
+        function saveEditPool() {
+            if (!editingPoolCtx) return;
+            const art = (db[editingPoolCtx.pool] || []).find(a => a.fertigNr === editingPoolCtx.oldId);
+            if (!art) { closeEditPoolModal(); return; }
+            const newNr = document.getElementById('edit-pool-nr').value.trim();
+            const newName = document.getElementById('edit-pool-name').value.trim();
+            if (!newNr || !newName) return alert('Bitte Nummer und Bezeichnung ausfüllen.');
+            if (newNr !== editingPoolCtx.oldId && poolArticleExists(newNr, editingPoolCtx.pool, editingPoolCtx.oldId)) {
+                return alert('Diese Artikelnummer existiert bereits.');
+            }
+            art.fertigNr = newNr;
+            art.name = newName;
+            closeEditPoolModal();
+            renderAll(); renderV10Table(); renderLosePool();
+        }
 
         function saveEditFertig() {
             if(editingFertigId === null) return; const art = db.articles[editingFertigId];
@@ -2270,7 +2636,7 @@
             db.lose.forEach(a => {
                 if ((a.fertigNr || '').toLowerCase().includes(s) || (a.name || '').toLowerCase().includes(s)) {
                     const d = document.createElement('div'); d.className = 'lose-item';
-                    d.innerHTML = `<div><strong>${a.fertigNr}</strong> - ${a.name}</div><div style="display:flex; gap:5px; margin-top:5px;"><button class="btn btn-save" style="flex:1; padding:6px; font-size:11px;" onclick="restoreFromPool('${a.fertigNr}', 'lose')">↩ Zurück</button><button class="btn btn-save" style="background:#dc3545; padding:6px; font-size:11px;" onclick="deleteArticle('${a.fertigNr}', 'lose')">🗑️</button></div>`;
+                    d.innerHTML = `<div><strong>${a.fertigNr}</strong> - ${a.name}</div><div style="display:flex; gap:5px; margin-top:5px;"><button class="btn btn-save" style="flex:1; padding:6px; font-size:11px; background:#17a2b8;" onclick="openEditPoolModal('${a.fertigNr}', 'lose')">✏️</button><button class="btn btn-save" style="flex:1; padding:6px; font-size:11px;" onclick="restoreFromPool('${a.fertigNr}', 'lose')">↩ Zurück</button><button class="btn btn-save" style="background:#dc3545; padding:6px; font-size:11px;" onclick="deleteArticle('${a.fertigNr}', 'lose')">🗑️</button></div>`;
                     lc.appendChild(d);
                 }
             });
@@ -2496,7 +2862,7 @@
 
         function renderNoelkeList() {
             const q = document.getElementById('noelke-search').value.toLowerCase();
-            document.getElementById('noelke-body').innerHTML = db.savedProdukteRaw.map((p, i) => p.toLowerCase().includes(q) ? `<tr><td style="padding:15px; border-bottom:1px solid #eee;">${p}</td><td style="text-align:right; border-bottom:1px solid #eee;"><button onclick="deleteNoelke(${i})" style="border:none; background:none; color:red; cursor:pointer;">🗑️</button></td></tr>` : '').join('');
+            document.getElementById('noelke-body').innerHTML = db.savedProdukteRaw.map((p, i) => p.toLowerCase().includes(q) ? `<tr><td class="noelke-cell-text" style="padding:15px; border-bottom:1px solid #eee;">${p}</td><td style="text-align:right; border-bottom:1px solid #eee; white-space:nowrap;"><button onclick="openEditNoelkeModal(${i})" style="border:none; background:none; color:#17a2b8; cursor:pointer; font-size:18px;" title="Bearbeiten">✏️</button><button onclick="deleteNoelke(${i})" style="border:none; background:none; color:red; cursor:pointer; font-size:18px;" title="Löschen">🗑️</button></td></tr>` : '').join('');
         }
 
         function renderAdminSonderTpl() {
@@ -2557,6 +2923,22 @@
         }
 
         function saveNoelkeItem() { const val = document.getElementById('new-noelke-val').value.trim(); if(val) { db.savedProdukteRaw.push(val); document.getElementById('new-noelke-val').value = ''; renderAll(); } }
+        function openEditNoelkeModal(i) {
+            const p = db.savedProdukteRaw[i];
+            if (p === undefined) return;
+            editingNoelkeIdx = i;
+            document.getElementById('edit-noelke-val').value = p;
+            document.getElementById('edit-noelke-overlay').style.display = 'flex';
+        }
+        function closeEditNoelkeModal() { document.getElementById('edit-noelke-overlay').style.display = 'none'; editingNoelkeIdx = null; }
+        function saveEditNoelke() {
+            if (editingNoelkeIdx === null) return;
+            const val = document.getElementById('edit-noelke-val').value.trim();
+            if (!val) return alert('Produktzeile darf nicht leer sein.');
+            db.savedProdukteRaw[editingNoelkeIdx] = val;
+            closeEditNoelkeModal();
+            renderAll();
+        }
         function deleteNoelke(i) { if(confirm("Löschen?")) { db.savedProdukteRaw.splice(i,1); renderAll(); } }
 
         function saveRawJson() { 

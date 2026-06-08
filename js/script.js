@@ -9,13 +9,13 @@ const APP_CONFIG = {
     NOTIFICATION_URL: "https://formspree.io/f/xrejnkgq"
 };
 
-const APP_VERSION = "7.1";
+const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 100;
+const WEB_BUILD_VERSION = 103;
 /** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
 const OFFICE_LAN_URL = 'http://192.168.211.135:8080';
 let pendingOtaUpdate = null;
-const APP_CHANGELOG = "<b>Was ist neu in 7.1?</b><br><br>• 📲 <b>OTA-Updates:</b> App kann sich von eurem Web-Server aktualisieren – keine neue APK für jedes HTML/JS-Update.<br>• 🎨 <b>Handy-Layout:</b> Scrollen und Safe-Area in der APK verbessert.";
+const APP_CHANGELOG = "<b>Was ist neu in 7.2?</b><br><br>• 🚀 <b>Update-Test:</b> Kleine sichtbare Änderung – wenn du das siehst, hat das USB-Deploy aus dem Control Center geklappt.<br>• 📋 <b>Rechner-Menü:</b> Unten steht jetzt die Build-Nummer (102).";
 /** APK (file://): Update-Config nur bei manueller Prüfung – nicht beim Start. */
 const OTA_REMOTE_CONFIG_URL = "https://truschi84-dot.github.io/versand/app-update.json";
 
@@ -1089,6 +1089,7 @@ async function loadBundledOtaConfig() {
     const paths = [
         'app-update.json',
         './app-update.json',
+        'https://appassets.androidplatform.net/assets/app-update.json',
         'file:///android_asset/app-update.json'
     ];
     for (const p of paths) {
@@ -1234,6 +1235,12 @@ function handleAndroidBackPress() {
     if (calc && getComputedStyle(calc).display === 'flex') {
         if (typeof toggleCalc === 'function') toggleCalc(false);
         else calc.style.display = 'none';
+        return true;
+    }
+    const scannerModal = document.getElementById('scanner-modal');
+    if (scannerModal && getComputedStyle(scannerModal).display === 'flex') {
+        if (typeof stopBarcodeScanner === 'function') stopBarcodeScanner();
+        else scannerModal.style.display = 'none';
         return true;
     }
     for (const m of document.querySelectorAll('.modal')) {

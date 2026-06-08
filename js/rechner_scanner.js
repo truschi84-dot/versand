@@ -9,6 +9,135 @@ let isScannerStopping = false;
 let isZoomed = false;
 let scannerTarget = 'noelke';
 let scannerExpectedType = null; // 'BC' or 'QR' or null (auto)
+let scannerReleasePromise = Promise.resolve();
+
+function stopAllVideoTracks() {
+    document.querySelectorAll('#qr-reader video').forEach((videoEl) => {
+        const stream = videoEl.srcObject;
+        if (stream && stream.getTracks) stream.getTracks().forEach((track) => track.stop());
+        videoEl.srcObject = null;
+    });
+    if (nativeVideoStream) {
+        nativeVideoStream.getTracks().forEach((track) => track.stop());
+        nativeVideoStream = null;
+    }
+}
+
+function waitForScannerIdle(timeoutMs = 6000) {
+    return new Promise((resolve) => {
+        const started = Date.now();
+        const tick = () => {
+            if (!isScannerStarting && !isScannerStopping) return resolve();
+            if (Date.now() - started >= timeoutMs) return resolve();
+            setTimeout(tick, 50);
+        };
+        tick();
+    });
+}
+
+function waitForModalLayout() {
+    return new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+}
+
+function getCameraErrorMessage(err) {
+    const name = (err && err.name) || '';
+    const msg = ((err && (err.message || err.toString())) || '').toLowerCase();
+    if (name === 'NotAllowedError' || msg.includes('permission') || msg.includes('denied')) {
+        return 'Kamera blockiert – in den Einstellungen erlauben.';
+    }
+    if (name === 'NotFoundError' || msg.includes('not found')) {
+        return 'Keine Kamera gefunden.';
+    }
+    if (name === 'NotReadableError' || msg.includes('in use') || msg.includes('busy')) {
+        return 'Kamera belegt – kurz warten oder App neu starten.';
+    }
+    if (!window.isSecureContext && !(typeof AndroidApp !== 'undefined')) {
+        return 'Kamera nur mit HTTPS – GitHub-Link oder App nutzen.';
+    }
+    return 'Kamera-Fehler – bitte erneut versuchen.';
+}
+
+function getScannerConfig() {
+    return {
+        fps: 15,
+        qrbox: function(w, h) {
+            const size = Math.min(w, h) * 0.9;
+            return { width: size, height: size };
+        }
+    };
+}
+
+function onScannerDecode(decodedText) {
+    stopBarcodeScanner();
+    playBeep();
+    handleScannedBarcode(decodedText);
+}
+
+async function getCameraConfigs() {
+    const configs = [{ facingMode: 'environment' }, { facingMode: 'user' }];
+    if (typeof Html5Qrcode.getCameras === 'function') {
+        try {
+            const cameras = await Html5Qrcode.getCameras();
+            if (Array.isArray(cameras) && cameras.length) {
+                const backCam = cameras.find((cam) => /back|rear|environment|hinten|rück/i.test(cam.label || ''));
+                const pick = backCam || cameras[cameras.length - 1];
+                if (pick && pick.id) configs.unshift({ deviceId: { exact: pick.id } });
+            }
+        } catch (e) {}
+    }
+    return configs;
+}
+
+async function releaseScannerResources() {
+    stopAllVideoTracks();
+    if (!html5QrCode) return;
+    const instance = html5QrCode;
+    html5QrCode = null;
+    try {
+        let state = 1;
+        if (instance.getState) state = instance.getState();
+        else if (instance.isScanning) state = 2;
+        if (state !== 1) await instance.stop();
+    } catch (e) {}
+    try { instance.clear(); } catch (e) {}
+    const qrReader = document.getElementById('qr-reader');
+    if (qrReader) qrReader.innerHTML = '';
+}
+
+async function startScannerCamera() {
+    const qrReader = document.getElementById('qr-reader');
+    if (qrReader) qrReader.innerHTML = '';
+    stopAllVideoTracks();
+
+    const configs = await getCameraConfigs();
+    let lastErr = null;
+
+    for (const cameraConfig of configs) {
+        try {
+            if (html5QrCode) await releaseScannerResources();
+            html5QrCode = new Html5Qrcode('qr-reader');
+            await html5QrCode.start(
+                cameraConfig,
+                getScannerConfig(),
+                onScannerDecode,
+                () => {}
+            );
+            return;
+        } catch (err) {
+            lastErr = err;
+            await releaseScannerResources();
+        }
+    }
+    throw lastErr || new Error('Kamera konnte nicht gestartet werden.');
+}
+
+if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') stopBarcodeScanner();
+    });
+}
 
 function playBeep() {
     try {
@@ -22,100 +151,52 @@ async function startBarcodeScanner(target = 'noelke', expectedType = null) {
     scannerTarget = target;
     scannerExpectedType = expectedType;
     document.getElementById('scanner-modal').style.display = 'flex';
-    
-    if (isScannerStopping || isScannerStarting) return;
+
+    await scannerReleasePromise;
+    await waitForScannerIdle();
+    if (isScannerStarting) return;
     isScannerStarting = true;
 
-    setTimeout(() => {
-        try {
-            if (typeof Html5Qrcode === 'undefined') {
-                isScannerStarting = false;
-                showToast('Scanner-Bibliothek fehlt – App-Update prüfen oder Internet.', 'error');
-                stopBarcodeScanner();
-                return;
-            }
-            const qrReader = document.getElementById('qr-reader');
-            if (qrReader) qrReader.innerHTML = '';
-            
-            html5QrCode = new Html5Qrcode("qr-reader");
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                { 
-                    fps: 15, 
-                    qrbox: function(w, h) { let size = Math.min(w, h) * 0.9; return { width: size, height: size }; }
-                }, 
-                (decodedText, decodedResult) => {
-                    stopBarcodeScanner();
-                    playBeep();
-                    handleScannedBarcode(decodedText);
-                }, 
-                (errorMessage) => {} 
-            ).then(() => {
-                isScannerStarting = false;
-            }).catch((err) => {
-                isScannerStarting = false;
-                console.error("Scanner Fehler:", err);
-                showToast("Kamera-Fehler.", "error");
-                stopBarcodeScanner();
-            });
-        } catch (err) {
-            isScannerStarting = false;
-            console.error("Scanner konnte nicht initialisiert werden:", err);
-            showToast("Scanner-Fehler.", "error");
+    try {
+        await waitForModalLayout();
+        if (typeof Html5Qrcode === 'undefined') {
+            showToast('Scanner-Bibliothek fehlt – App-Update prüfen oder Internet.', 'error');
             stopBarcodeScanner();
+            return;
         }
-    }, 150);
+        await startScannerCamera();
+    } catch (err) {
+        console.error('Scanner Fehler:', err);
+        showToast(getCameraErrorMessage(err), 'error');
+        stopBarcodeScanner();
+    } finally {
+        isScannerStarting = false;
+    }
 }
 
 function stopBarcodeScanner() {
     isTorchOn = false;
     const tb = document.getElementById('torch-btn');
-    if(tb) { tb.innerText = "🔦 Licht an"; tb.style.background = "#fff3e0"; }
-    
+    if (tb) { tb.innerText = '🔦 Licht an'; tb.style.background = '#fff3e0'; }
+
     isZoomed = false;
     const zb = document.getElementById('zoom-btn');
-    if(zb) { zb.innerText = "🔍 Zoom"; zb.style.background = "#e3f2fd"; }
-    
+    if (zb) { zb.innerText = '🔍 Zoom'; zb.style.background = '#e3f2fd'; }
+
     document.getElementById('scanner-modal').style.display = 'none';
-    
+
     if (nativeScanInterval) { clearInterval(nativeScanInterval); nativeScanInterval = null; }
-    if (nativeVideoStream) {
-        nativeVideoStream.getTracks().forEach(track => track.stop());
-        nativeVideoStream = null;
-    }
-    
-    if (html5QrCode) { 
+
+    isScannerStopping = true;
+    scannerReleasePromise = (async () => {
         try {
-            let state = 1;
-            if (html5QrCode.getState) state = html5QrCode.getState();
-            else if (html5QrCode.isScanning) state = 2;
-            
-            if (state !== 1) { 
-                isScannerStopping = true;
-                html5QrCode.stop().then(() => {
-                    try { html5QrCode.clear(); } catch(e) {}
-                    html5QrCode = null;
-                    const qrReader = document.getElementById('qr-reader');
-                    if(qrReader) qrReader.innerHTML = '';
-                    isScannerStopping = false;
-                }).catch(err => {
-                    try { html5QrCode.clear(); } catch(e) {}
-                    html5QrCode = null;
-                    isScannerStopping = false;
-                }); 
-            } else {
-                try { html5QrCode.clear(); } catch(e) {}
-                html5QrCode = null;
-            }
-        } catch(e) {
-            try { html5QrCode.clear(); } catch(e) {}
-            html5QrCode = null;
+            await releaseScannerResources();
+        } finally {
+            stopAllVideoTracks();
             isScannerStopping = false;
+            isScannerStarting = false;
         }
-    } else {
-        const qrReader = document.getElementById('qr-reader');
-        if(qrReader) qrReader.innerHTML = '';
-    }
+    })();
 }
 
 function toggleTorch() {

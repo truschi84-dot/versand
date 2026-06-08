@@ -9,3 +9,6 @@ projekt/checklistearbeit/
 projekt/checklistearbeit.html
 test-checklist.html
 projekt/test-checklist.html
+projekt/backups-local/*
+!projekt/backups-local/.gitkeep
+!projekt/backups-local/HINWEIS.txt

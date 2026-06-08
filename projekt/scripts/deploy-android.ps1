@@ -1,4 +1,6 @@
 # Kombi-App: Web-Assets nach LogistikApp kopieren + installDebug per USB
+# Kopiert NUR: index.html, manifest, sw.js, app-update/version, js/, css/, lib/, icons/
+# Kopiert NICHT: projekt/, kaninchen/, pc/, dist/, backups-local/
 $ErrorActionPreference = "Stop"
 $ProjektRoot = Split-Path -Parent $PSScriptRoot
 $AppRoot = Split-Path -Parent $ProjektRoot

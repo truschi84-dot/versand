@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Kombi - Logistik & Rechner V7</title>
+    <title>Kombi - Logistik & Rechner V7.2</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,9 +16,9 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/versand/icons/app-icon-192.png?v=10">
     <link rel="apple-touch-icon" sizes="180x180" href="/versand/icons/app-icon-180.png?v=10">
 
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="lib/html5-qrcode.min.js?v=93"></script>
-    <link rel="stylesheet" href="css/style.css?v=97">
+    <script src="lib/xlsx.full.min.js?v=1"></script>
+    <script src="lib/html5-qrcode.min.js?v=103"></script>
+    <link rel="stylesheet" href="css/style.css?v=103">
     <style>
         /* Burger Menu Icon design */
         .burger { font-size: 22px !important; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(255,255,255,0.18); color: white; border: 1px solid rgba(255,255,255,0.35); box-shadow: 0 4px 10px rgba(0,0,0,0.12); transition: transform 0.2s ease, background 0.2s ease; cursor: pointer; user-select: none; }
@@ -126,6 +126,9 @@
         <div class="drawer-item" onclick="requestAuswertungAccess();" style="opacity:0.85;">
             <span class="item-icon">📊</span><span>LKW-Auswertung</span><span style="font-size:11px; margin-left:auto; opacity:0.7;">🔒</span>
         </div>
+        <div class="drawer-item small-note" style="pointer-events:none; justify-content:center; opacity:0.5; margin-top:4px; font-size:12px;">
+            <span>Build 102 · Update-Test</span>
+        </div>
     </nav>
 
     <header>
@@ -134,7 +137,7 @@
         </div>
         <div class="header-center">
             <p class="head-title">Tresch & Sohn</p>
-            <p class="head-subtitle">Logistik & Rechner</p>
+            <p class="head-subtitle">Logistik & Rechner · v7.2</p>
         </div>
         <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
             <button type="button" class="update-available-chip header-update-chip" style="display:none;" onclick="openOtaUpdatePrompt()" title="Neues Update installieren">UPDATE</button>
@@ -272,10 +275,10 @@
         
         <div style="display:flex; gap:8px; margin-top: 15px; padding: 0 10px;">
             <button onclick="listeDrucken()" style="flex:1; background: #ff6b00; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ Liste</button>
-            <button onclick="exportNoelkeExcel()" style="flex:1; background: #107c41; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">📊 Excel</button>
+            <button onclick="shareNoelkeListePdf()" style="flex:1; background: #25D366; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">📤 WhatsApp</button>
             <button onclick="printSelectedZebraLabels()" style="flex:1; background: #ffc107; color: black; padding: 15px; border-radius: 8px; border: none; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🦓 Etiketten</button>
         </div>
-        <p style="text-align: center; font-size: 11px; color: #777; margin-top: 5px;">Häkchen in der Liste setzen für Zebra-Druck</p>
+        <p style="text-align: center; font-size: 11px; color: #777; margin-top: 5px;">Häkchen für Zebra-Druck · „WhatsApp“ = Liste als Text senden</p>
 
     </div>
 
@@ -1091,14 +1094,14 @@
     </div>
 </div>
 
-<script src="js/druck_utils.js?v=1"></script>
+<script src="js/druck_utils.js?v=4"></script>
 <script src="js/cloud_secrets.embed.js?v=1"></script>
 <script src="js/cloud_auth.js?v=2"></script>
-<script src="js/script.js?v=100"></script>
+<script src="js/script.js?v=103"></script>
 <script src="js/team_brief.js?v=1"></script>
-<script src="js/rechner.js?v=85"></script>
-<script src="js/rechner_scanner.js?v=93"></script>
-<script src="js/rechner_druck.js?v=80"></script>
+<script src="js/rechner.js?v=86"></script>
+<script src="js/rechner_scanner.js?v=103"></script>
+<script src="js/rechner_druck.js?v=84"></script>
 <script src="js/rechner_reklamation.js?v=80"></script>
 <script src="js/rechner_leergut.js?v=80"></script>
 <script src="js/logistik.js?v=80"></script>

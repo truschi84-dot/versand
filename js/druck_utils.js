@@ -5,6 +5,24 @@ function escapePrintHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function sharePlainText(text, subject) {
+    if (!text) return false;
+    if (typeof AndroidApp !== 'undefined' && typeof AndroidApp.shareText === 'function') {
+        AndroidApp.shareText(text, subject || '');
+        return true;
+    }
+    if (typeof navigator !== 'undefined' && navigator.share) {
+        return navigator.share({ title: subject || 'Teilen', text: text }).then(() => true).catch(() => false);
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text).then(() => {
+            if (typeof showToast === 'function') showToast('Liste kopiert – in WhatsApp einfügen', 'info');
+            return true;
+        }).catch(() => false);
+    }
+    return false;
+}
+
 function printCleanDocument(opts) {
     const title = opts.title || '';
     const subtitle = opts.subtitle || '';
@@ -87,12 +105,111 @@ function printTableDocument(opts) {
     });
 }
 
-function downloadExcelSheet(rows, sheetName, filename) {
-    if (typeof XLSX === 'undefined') { alert('Excel-Bibliothek nicht geladen.'); return false; }
-    if (!rows || rows.length === 0) { alert('Keine Daten zum Exportieren!'); return false; }
+function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+}
+
+function buildExcelWorkbook(rows, sheetName) {
+    if (typeof XLSX === 'undefined') return null;
     const ws = XLSX.utils.json_to_sheet(rows);
+    const keys = rows.length ? Object.keys(rows[0]) : [];
+    if (keys.length) {
+        ws['!cols'] = keys.map((key) => {
+            const maxLen = Math.max(
+                key.length,
+                ...rows.map((r) => String(r[key] ?? '').length)
+            );
+            return { wch: Math.min(Math.max(maxLen + 2, 10), 70) };
+        });
+    }
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Daten');
-    XLSX.writeFile(wb, filename || 'export.xlsx');
-    return true;
+    return wb;
+}
+
+function workbookToBlob(wb) {
+    const arrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return new Blob([arrayBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+}
+
+async function shareOrDownloadExcelSheet(rows, sheetName, filename) {
+    if (typeof XLSX === 'undefined') {
+        if (typeof showToast === 'function') showToast('Excel-Bibliothek fehlt – App neu starten.', 'error');
+        else alert('Excel-Bibliothek nicht geladen.');
+        return false;
+    }
+    if (!rows || rows.length === 0) {
+        if (typeof showToast === 'function') showToast('Keine Daten zum Exportieren!', 'warning');
+        else alert('Keine Daten zum Exportieren!');
+        return false;
+    }
+
+    const name = filename || 'export.xlsx';
+    const wb = buildExcelWorkbook(rows, sheetName);
+    if (!wb) return false;
+    const blob = workbookToBlob(wb);
+    const mime = blob.type;
+
+    if (typeof AndroidApp !== 'undefined' && typeof AndroidApp.shareFile === 'function') {
+        try {
+            const buf = await blob.arrayBuffer();
+            AndroidApp.shareFile(name, mime, arrayBufferToBase64(buf));
+            return true;
+        } catch (e) {
+            console.error('AndroidApp.shareFile', e);
+        }
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.share && typeof File !== 'undefined') {
+        try {
+            const file = new File([blob], name, { type: mime });
+            const canShareFiles = !navigator.canShare || navigator.canShare({ files: [file] });
+            if (canShareFiles) {
+                await navigator.share({
+                    files: [file],
+                    title: sheetName || 'Excel Export',
+                    text: name
+                });
+                return true;
+            }
+        } catch (e) {
+            if (e && e.name === 'AbortError') return false;
+            console.warn('navigator.share', e);
+        }
+    }
+
+    try {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+            a.remove();
+        }, 1000);
+        return true;
+    } catch (e) {
+        try {
+            XLSX.writeFile(wb, name);
+            return true;
+        } catch (e2) {
+            if (typeof showToast === 'function') showToast('Excel-Export fehlgeschlagen.', 'error');
+            return false;
+        }
+    }
+}
+
+function downloadExcelSheet(rows, sheetName, filename) {
+    return shareOrDownloadExcelSheet(rows, sheetName, filename);
 }

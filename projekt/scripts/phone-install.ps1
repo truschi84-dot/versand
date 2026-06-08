@@ -1,4 +1,4 @@
-# Nur APK installieren (ohne Dateien zu kopieren) – wenn Build schon in Android Studio lief
+# Nur APK installieren (ohne Dateien zu kopieren) - wenn Build schon in Android Studio lief
 param(
     [string]$ApkPath = "",
     [string]$ProjectPath = ""
@@ -27,9 +27,9 @@ if (-not $ApkPath -or -not (Test-Path $ApkPath)) {
     throw "APK-Pfad angeben oder deploy.config.json mit apkPath pflegen."
 }
 
-Write-Host "Geräte:"
+Write-Host "Geraete:"
 & $adb devices
 Write-Host "Installiere: $ApkPath"
 & $adb install -r $ApkPath
 if ($LASTEXITCODE -ne 0) { throw "Installation fehlgeschlagen" }
-Write-Host "OK – App auf dem Handy installiert."
+Write-Host "OK - App auf dem Handy installiert."

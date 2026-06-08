@@ -606,6 +606,52 @@ body.dark-mode .activity-msg { color: #e0e0e0; }
     white-space: nowrap;
 }
 
+/* Nölke: Etikett-Häkchen (gut sichtbar, auch Dark Mode + Handschuhe) */
+#app2_wrapper .noelke-cb-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 4px;
+    margin: -4px 0;
+    cursor: pointer;
+}
+#app2_wrapper .print-noelke-cb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    min-height: 26px;
+    margin: 0;
+    flex-shrink: 0;
+    border: 2px solid #137333;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    display: grid;
+    place-content: center;
+    padding: 0 !important;
+    box-sizing: border-box;
+}
+#app2_wrapper .print-noelke-cb::after {
+    content: "";
+    width: 6px;
+    height: 11px;
+    border: solid #fff;
+    border-width: 0 3px 3px 0;
+    transform: rotate(45deg) scale(0);
+    margin-top: -2px;
+    transition: transform 0.12s ease;
+}
+#app2_wrapper .print-noelke-cb:checked {
+    background: #137333;
+    border-color: #137333;
+}
+#app2_wrapper .print-noelke-cb:checked::after {
+    transform: rotate(45deg) scale(1);
+}
+
 #app2_wrapper .palette-card {
     background: var(--card);
     padding: 16px;
@@ -1098,7 +1144,7 @@ body.dark-mode .activity-msg { color: #e0e0e0; }
     #app2_wrapper .head-subtitle { font-size: 10px; }
     #app2_wrapper .header-center { padding: 0 4px; }
     #app2_wrapper .input-area { padding: 12px 10px; }
-    #app2_wrapper input, #app2_wrapper select {
+    #app2_wrapper input:not([type="checkbox"]):not([type="radio"]), #app2_wrapper select {
         padding: 8px 10px !important;
         font-size: 16px !important;
         min-height: 38px !important;
@@ -1705,6 +1751,15 @@ body.dark-mode .no-pal-strip {
 }
 body.dark-mode .no-pal-strip input[type="checkbox"] { background: #2c2c2c !important; }
 body.dark-mode .no-pal-strip.is-active { background: #4a2020 !important; }
+body.dark-mode #app2_wrapper .print-noelke-cb {
+    background: #1a2e1f !important;
+    border-color: #4caf50 !important;
+    color: inherit !important;
+}
+body.dark-mode #app2_wrapper .print-noelke-cb:checked {
+    background: #137333 !important;
+    border-color: #81c784 !important;
+}
 
 body.dark-mode button[style*="background:#eee"],
 body.dark-mode button[style*="background: #eee"],

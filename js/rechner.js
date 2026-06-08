@@ -646,15 +646,25 @@ function addNoelkeLocal() {
 }
 
 function renderNoelke() { 
+    const listEl = document.getElementById('list-noelke');
+    if (!listEl) return;
+
+    if (!entriesNoelke.length) {
+        listEl.innerHTML = '<div class="noelke-empty-hint" style="text-align:center;padding:24px 16px;color:#666;font-size:13px;line-height:1.5;">Noch keine Einträge in der Liste.<br><span style="font-size:12px;color:#888;">Produkt wählen → „+ Speichern“ – dann erscheint links das Häkchen für Zebra-Etiketten.</span></div>';
+        return;
+    }
+
     let einheit = "E2";
     const config = getLeergutConfig();
     if(config.length > 0) einheit = config[0].name;
 
-    document.getElementById('list-noelke').innerHTML = entriesNoelke.map((e,i) => `
+    listEl.innerHTML = entriesNoelke.map((e,i) => `
     <div class="swipe-wrap" style="margin: 0 10px 8px 10px;">
         <div class="swipe-bg" onclick="deleteNoelkeEntry(${i})"><span>🗑️</span></div>
         <div class="palette-card swipeable" style="border-left-color:#137333; margin: 0; display:flex; align-items:center; gap:12px; padding: 10px 15px;">
-            <input type="checkbox" class="print-noelke-cb" data-index="${i}" style="width: 22px; height: 22px; cursor: pointer; margin:0;" onclick="event.stopPropagation()">
+            <label class="noelke-cb-wrap" onclick="event.stopPropagation()" aria-label="Für Etikettendruck auswählen">
+                <input type="checkbox" class="print-noelke-cb" data-index="${i}">
+            </label>
             <div style="flex:1" onclick="openEditNoelke(${i})">
                 <b style="font-size:14px;">${e.prod}</b>
                 <div class="entry-sub" style="font-size:11px; margin-top:3px;">${e.e2} ${einheit} &nbsp;|&nbsp; MHD: ${e.mhd}</div>

@@ -1,10 +1,12 @@
 /**
  * Minimaler lokaler Webserver für Vorschau / Debugging (Port 8080).
+ * Inkl. USB-Deploy-API für Control Center (nur localhost).
  * Start: node server.js
  */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { handleDeployApi } = require('./local-deploy-api');
 
 const PORT = 8080;
 /** App-Root (eine Ebene über projekt/) – bedient App + projekt/pc/ */
@@ -27,6 +29,11 @@ const MIME = {
 
 const server = http.createServer((req, res) => {
     let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+
+    if (urlPath.startsWith('/api/deploy')) {
+        if (handleDeployApi(req, res, urlPath)) return;
+    }
+
     if (urlPath === '/') urlPath = '/index.html';
     const filePath = path.normalize(path.join(ROOT, urlPath));
     if (!filePath.startsWith(ROOT)) {
@@ -56,6 +63,19 @@ const server = http.createServer((req, res) => {
     });
 });
 
+server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error('');
+        console.error('FEHLER: Port 8080 ist schon belegt.');
+        console.error('Loesung: Doppelklick Control-Center-Starten.bat');
+        console.error('        (beendet den alten Prozess automatisch)');
+        console.error('');
+        process.exit(1);
+    }
+    console.error(err);
+    process.exit(1);
+});
+
 server.listen(PORT, '0.0.0.0', () => {
     const os = require('os');
     let lan = 'localhost';
@@ -70,6 +90,7 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`Kombi Buero-Server:`);
     console.log(`  App:    http://localhost:${PORT}/index.html`);
     console.log(`  Admin:  http://localhost:${PORT}/projekt/pc/control-center.html`);
+    console.log(`  Handy:  USB-Update im Control Center (Tab „Handy Update“)`);
     console.log(`  WLAN:   http://${lan}:${PORT}/index.html`);
     console.log(`  OTA:    officeWebBaseUrl in app-update.json = http://${lan}:${PORT}`);
 });
