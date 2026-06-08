@@ -4,14 +4,14 @@
 const FIREBASE_CLOUD_BACKUP = "https://tresch-versand-default-rtdb.firebaseio.com/backup";
 const APP_CONFIG = {
     CLOUD_URL: localStorage.getItem('custom_cloud_url') || FIREBASE_CLOUD_BACKUP,
-    LOGISTIK_PIN: "110784",
+    LOGISTIK_PIN: "3132",
     ADMIN_PIN: "3132",
     NOTIFICATION_URL: "https://formspree.io/f/xrejnkgq"
 };
 
 const APP_VERSION = "7.1";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 99;
+const WEB_BUILD_VERSION = 100;
 /** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
 const OFFICE_LAN_URL = 'http://192.168.211.135:8080';
 let pendingOtaUpdate = null;
