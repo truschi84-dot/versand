@@ -808,6 +808,20 @@
                 <button class="btn btn-black" onclick="refreshDeployStatus()">🔄 Status aktualisieren</button>
             </div>
 
+            <div class="card" style="border-top: 4px solid #00897b;">
+                <h3 style="margin-top:0;">🩺 Gesundheitscheck nach Update</h3>
+                <p style="font-size:13px; color:#666; margin:0 0 12px;">Prüft automatisch Versionen, wichtige Dateien, Server, GitHub und JS-Syntax. Am Handy bleiben ein paar Punkte manuell (Checkliste unten).</p>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+                    <button class="btn btn-success" id="btn-health-check" style="background:#00897b;" onclick="runHealthCheckUi()">▶ Gesundheitscheck starten</button>
+                    <a class="btn btn-save" href="https://truschi84-dot.github.io/versand/app-update.json" target="_blank" rel="noopener" style="text-decoration:none;">🌐 GitHub Version (JSON)</a>
+                    <a class="btn btn-black" href="https://truschi84-dot.github.io/versand/index.html" target="_blank" rel="noopener" style="text-decoration:none;">📱 GitHub App öffnen</a>
+                </div>
+                <p style="font-size:11px; color:#888; margin:0 0 8px;">Ohne Control Center: Doppelklick <code>projekt\scripts\App-Gesundheitscheck.bat</code></p>
+                <div id="health-check-summary" style="display:none; margin-bottom:10px; font-size:14px; font-weight:bold;"></div>
+                <div id="health-check-results" style="font-size:12px; max-height:320px; overflow:auto; background:#fafafa; border:1px solid #e0e0e0; border-radius:8px; padding:10px; display:none;"></div>
+                <div id="health-check-manual" style="display:none; margin-top:12px; font-size:12px; color:#555;"></div>
+            </div>
+
             <div class="card" style="border-top: 4px solid #25D366;">
                 <h3 style="margin-top:0;">📱 Handy per USB (empfohlen im Büro)</h3>
                 <p style="font-size:13px; color:#666; margin:0 0 12px;">Handy per Kabel — kein Internet auf dem Handy nötig. USB-Debugging muss an sein.</p>
@@ -955,7 +969,7 @@
     </div>
 
     <script>
-        let ADMIN_PIN = "3132";
+        let ADMIN_PIN = "110784";
         let isAdminUnlocked = false;
         let pendingTabId = null;
         let pendingTabElement = null;
@@ -1054,8 +1068,8 @@
             settings: { 
                 printerIp: "192.168.211.40", 
                 notificationUrl: "https://formspree.io/f/xrejnkgq", 
-                logistikPin: "110784", 
-                adminPin: "3132",
+                logistikPin: "3132", 
+                adminPin: "110784",
                 pinVersion: 1,
                 inactivityTimeout: 0,
                 noelkeDefaultArtNr: "NÖLKE" },
@@ -1421,6 +1435,64 @@
             postDeployJob('/api/deploy/ota-firebase', 'Firebase Hosting deploy starten?');
         }
 
+        function healthStatusColor(s) {
+            if (s === 'ok') return '#2e7d32';
+            if (s === 'warn') return '#e65100';
+            return '#b71c1c';
+        }
+
+        function renderHealthCheckReport(report) {
+            const sumEl = document.getElementById('health-check-summary');
+            const box = document.getElementById('health-check-results');
+            const manualEl = document.getElementById('health-check-manual');
+            if (!sumEl || !box) return;
+            sumEl.style.display = 'block';
+            box.style.display = 'block';
+            const allOk = report.failCount === 0 && report.warnCount === 0;
+            sumEl.style.color = report.failCount ? '#b71c1c' : (report.warnCount ? '#e65100' : '#2e7d32');
+            sumEl.textContent = (report.failCount ? '❌ ' : (report.warnCount ? '⚠️ ' : '✅ '))
+                + 'OK ' + report.okCount + ' · Warn ' + report.warnCount + ' · Fehler ' + report.failCount;
+            box.innerHTML = (report.checks || []).map(function(c) {
+                const hint = c.hint ? '<div style="color:#888;margin-top:2px;">→ ' + c.hint + '</div>' : '';
+                return '<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #eee;">'
+                    + '<strong style="color:' + healthStatusColor(c.status) + ';">' + c.status.toUpperCase() + '</strong> '
+                    + '<span>' + c.name + '</span><br><span style="color:#555;">' + c.message + '</span>' + hint + '</div>';
+            }).join('');
+            if (manualEl && report.manualChecklist && report.manualChecklist.length) {
+                manualEl.style.display = 'block';
+                manualEl.innerHTML = '<strong>Handy-Checkliste (manuell):</strong><ol style="margin:6px 0 0;padding-left:20px;">'
+                    + report.manualChecklist.map(function(m) { return '<li>' + m + '</li>'; }).join('') + '</ol>';
+            }
+        }
+
+        async function runHealthCheckUi() {
+            const btn = document.getElementById('btn-health-check');
+            const sumEl = document.getElementById('health-check-summary');
+            const box = document.getElementById('health-check-results');
+            if (btn) btn.disabled = true;
+            if (sumEl) { sumEl.style.display = 'block'; sumEl.textContent = 'Prüfe…'; sumEl.style.color = '#666'; }
+            if (box) { box.style.display = 'block'; box.textContent = 'Bitte warten (GitHub-Abfrage kann einige Sekunden dauern)…'; }
+            try {
+                if (!deployApiBaseResolved) await refreshDeployStatus();
+                const base = deployApiBase();
+                if (!base && base !== '') {
+                    alert('Server aus – bitte Control-Center-Starten.bat starten, oder App-Gesundheitscheck.bat per Doppelklick.');
+                    return;
+                }
+                const res = await fetch(base + '/api/deploy/health-check', { cache: 'no-store' });
+                const data = await res.json();
+                if (!data.ok || !data.report) {
+                    alert(data.error || 'Gesundheitscheck fehlgeschlagen');
+                    return;
+                }
+                renderHealthCheckReport(data.report);
+            } catch (e) {
+                alert('Fehler: ' + e.message);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
         function toggleAdminMenu() {
             const sm = document.getElementById('admin-submenu');
             sm.style.display = sm.style.display === 'flex' ? 'none' : 'flex';
@@ -1585,13 +1657,13 @@
             db.later = (db.later||[]).filter(a => a && a.fertigNr && a.name !== undefined && isNotAssigned(a));
             db.hidden = (db.hidden||[]).filter(a => a && a.fertigNr && a.name !== undefined && isNotAssigned(a));
             
-            if(!db.settings) db.settings = { printerIp: "192.168.211.40", notificationUrl: "https://formspree.io/f/xrejnkgq", logistikPin: "110784", adminPin: "3132", pinVersion: 1, inactivityTimeout: 0, noelkeDefaultArtNr: "NÖLKE" };
+            if(!db.settings) db.settings = { printerIp: "192.168.211.40", notificationUrl: "https://formspree.io/f/xrejnkgq", logistikPin: "3132", adminPin: "110784", pinVersion: 1, inactivityTimeout: 0, noelkeDefaultArtNr: "NÖLKE" };
             if (db.settings.pinVersion == null) db.settings.pinVersion = 1;
             if(!db.workers) db.workers = [];
             if(!db.workerColors) db.workerColors = {};
             (db.workers || []).forEach(w => { if (!db.workerColors[w]) db.workerColors[w] = nextWorkerColor(); });
             if(!db.company) db.company = { name: "Tresch & Sohn", color: "#004b93", modules: { lkw: true, sort: true, noelke: true }, leergut: "E2:2.0, Herta:2.5, H1:18.0, Euro:21.0" };
-            ADMIN_PIN = db.settings.adminPin || "3132";
+            ADMIN_PIN = db.settings.adminPin || "110784";
             
             document.getElementById('set-printer-ip').value = db.settings.printerIp || "";
             document.getElementById('set-notification-url').value = db.settings.notificationUrl || "";

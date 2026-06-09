@@ -5,6 +5,7 @@
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { runHealthCheck, writeHtmlReport } = require('./scripts/app-gesundheitscheck');
 
 const PROJEKT_ROOT = path.join(__dirname);
 const APP_ROOT = path.join(PROJEKT_ROOT, '..');
@@ -172,6 +173,20 @@ function handleDeployApi(req, res, urlPath) {
     if (!isLocalRequest(req)) {
         res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ ok: false, error: 'Nur vom Büro-PC (localhost/LAN) erlaubt.' }));
+        return true;
+    }
+
+    if (req.method === 'GET' && urlPath === '/api/deploy/health-check') {
+        runHealthCheck({}).then((report) => {
+            try {
+                writeHtmlReport(report);
+            } catch (_) { /* optional */ }
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ ok: true, report }));
+        }).catch((err) => {
+            res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ ok: false, error: err.message }));
+        });
         return true;
     }
 

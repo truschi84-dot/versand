@@ -45,6 +45,7 @@ function Bump-WebVersion {
     $idx = $idx -replace 'js/script\.js\?v=\d+', "js/script.js?v=$newVer"
     $idx = $idx -replace 'lib/html5-qrcode\.min\.js\?v=\d+', "lib/html5-qrcode.min.js?v=$newVer"
     $idx = $idx -replace 'js/rechner_scanner\.js\?v=\d+', "js/rechner_scanner.js?v=$newVer"
+    $idx = $idx -replace 'js/cloud_auth\.js\?v=\d+', "js/cloud_auth.js?v=$newVer"
     Write-Utf8NoBom $indexPath $idx
     Write-Host "index.html -> Cache ?v=$newVer"
     return $newVer
@@ -64,6 +65,16 @@ try {
     $embedStub = "/** Stub fuer GitHub Pages - echte Zugangsdaten nur lokal/APK. */`nwindow.__FIREBASE_SECRETS__ = null;`n"
     Write-Utf8NoBom (Join-Path $AppRoot "js\cloud_secrets.embed.js") $embedStub
 
+    # PINs fuer GitHub-Test (ohne Firebase-Auth) aus Cloud synchronisieren
+    $syncPins = Join-Path $ProjektRoot "scripts\sync-public-pins.js"
+    if (Test-Path $syncPins) {
+        try {
+            & node $syncPins
+        } catch {
+            Write-Warning "sync-public-pins fehlgeschlagen - app-settings-public.json evtl. veraltet."
+        }
+    }
+
     if (-not $PushToGitHub) {
         Write-Host ""
         Write-Host "=== Nur lokal - kein GitHub-Push ==="
@@ -74,7 +85,7 @@ try {
     }
 
     git add .gitignore .nojekyll README.md projekt/ js/ css/ lib/ icons/
-    git add app-update.json app-version.json manifest.webmanifest index.html sw.js js/cloud_secrets.embed.js
+    git add app-update.json app-version.json app-settings-public.json manifest.webmanifest index.html sw.js js/cloud_secrets.embed.js
     git add -u
 
     $status = git status --porcelain

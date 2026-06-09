@@ -5,17 +5,17 @@ const FIREBASE_CLOUD_BACKUP = "https://tresch-versand-default-rtdb.firebaseio.co
 const APP_CONFIG = {
     CLOUD_URL: localStorage.getItem('custom_cloud_url') || FIREBASE_CLOUD_BACKUP,
     LOGISTIK_PIN: "3132",
-    ADMIN_PIN: "3132",
+    ADMIN_PIN: "110784",
     NOTIFICATION_URL: "https://formspree.io/f/xrejnkgq"
 };
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 105;
+const WEB_BUILD_VERSION = 106;
 /** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
 const OFFICE_LAN_URL = 'http://192.168.211.135:8080';
 let pendingOtaUpdate = null;
-const APP_CHANGELOG = "<b>Was ist neu in 7.2?</b><br><br>• 🚀 <b>Update-Test:</b> Kleine sichtbare Änderung – wenn du das siehst, hat das USB-Deploy aus dem Control Center geklappt.<br>• 📋 <b>Rechner-Menü:</b> Unten steht jetzt die Build-Nummer (102).";
+const APP_CHANGELOG = "<b>Was ist neu in 7.2?</b><br><br>• GitHub-Vorschau: kein Cloud-Fehler mehr beim Start (Cloud nur in APK).<br>• PIN: App 3132, Admin 110784 auch ohne Cloud-Login.<br>• Gesundheitscheck im Control Center.";
 /** APK (file://): Update-Config nur bei manueller Prüfung – nicht beim Start. */
 const OTA_REMOTE_CONFIG_URL = "https://truschi84-dot.github.io/versand/app-update.json";
 
@@ -246,19 +246,43 @@ function ensureAppVisible() {
 
 async function fetchSettingsForPinCheck() {
     const base = FIREBASE_CLOUD_BACKUP.replace(/\/backup\/?$/, '');
-    const url = base + '/backup/settings.json?t=' + Date.now();
+    const cloudUrl = base + '/backup/settings.json?t=' + Date.now();
+
     try {
-        await CloudAuth.ensureAuth();
-        const res = await cloudFetch(url);
-        if (res.ok) return await res.json();
+        if (typeof CloudAuth !== 'undefined' && CloudAuth.isReady && CloudAuth.isReady()) {
+            await CloudAuth.ensureAuth();
+            const res = await cloudFetch(cloudUrl);
+            if (res.ok) return await res.json();
+        }
     } catch (e) {
         console.warn('Cloud-PIN (auth):', e.message || e);
     }
+
     try {
-        const res = await fetch(url, { cache: 'no-store' });
+        const origin = (typeof location !== 'undefined' && location.origin) ? location.origin : '';
+        if (origin && origin.startsWith('http')) {
+            const res = await fetch(origin + '/app-settings-public.json?t=' + Date.now(), { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                if (data && (data.logistikPin || data.adminPin)) return data;
+            }
+        }
+    } catch (e) {
+        console.warn('Cloud-PIN (public file):', e.message || e);
+    }
+
+    try {
+        await CloudAuth.ensureAuth();
+        const res = await cloudFetch(cloudUrl);
         if (res.ok) return await res.json();
     } catch (e) {
-        console.warn('Cloud-PIN (öffentlich):', e.message || e);
+        console.warn('Cloud-PIN (auth retry):', e.message || e);
+    }
+    try {
+        const res = await fetch(cloudUrl, { cache: 'no-store' });
+        if (res.ok) return await res.json();
+    } catch (e) {
+        console.warn('Cloud-PIN (oeffentlich):', e.message || e);
     }
     return null;
 }
@@ -312,7 +336,7 @@ function initAppAfterUnlock() {
     if (typeof loadLocalDB === 'function') loadLocalDB();
     if (typeof loadRechnerData === 'function') loadRechnerData();
     if (typeof initCalc === 'function') initCalc();
-    if (navigator.onLine && typeof loadAllFromCloud === 'function') loadAllFromCloud();
+    if (navigator.onLine && typeof loadAllFromCloud === 'function') loadAllFromCloud(true);
     if (typeof renderAppCloudLogs === 'function') renderAppCloudLogs();
     if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
     if (typeof initLkwShareButtons === 'function') initLkwShareButtons();

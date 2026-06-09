@@ -157,8 +157,53 @@ const CloudAuth = {
     }
 };
 
+function isGithubPagesHost() {
+    return /github\.io/i.test((typeof location !== 'undefined' && location.hostname) || '');
+}
+
+/** GitHub-Vorschau im Browser hat keinen Firebase-Zugang (nur APK/USB). */
+async function shouldSkipCloudOnWeb(silent) {
+    if (typeof CloudAuth === 'undefined') return false;
+    await CloudAuth.loadSecrets();
+    if (CloudAuth.isReady()) return false;
+    if (isGithubPagesHost()) {
+        if (!silent && typeof addAppCloudLog === 'function') {
+            addAppCloudLog('INFO: GitHub-Vorschau ohne Cloud (APK/USB hat Zugang)');
+        }
+        return true;
+    }
+    return false;
+}
+
+async function guardCloudAccess(showUserMessage) {
+    if (!navigator.onLine) {
+        if (showUserMessage && typeof showToast === 'function') showToast('Kein Internet.', 'warning');
+        return false;
+    }
+    await CloudAuth.loadSecrets();
+    if (CloudAuth.isReady()) return true;
+    if (isGithubPagesHost()) {
+        if (showUserMessage && typeof showToast === 'function') {
+            showToast('Cloud nur in der APK – GitHub ist Vorschau ohne Cloud-Zugang.', 'info');
+        }
+        return false;
+    }
+    if (showUserMessage && typeof showToast === 'function') {
+        showToast(getCloudSetupHint(), 'error');
+    }
+    return false;
+}
+
 /** Wrapper für alle Firebase-RTDB-Aufrufe. */
 async function cloudFetch(url, options) {
+    if (isGithubPagesHost()) {
+        await CloudAuth.loadSecrets();
+        if (!CloudAuth.isReady()) {
+            const err = new Error('GITHUB_NO_CLOUD');
+            err.code = 'GITHUB_NO_CLOUD';
+            throw err;
+        }
+    }
     return CloudAuth.fetch(url, options);
 }
 

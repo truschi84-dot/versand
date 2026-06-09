@@ -60,8 +60,9 @@ function saveRechnerDB() {
     } catch(e) { console.error("Fehler in saveRechnerDB", e); }
 }
 
-async function loadAllFromCloud() {
+async function loadAllFromCloud(silent) {
     if (!requireAppAuth()) return;
+    if (await shouldSkipCloudOnWeb(!!silent)) return;
     const btn = document.getElementById('global-sync-btn');
     if(btn) btn.classList.add('sync-active');
     try {
@@ -74,14 +75,19 @@ async function loadAllFromCloud() {
             if (typeof loadRechnerData === 'function') loadRechnerData();
             if (typeof updateLiefDropdowns === 'function') updateLiefDropdowns();
             if (typeof addAppCloudLog === 'function') addAppCloudLog("DOWNLOAD: Stammdaten aus Cloud [OK]");
-            showToast("Lieferanten, Sorten & Nölke-Produkte geladen!", "success");
+            if (!silent) showToast("Lieferanten, Sorten & Nölke-Produkte geladen!", "success");
         }
     } catch(e) { 
         console.error(e);
+        if (e && e.code === 'GITHUB_NO_CLOUD') {
+            if (typeof addAppCloudLog === 'function') addAppCloudLog('INFO: GitHub-Vorschau ohne Cloud (APK/USB hat Zugang)');
+            if(btn) btn.classList.remove('sync-active');
+            return;
+        }
         const msg = (typeof getCloudSetupHint === 'function' && /Cloud-Zugang|Firebase-Login|nicht konfiguriert/i.test(String(e.message || '')))
             ? e.message
             : ('Cloud-Fehler: ' + (e.message || 'Netzwerk'));
-        showToast(msg.length > 120 ? 'Cloud-Fehler – siehe Cloud-Log' : msg, 'error'); 
+        if (!silent) showToast(msg.length > 120 ? 'Cloud-Fehler – siehe Cloud-Log' : msg, 'error'); 
         if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Listen-Update fehlgeschlagen - " + (e.message || msg));
     }
     if(btn) btn.classList.remove('sync-active');

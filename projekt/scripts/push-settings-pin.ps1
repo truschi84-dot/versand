@@ -33,7 +33,7 @@ if ($LogistikPin -and $LogistikPin -ne $oldPin) { $pinVersion++ }
 
 $settings.logistikPin = $LogistikPin
 $settings.pinVersion = $pinVersion
-if (-not $settings.adminPin) { $settings.adminPin = "3132" }
+if (-not $settings.adminPin) { $settings.adminPin = "110784" }
 
 $body = $settings | ConvertTo-Json -Depth 10 -Compress
 Invoke-RestMethod -Method Put -Uri $settingsUrl -ContentType "application/json" -Body $body | Out-Null
