@@ -11,7 +11,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 103;
+const WEB_BUILD_VERSION = 104;
 /** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
 const OFFICE_LAN_URL = 'http://192.168.211.135:8080';
 let pendingOtaUpdate = null;
@@ -1336,7 +1336,7 @@ function getLogistikFullCloudPayload() {
     delete safeSettings.adminPin;
     delete safeSettings.pinVersion;
     const payload = {
-        suppliers: lData.suppliers || [],
+        suppliers: (lData.suppliers || []).filter(s => !(lData.deletedSuppliers || []).includes(String(s).trim())),
         customers: lData.customers || [],
         articles: lData.articles || [],
         lose: lData.lose || [],
@@ -1350,6 +1350,8 @@ function getLogistikFullCloudPayload() {
         workerColors: lData.workerColors || {},
         checklistMorningTemplate: lData.checklistMorningTemplate || [],
         teamDayBrief: lData.teamDayBrief || null,
+        deletedSuppliers: lData.deletedSuppliers || [],
+        supplierLines: lData.supplierLines || {},
         savedProdukteRaw: rData.savedProdukteRaw || [],
         sonderTemplates: rData.sonderTemplates || []
     };
@@ -1363,6 +1365,8 @@ function getRechnerStammdatenCloudPayload() {
     const rData = AppStorage.get('kombi_rechner_db', {});
     return {
         suppliers: lData.suppliers || [],
+        supplierLines: lData.supplierLines || {},
+        deletedSuppliers: lData.deletedSuppliers || [],
         articles: lData.articles || [],
         savedProdukteRaw: rData.savedProdukteRaw || [],
         sonderTemplates: rData.sonderTemplates || []
@@ -1375,12 +1379,22 @@ function applyLogistikFullFromCloud(data) {
     let changed = false;
     const setArr = (key) => { if (Array.isArray(data[key])) { lDb[key] = data[key]; changed = true; } };
     const setObj = (key) => { if (data[key] && typeof data[key] === 'object' && !Array.isArray(data[key])) { lDb[key] = data[key]; changed = true; } };
+    if (Array.isArray(data.deletedSuppliers)) { lDb.deletedSuppliers = data.deletedSuppliers; changed = true; }
     setArr('suppliers'); setArr('customers'); setArr('articles');
     setArr('lose'); setArr('todo'); setArr('later'); setArr('hidden');
     setArr('workers'); setArr('deliveries');
     setArr('checklistMorningTemplate');
     setObj('dailyStaff'); setObj('dailyAttendance'); setObj('workerColors');
     setObj('teamDayBrief');
+    if (data.supplierLines && typeof data.supplierLines === 'object') {
+        lDb.supplierLines = { ...(lDb.supplierLines || {}), ...data.supplierLines };
+        changed = true;
+    }
+    const deleted = new Set((lDb.deletedSuppliers || []).map(s => String(s).trim()).filter(Boolean));
+    if (deleted.size && Array.isArray(lDb.suppliers)) {
+        lDb.suppliers = lDb.suppliers.filter(s => !deleted.has(String(s).trim()));
+        changed = true;
+    }
     if (data.settings && typeof data.settings === 'object') {
         if (revokeSessionIfPinChanged(data.settings)) return changed;
         const merged = { ...(lDb.settings || {}), ...data.settings };
@@ -1417,7 +1431,17 @@ function applyRechnerStammdatenFromCloud(data) {
     let changed = false;
     const lDb = AppStorage.get('kombi_logistik_db', {});
     const rDb = AppStorage.get('kombi_rechner_db', {});
+    if (Array.isArray(data.deletedSuppliers)) { lDb.deletedSuppliers = data.deletedSuppliers; changed = true; }
     if (Array.isArray(data.suppliers)) { lDb.suppliers = data.suppliers; changed = true; }
+    if (data.supplierLines && typeof data.supplierLines === 'object') {
+        lDb.supplierLines = { ...(lDb.supplierLines || {}), ...data.supplierLines };
+        changed = true;
+    }
+    const deleted = new Set((lDb.deletedSuppliers || []).map(s => String(s).trim()).filter(Boolean));
+    if (deleted.size && Array.isArray(lDb.suppliers)) {
+        lDb.suppliers = lDb.suppliers.filter(s => !deleted.has(String(s).trim()));
+        changed = true;
+    }
     if (Array.isArray(data.articles)) { lDb.articles = data.articles; changed = true; }
     if (Array.isArray(data.savedProdukteRaw)) { rDb.savedProdukteRaw = data.savedProdukteRaw; changed = true; }
     if (Array.isArray(data.sonderTemplates)) { rDb.sonderTemplates = data.sonderTemplates; changed = true; }

@@ -28,6 +28,7 @@ function loadRechnerData() {
         if (typeof syncMorningChecklistFromTemplate === 'function') syncMorningChecklistFromTemplate();
         
         if(typeof buildAppUI === 'function') buildAppUI();
+        if(typeof updateLiefDropdowns === 'function') updateLiefDropdowns();
 
         if(typeof renderLKW === 'function') { renderLKW(); renderSort(); renderNoelke(); loadBrandenburgData(); }
     } catch(e) { console.error("Fehler in loadRechnerData", e); }
@@ -96,7 +97,34 @@ function updateLiefDropdowns() {
 
         let allOptions = [...new Set(custs)].sort();
         if(document.getElementById('kunde-datalist')) document.getElementById('kunde-datalist').innerHTML = allOptions.map(s => `<option value="${s}">`).join('');
+        if (typeof updateLkwSupplierLineSelect === 'function') updateLkwSupplierLineSelect();
     } catch(e) { console.error("Fehler in updateLiefDropdowns", e); }
+}
+
+function getSupplierLinesForLief(name) {
+    const db = AppStorage.get('kombi_logistik_db', {});
+    const lines = db.supplierLines && db.supplierLines[name];
+    return Array.isArray(lines) ? lines.filter(l => String(l).trim()) : [];
+}
+
+function updateLkwSupplierLineSelect() {
+    const liefEl = document.getElementById('lief');
+    const wrap = document.getElementById('lkw-supplier-line-wrap');
+    const sel = document.getElementById('lkw-supplier-line');
+    if (!liefEl || !wrap || !sel) return;
+    const lines = getSupplierLinesForLief(liefEl.value);
+    if (!lines.length) {
+        wrap.style.display = 'none';
+        sel.innerHTML = '';
+        return;
+    }
+    wrap.style.display = 'block';
+    sel.innerHTML = lines.map(l => `<option value="${String(l).replace(/"/g, '&quot;')}">${l}</option>`).join('');
+}
+
+function lkwEntryLabel(e) {
+    if (!e) return '';
+    return e.line ? `${e.lief} · ${e.line}` : e.lief;
 }
 
 function switchTab(tabId) {
@@ -445,7 +473,17 @@ function calcSonderSort() {
 }
 
 function addPal() {
-    const lief = document.getElementById('lief').value; let p = { id: Date.now().toString(), lief, type: isSonderMode?'sonder':'normal' };
+    const lief = document.getElementById('lief').value;
+    const lineWrap = document.getElementById('lkw-supplier-line-wrap');
+    const lineEl = document.getElementById('lkw-supplier-line');
+    const configuredLines = getSupplierLinesForLief(lief);
+    const line = (lineWrap && lineWrap.style.display !== 'none' && lineEl) ? lineEl.value : '';
+    if (configuredLines.length && !line) {
+        showToast('Bitte Warenlinie wählen', 'warning');
+        return;
+    }
+    let p = { id: Date.now().toString(), lief, type: isSonderMode?'sonder':'normal' };
+    if (line) p.line = line;
     if(isSonderMode) {
         const r = parseFloat(document.getElementById('s-reihe').value)||0, rh = parseFloat(document.getElementById('s-reihen').value)||0, kl = parseFloat(document.getElementById('s-krtlage').value)||0, l = parseFloat(document.getElementById('s-lagen').value)||0, e = parseFloat(document.getElementById('s-einzel').value)||0;
         const ek = parseInt(document.getElementById('s-e2kisten').value)||0;
@@ -522,7 +560,7 @@ function renderLKW() {
     html += `<div class="leergut-card"><div class="leergut-title">Gesamt-Überblick LKW</div><div class="leergut-grid">${gridHtml}<span style="color:var(--sonder)">Kartons: ${tKart}</span></div></div>`;
     document.getElementById('list').innerHTML = html + entries.map((e,i) => {
         let details = e.type==='sonder' ? `Sonderp. | MHD: ${e.mhd||'-'} | Von: ${e.herkunft||'-'}${e.e2 ? ` | ${e.e2} E2` : ''}` : e.details;
-        return `<div class="swipe-wrap" style="margin: 0 10px 8px 10px;"><div class="swipe-bg" onclick="deleteLkwEntry(${i})"><span>🗑️</span></div><div class="palette-card swipeable" onclick="openEditLKW(${i})" style="margin: 0;"><div style="flex:1"><b>${e.type==='sonder'?'📦 ':''}${e.lief}</b><div class="entry-sub"> ${details}</div></div><div style="display:flex; align-items:center; gap:10px;"><span style="font-weight:bold;">${e.netto.toFixed(2).replace('.',',')} kg</span></div></div></div>`;
+        return `<div class="swipe-wrap" style="margin: 0 10px 8px 10px;"><div class="swipe-bg" onclick="deleteLkwEntry(${i})"><span>🗑️</span></div><div class="palette-card swipeable" onclick="openEditLKW(${i})" style="margin: 0;"><div style="flex:1"><b>${e.type==='sonder'?'📦 ':''}${lkwEntryLabel(e)}</b><div class="entry-sub"> ${details}</div></div><div style="display:flex; align-items:center; gap:10px;"><span style="font-weight:bold;">${e.netto.toFixed(2).replace('.',',')} kg</span></div></div></div>`;
     }).reverse().join('');
 }
 

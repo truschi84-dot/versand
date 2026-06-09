@@ -2,6 +2,6 @@
     "webBaseUrl":  "https://truschi84-dot.github.io/versand",
     "officeWebBaseUrl":  "http://192.168.211.135:8080",
     "preferOfficeLan":  true,
-    "webVersion":  103,
+    "webVersion":  104,
     "minApkVersion":  1
 }

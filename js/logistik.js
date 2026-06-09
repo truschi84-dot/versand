@@ -1,4 +1,5 @@
 let suppliers = [], customers = [], workers = [], deliveries = [], dailyStaff = {}, dailyAttendance = {}, workerColors = {}, articles = [], curId = null, curDate = null;
+let supplierLines = {}, deletedSuppliers = [];
 let todo = [], lose = [], later = [], hidden = [];
 let activeV10Tab = 'todo', currentTargetId = null, lastAction = null, editingFertigId = null;
 let assignMode = 'sup', assignSelectedTarget = null;
@@ -22,6 +23,8 @@ function loadLocalDB() {
     const val = AppStorage.get('kombi_logistik_db', {});
     suppliers = val.suppliers || []; 
     customers = val.customers || [];
+    supplierLines = val.supplierLines || {};
+    deletedSuppliers = Array.isArray(val.deletedSuppliers) ? val.deletedSuppliers : [];
     workers = val.workers || ["Ahmed", "Dominik", "Robert", "Julian", "Alex"]; 
     deliveries = val.deliveries ? (Array.isArray(val.deliveries) ? val.deliveries : Object.values(val.deliveries)) : []; 
     dailyStaff = val.dailyStaff || {}; 
@@ -41,6 +44,8 @@ function saveLocalDB() {
     const val = AppStorage.get('kombi_logistik_db', {});
     val.suppliers = suppliers;
     val.customers = customers;
+    val.supplierLines = supplierLines;
+    val.deletedSuppliers = deletedSuppliers;
     val.workers = workers;
     val.deliveries = deliveries;
     val.dailyStaff = dailyStaff;
@@ -190,12 +195,35 @@ function selectWorkerForShare(w, el) {
     el.style.background = getWColor(w); el.style.color = '#fff'; parent.dataset.value = w;
 }
 
+function getSupplierLinesList(name) {
+    const lines = supplierLines[name];
+    return Array.isArray(lines) ? lines.filter(l => String(l).trim()) : [];
+}
+
+function deliveryLabel(d) {
+    return d.line ? `${d.name} · ${d.line}` : d.name;
+}
+
+function updateSupplierLineSelect() {
+    const supEl = document.getElementById('supplierSelect');
+    const wrap = document.getElementById('supplierLineWrap');
+    const sel = document.getElementById('supplierLineSelect');
+    if (!supEl || !wrap || !sel) return;
+    const lines = getSupplierLinesList(supEl.value);
+    if (!lines.length) { wrap.style.display = 'none'; sel.innerHTML = ''; return; }
+    wrap.style.display = 'block';
+    sel.innerHTML = lines.map(l => `<option value="${l.replace(/"/g, '&quot;')}">${l}</option>`).join('');
+}
+
 function renderApp1() {
     const selDate = document.getElementById('selectedWorkDate') ? document.getElementById('selectedWorkDate').value : null; 
     if(!selDate) return;
     
     let allSups = [...suppliers].sort();
-    if(document.getElementById('supplierSelect')) document.getElementById('supplierSelect').innerHTML = allSups.map(s => `<option value="${s}">${s}</option>`).join('');
+    if(document.getElementById('supplierSelect')) {
+        document.getElementById('supplierSelect').innerHTML = allSups.map(s => `<option value="${s}">${s}</option>`).join('');
+        updateSupplierLineSelect();
+    }
     
     const mwSelect = document.getElementById('modalWorkerSelect');
     if(mwSelect) {
@@ -251,10 +279,26 @@ function renderApp1() {
 
     const filtered = deliveries.filter(d => d.date === selDate);
     if(document.getElementById('todayLog')) {
-        document.getElementById('todayLog').innerHTML = filtered.length > 0 ? filtered.map(d => {
-            const sum = (d.workerShares || []).reduce((s,v) => s + v.kg, 0);
-            return `<div class="card" data-delivery-id="${d.id}" style="border-left:5px solid ${(sum >= d.kg || d.isFullySorted) ? 'var(--success)' : 'var(--warning)'}; cursor:pointer; display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; justify-content:space-between; flex:1;"><b>${d.name}</b> <span>${d.kg.toLocaleString()} kg</span></div><span style="font-size:18px; padding: 10px; margin-right: -10px;">✏️</span></div>`;
-        }).join('') : '<p style="color:#999; text-align:center;">Keine Daten für dieses Datum</p>';
+        if (filtered.length === 0) {
+            document.getElementById('todayLog').innerHTML = '<p style="color:#999; text-align:center;">Keine Daten für dieses Datum</p>';
+        } else {
+            const bySup = {};
+            filtered.forEach(d => {
+                if (!bySup[d.name]) bySup[d.name] = { items: [], total: 0 };
+                bySup[d.name].items.push(d);
+                bySup[d.name].total += d.kg;
+            });
+            document.getElementById('todayLog').innerHTML = Object.keys(bySup).sort().map(sup => {
+                const g = bySup[sup];
+                const cards = g.items.map(d => {
+                    const sum = (d.workerShares || []).reduce((s,v) => s + v.kg, 0);
+                    return `<div class="card" data-delivery-id="${d.id}" style="border-left:5px solid ${(sum >= d.kg || d.isFullySorted) ? 'var(--success)' : 'var(--warning)'}; cursor:pointer; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;"><div style="display:flex; justify-content:space-between; flex:1;"><b>${deliveryLabel(d)}</b> <span>${d.kg.toLocaleString()} kg</span></div><span style="font-size:18px; padding: 10px; margin-right: -10px;">✏️</span></div>`;
+                }).join('');
+                const multi = g.items.length > 1 || g.items.some(i => i.line);
+                const footer = multi ? `<div style="text-align:right; font-weight:bold; color:var(--primary); padding:0 4px 14px; font-size:14px;">Σ ${sup}: ${g.total.toLocaleString()} kg</div>` : '';
+                return cards + footer;
+            }).join('');
+        }
     }
     
     const grouped = {};
@@ -264,7 +308,7 @@ function renderApp1() {
     if(jCont) jCont.innerHTML = ""; if(sBody) sBody.innerHTML = "";
     sorted.forEach(d => {
         const p = parseFloat(dailyStaff[d]) || 0; const tot = grouped[d].kg; const avg = p > 0 ? Math.round(tot/p) : 0;
-        let rows = grouped[d].items.map(i => `<tr><td style="padding:8px 0; border-bottom:1px solid #eee;"><b>${i.name}</b><br>${(i.workerShares || []).map(ws => `<span class="worker-tag" style="background:${getWColor(ws.name)}">${ws.name} (${ws.kg})</span>`).join('')}</td><td style="text-align:right; padding:8px 0; border-bottom:1px solid #eee;">${i.kg.toLocaleString()} kg</td></tr>`).join('');
+        let rows = grouped[d].items.map(i => `<tr><td style="padding:8px 0; border-bottom:1px solid #eee;"><b>${deliveryLabel(i)}</b><br>${(i.workerShares || []).map(ws => `<span class="worker-tag" style="background:${getWColor(ws.name)}">${ws.name} (${ws.kg})</span>`).join('')}</td><td style="text-align:right; padding:8px 0; border-bottom:1px solid #eee;">${i.kg.toLocaleString()} kg</td></tr>`).join('');
         if(jCont) jCont.innerHTML += `<div style="margin-top:10px; font-weight:bold; font-size:12px; color:#555;">📅 ${new Date(d).toLocaleDateString('de-DE')}</div><div class="day-summary-card" onclick="openDayModal('${d}')"><div class="stat-box"><label style="font-size:10px;">Pers</label><b>${p}</b></div><div class="stat-box"><label style="font-size:10px;">Ø/Kopf</label><b>${avg}</b></div><div class="stat-box"><label style="font-size:10px;">Gesamt</label><b>${tot.toLocaleString('de-DE')}</b></div></div><table style="width:100%; border-collapse:collapse; font-size:12px;">${rows}</table>`;
         if(sBody) sBody.innerHTML += `<tr onclick="navTo('today'); document.getElementById('selectedWorkDate').value='${d}'; renderApp1();" style="cursor:pointer;"><td style="padding:10px; border-bottom:1px solid #eee;">${new Date(d).toLocaleDateString('de-DE')}</td><td align="center" style="border-bottom:1px solid #eee;">${p}</td><td align="center" style="border-bottom:1px solid #eee;">${avg}</td><td align="right" style="padding:10px; border-bottom:1px solid #eee;">${tot.toLocaleString('de-DE')} kg</td></tr>`;
     });
@@ -281,7 +325,7 @@ function renderApp1() {
             return `<div class="card" style="border-left:5px solid var(--warning); cursor:pointer; margin-bottom: 8px; padding: 10px;" onclick="openEditModal('${d.id}')">
                 <div style="display:flex; justify-content:space-between; align-items: center;">
                     <div>
-                        <b>${d.name}</b><br>
+                        <b>${deliveryLabel(d)}</b><br>
                         <small style="color:#666;">LKW vom ${new Date(d.date).toLocaleDateString('de-DE')}</small>
                     </div>
                     <div style="text-align:right;">
@@ -312,7 +356,15 @@ function saveSupplierEdit() {
     articles.forEach(art => { if(art.suppliers) { art.suppliers = art.suppliers.map(s => s === oldName ? newName : s); } });
     saveLocalDB(); document.getElementById('edit-sup-modal').style.display = 'none'; showToast("Lieferant umbenannt!", "success");
 }
-function deleteSupplier(name) { if (confirm(`Lieferant "${name}" wirklich löschen?`)) { suppliers = suppliers.filter(s => s !== name); saveLocalDB(); showToast("Lieferant gelöscht!", "success"); } }
+function deleteSupplier(name) {
+    if (!confirm(`Lieferant "${name}" wirklich löschen?`)) return;
+    suppliers = suppliers.filter(s => s !== name);
+    if (!deletedSuppliers.includes(name)) deletedSuppliers.push(name);
+    if (supplierLines[name]) delete supplierLines[name];
+    articles.forEach(art => { if (art.suppliers) art.suppliers = art.suppliers.filter(s => s !== name); });
+    saveLocalDB();
+    showToast("Lieferant gelöscht!", "success");
+}
 
 function openEditCustModal(name) {
     const newName = prompt("Kunde umbenennen:", name);
@@ -408,7 +460,11 @@ function printAnalysisTable() {
 
 function saveDelivery() {
     const k = parseFloat(document.getElementById('weightInput').value), s = document.getElementById('supplierSelect').value, d = document.getElementById('selectedWorkDate').value;
-    if(k && s && d) { 
+    const lineWrap = document.getElementById('supplierLineWrap');
+    const lineEl = document.getElementById('supplierLineSelect');
+    const line = (lineWrap && lineWrap.style.display !== 'none' && lineEl) ? lineEl.value : '';
+    if(k && s && d) {
+        if (getSupplierLinesList(s).length && !line) { showToast('Bitte Warenlinie wählen', 'warning'); return; }
         const id = Date.now().toString(); 
         let workerShares = [];
         const checkedWorkers = Array.from(document.querySelectorAll('.worker-cb:checked')).map(cb => cb.value);
@@ -417,13 +473,15 @@ function saveDelivery() {
             checkedWorkers.forEach(w => workerShares.push({ name: w, kg: kgPerWorker }));
             document.querySelectorAll('.worker-cb:checked').forEach(cb => cb.checked = false);
         }
-        deliveries.push({ id, date: d, name: s, kg: k, workerShares }); document.getElementById('weightInput').value=""; saveLocalDB(); showToast("Gespeichert!");
+        const entry = { id, date: d, name: s, kg: k, workerShares };
+        if (line) entry.line = line;
+        deliveries.push(entry); document.getElementById('weightInput').value=""; saveLocalDB(); showToast("Gespeichert!");
     }
 }
 
 function openEditModal(id) {
     curId = id; const e = deliveries.find(x => x.id === id); if(!e) return; 
-    document.getElementById('logModalTitle').innerText = e.name; 
+    document.getElementById('logModalTitle').innerText = deliveryLabel(e); 
     document.getElementById('editTotalKg').value = e.kg; 
     const dInput = document.getElementById('editTotalDate'); if(dInput) dInput.value = e.date;
     const sInput = document.getElementById('modalDateInput'); if(sInput) sInput.value = getLocalISO();

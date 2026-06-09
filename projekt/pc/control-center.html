@@ -433,17 +433,6 @@
                 <div class="stat-card accent"><div class="num" id="home-stat-open-del">0</div><div class="lbl">LKW offen</div></div>
             </div>
             <div id="home-warn-cards" class="warn-cards"></div>
-            <div class="card" style="margin-bottom:20px; border-left:4px solid #25D366;">
-                <h3 style="margin-top:0;">🚀 App updaten (USB & GitHub)</h3>
-                <p style="font-size:13px; color:var(--text-muted); margin:0 0 8px;">Control Center starten: Doppelklick <code>Control-Center-Starten.bat</code></p>
-                <p style="font-size:12px; color:#888; margin:0 0 12px;">Einmalig Desktop-Icon: <code>projekt/scripts/Control-Center-Desktop.bat</code></p>
-                <button class="btn btn-success" style="background:#25D366;" onclick="showTab('handy-update', document.getElementById('nav-handy-update'))">Updates & Deploy öffnen →</button>
-            </div>
-            <div class="card" style="margin-bottom:20px; border-left:4px solid var(--sonder, #673ab7);">
-                <h3 style="margin-top:0;">🔧 System & PINs</h3>
-                <p style="font-size:13px; color:var(--text-muted); margin:0 0 12px;">Drucker, Tablet-PIN, Admin-PIN und Auto-Sperre.</p>
-                <button class="btn btn-save" style="background:var(--sonder, #673ab7);" onclick="showTab('system', document.getElementById('nav-system'))">Einstellungen öffnen →</button>
-            </div>
             <div class="card" id="home-briefing-quick" style="margin-bottom: 20px;">
                 <h3 style="margin-top:0; color:var(--primary);">📢 Tages-Briefing (für alle Tablets)</h3>
                 <p style="font-size:13px; color:var(--text-muted); margin:0 0 12px;">Kurzinfo und Aufgaben erscheinen oben in der App — jeder sieht, was heute noch offen ist.</p>
@@ -474,7 +463,9 @@
                     <div style="margin-bottom:10px;"><label style="font-size:12px; font-weight:bold;">Datum:</label>
                     <input type="date" id="admin-work-date" style="width:100%;" onchange="renderAdminDeliveries()"></div>
                     <div style="margin-bottom:10px;"><label style="font-size:12px; font-weight:bold;">Lieferant / Fahrer:</label>
-                    <select id="admin-supplier" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc;"></select></div>
+                    <select id="admin-supplier" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc;" onchange="updateAdminSupplierLineSelect()"></select></div>
+                    <div id="admin-supplier-line-wrap" style="margin-bottom:10px; display:none;"><label style="font-size:12px; font-weight:bold;">Warenlinie:</label>
+                    <select id="admin-supplier-line" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc;"></select></div>
                     <div style="margin-bottom:15px;"><label style="font-size:12px; font-weight:bold;">Geliefertes Gesamtgewicht (kg):</label>
                     <input type="number" id="admin-weight" style="width:100%;"></div>
                     <button class="btn btn-save" style="width:100%; justify-content:center;" onclick="adminSaveDelivery()">Speichern</button>
@@ -572,13 +563,15 @@
                 </div>
             </div>
 
-            <div class="card" style="max-width: 600px; padding: 15px 20px;">
-                <h3 style="margin-top: 0; margin-bottom: 15px;">Bestehende Lieferanten-Liste</h3>
+            <div class="card" style="max-width: 900px; padding: 15px 20px;">
+                <h3 style="margin-top: 0; margin-bottom: 8px;">Bestehende Lieferanten-Liste</h3>
+                <p style="font-size:12px; color:var(--text-muted); margin:0 0 15px;">Optional <strong>Warenlinien</strong> pflegen (z.&nbsp;B. Ecken/Scheiben, Hähnchen, Pute) — erscheinen beim LKW-Abladen als Auswahl, Gesamtgewicht pro Lieferant bleibt in der Auswertung sichtbar.</p>
                 <table class="supplier-table">
                     <thead>
                         <tr style="background-color: #f8f9fa;">
-                            <th style="width: 55%;">Name im System</th>
-                            <th style="width: 45%; text-align:right;">Aktionen</th>
+                            <th style="width: 35%;">Name im System</th>
+                            <th style="width: 25%;">Warenlinien</th>
+                            <th style="width: 40%; text-align:right;">Aktionen</th>
                         </tr>
                     </thead>
                     <tbody id="sup-body"></tbody>
@@ -1041,6 +1034,7 @@
 
         let db = { 
             suppliers: [], customers: [], articles: [], savedProdukteRaw: [],
+            deletedSuppliers: [], supplierLines: {},
             todo: [], lose: [], later: [], hidden: [],
             workers: ["Ahmed","Dominik","Robert","Julian","Alex"], 
             workerColors: {"Ahmed":"#d32f2f","Alex":"#1976d2","Dominik":"#fbc02d","Julian":"#388e3c","Robert":"#7b1fa2"}, 
@@ -1087,6 +1081,8 @@
                 workerColors: db.workerColors || {},
                 checklistMorningTemplate: db.checklistMorningTemplate || [],
                 teamDayBrief: db.teamDayBrief || null,
+                deletedSuppliers: db.deletedSuppliers || [],
+                supplierLines: db.supplierLines || {},
                 settings: db.settings || {},
                 company: db.company
             };
@@ -1109,7 +1105,7 @@
                 const l = localStorage.getItem('kombi_logistik_db');
                 if (l) {
                     const lDb = JSON.parse(l);
-                    ['suppliers', 'customers', 'articles', 'todo', 'lose', 'later', 'hidden', 'workers', 'deliveries', 'dailyStaff', 'dailyAttendance', 'workerColors', 'settings', 'company'].forEach(k => {
+                    ['suppliers', 'customers', 'articles', 'todo', 'lose', 'later', 'hidden', 'workers', 'deliveries', 'dailyStaff', 'dailyAttendance', 'workerColors', 'settings', 'company', 'deletedSuppliers', 'supplierLines'].forEach(k => {
                         if (lDb[k] !== undefined && lDb[k] !== null) db[k] = lDb[k];
                     });
                 }
@@ -1418,6 +1414,82 @@
             sm.style.display = sm.style.display === 'flex' ? 'none' : 'flex';
         }
 
+        function ensureSupplierMeta() {
+            if (!Array.isArray(db.deletedSuppliers)) db.deletedSuppliers = [];
+            if (!db.supplierLines || typeof db.supplierLines !== 'object') db.supplierLines = {};
+        }
+
+        function supDomKey(name) { return encodeURIComponent(name); }
+
+        function mergeSuppliersList(localArr, cloudArr) {
+            ensureSupplierMeta();
+            const deleted = new Set(db.deletedSuppliers.map(s => String(s).trim()).filter(Boolean));
+            const merged = new Set((localArr || []).map(s => String(s).trim()).filter(s => s && !deleted.has(s)));
+            (cloudArr || []).forEach(s => {
+                const t = String(s || '').trim();
+                if (t && !deleted.has(t)) merged.add(t);
+            });
+            return [...merged];
+        }
+
+        function mergeSupplierLinesFromCloud(cloudLines) {
+            ensureSupplierMeta();
+            if (!cloudLines || typeof cloudLines !== 'object') return;
+            Object.keys(cloudLines).forEach(name => {
+                const local = db.supplierLines[name];
+                const cloud = cloudLines[name];
+                if (!Array.isArray(cloud) || cloud.length === 0) return;
+                if (!Array.isArray(local) || local.length === 0) db.supplierLines[name] = cloud.slice();
+            });
+        }
+
+        function mergeDeletedSuppliersFromCloud(cloudDeleted) {
+            ensureSupplierMeta();
+            if (!Array.isArray(cloudDeleted)) return;
+            const set = new Set(db.deletedSuppliers.map(s => String(s).trim()).filter(Boolean));
+            cloudDeleted.forEach(s => { const t = String(s || '').trim(); if (t) set.add(t); });
+            db.deletedSuppliers = [...set];
+            db.suppliers = (db.suppliers || []).filter(s => !set.has(String(s).trim()));
+        }
+
+        function deliveryDisplayName(d) {
+            return d.line ? `${d.name} · ${d.line}` : d.name;
+        }
+
+        function getSupplierLines(name) {
+            ensureSupplierMeta();
+            const lines = db.supplierLines[name];
+            return Array.isArray(lines) ? lines.filter(l => String(l).trim()) : [];
+        }
+
+        function toggleSupplierLinesPanel(name) {
+            const key = supDomKey(name);
+            const row = document.getElementById('sup-lines-' + key);
+            if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        }
+
+        function saveSupplierLinesFromText(name) {
+            ensureSupplierMeta();
+            const key = supDomKey(name);
+            const ta = document.getElementById('sup-lines-ta-' + key);
+            if (!ta) return;
+            const lines = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
+            if (lines.length) db.supplierLines[name] = lines;
+            else delete db.supplierLines[name];
+            renderAll();
+        }
+
+        function updateAdminSupplierLineSelect() {
+            const sup = document.getElementById('admin-supplier');
+            const wrap = document.getElementById('admin-supplier-line-wrap');
+            const sel = document.getElementById('admin-supplier-line');
+            if (!sup || !wrap || !sel) return;
+            const lines = getSupplierLines(sup.value);
+            if (!lines.length) { wrap.style.display = 'none'; sel.innerHTML = ''; return; }
+            wrap.style.display = 'block';
+            sel.innerHTML = lines.map(l => `<option value="${l.replace(/"/g, '&quot;')}">${l}</option>`).join('');
+        }
+
         function renderAll() {
             db.articles = (db.articles||[]).filter(a => a && typeof a === 'object');
             
@@ -1462,18 +1534,35 @@
 
             db.savedProdukteRaw = db.savedProdukteRaw || [];
             db.sonderTemplates = db.sonderTemplates || [];
+            ensureSupplierMeta();
+            db.suppliers = mergeSuppliersList(db.suppliers, []);
 
             // REPARIERTE LIEFERANTEN-TABELLEN STRUKTUR
             document.getElementById('sup-body').innerHTML = (db.suppliers||[]).sort().map(s => {
+                const key = supDomKey(s);
+                const esc = s.replace(/"/g, '&quot;');
+                const lines = getSupplierLines(s);
+                const linesLabel = lines.length ? `${lines.length} Linie${lines.length > 1 ? 'n' : ''}` : '—';
                 return `<tr>
                     <td style="font-weight: bold; font-size: 15px;">
-                        <span id="sup-label-${s}">${s}</span>
-                        <input type="text" id="sup-edit-input-${s}" value="${s}" style="display:none; width: 90%; padding: 6px 10px; font-size: 14px;">
+                        <span id="sup-label-${key}">${s}</span>
+                        <input type="text" id="sup-edit-input-${key}" value="${esc}" style="display:none; width: 90%; padding: 6px 10px; font-size: 14px;">
+                    </td>
+                    <td style="font-size:13px; color:#555;">
+                        <span style="display:inline-block; min-width:52px;">${linesLabel}</span>
+                        <button type="button" onclick="toggleSupplierLinesPanel(decodeURIComponent('${key}'))" class="btn" style="background:#e3f2fd; color:#1565c0; padding:4px 10px; font-size:11px; margin-left:6px;">📋 Pflegen</button>
                     </td>
                     <td style="text-align:right; white-space: nowrap;">
-                        <button id="btn-edit-sup-${s}" onclick="inlineEditSupplier('${s}')" class="btn" style="background:#ffc107; color:black; padding: 6px 12px; font-size: 12px; margin-right:5px;">✏️ Ändern</button>
-                        <button id="btn-save-sup-${s}" onclick="inlineSaveSupplier('${s}')" class="btn btn-success" style="display:none; padding: 6px 12px; font-size: 12px; margin-right:5px;">💾 Ok</button>
-                        <button onclick="deleteSupplier('${s}')" class="btn" style="background:var(--todo); padding: 6px 12px; font-size: 12px;">🗑️ Löschen</button>
+                        <button id="btn-edit-sup-${key}" onclick="inlineEditSupplier(decodeURIComponent('${key}'))" class="btn" style="background:#ffc107; color:black; padding: 6px 12px; font-size: 12px; margin-right:5px;">✏️ Ändern</button>
+                        <button id="btn-save-sup-${key}" onclick="inlineSaveSupplier(decodeURIComponent('${key}'))" class="btn btn-success" style="display:none; padding: 6px 12px; font-size: 12px; margin-right:5px;">💾 Ok</button>
+                        <button onclick="deleteSupplier(decodeURIComponent('${key}'))" class="btn" style="background:var(--todo); padding: 6px 12px; font-size: 12px;">🗑️ Löschen</button>
+                    </td>
+                </tr>
+                <tr id="sup-lines-${key}" style="display:none;">
+                    <td colspan="3" style="background:#f8fafc; padding:12px 16px; border-bottom:1px solid #e0e4ea;">
+                        <label style="font-size:11px; font-weight:bold; color:#555;">Warenlinien für „${esc}“ (eine pro Zeile)</label>
+                        <textarea id="sup-lines-ta-${key}" rows="4" style="width:100%; margin:8px 0; font-size:13px; padding:10px; border-radius:8px; border:1px solid #ccc;" placeholder="Ecken &amp; Scheiben TFB&#10;Geflügel Aspik&#10;Hähnchen&#10;Pute&#10;Kochschinken">${lines.join('\n')}</textarea>
+                        <button type="button" class="btn btn-save" style="padding:8px 14px; font-size:12px;" onclick="saveSupplierLinesFromText(decodeURIComponent('${key}'))">Warenlinien speichern</button>
                     </td>
                 </tr>`;
             }).join('');
@@ -1488,6 +1577,7 @@
                 const currentSup = supSelect.value;
                 supSelect.innerHTML = (db.suppliers || []).sort().map(s => `<option value="${s}">${s}</option>`).join('');
                 if(currentSup && db.suppliers.includes(currentSup)) supSelect.value = currentSup;
+                updateAdminSupplierLineSelect();
             }
             
             const worSelect = document.getElementById('admin-worker-select');
@@ -1714,15 +1804,17 @@
         }
 
         function inlineEditSupplier(oldName) {
-            document.getElementById(`sup-label-${oldName}`).style.display = 'none';
-            document.getElementById(`sup-edit-input-${oldName}`).style.display = 'inline-block';
-            document.getElementById(`btn-edit-sup-${oldName}`).style.display = 'none';
-            document.getElementById(`btn-save-sup-${oldName}`).style.display = 'inline-block';
-            document.getElementById(`sup-edit-input-${oldName}`).focus();
+            const key = supDomKey(oldName);
+            document.getElementById(`sup-label-${key}`).style.display = 'none';
+            document.getElementById(`sup-edit-input-${key}`).style.display = 'inline-block';
+            document.getElementById(`btn-edit-sup-${key}`).style.display = 'none';
+            document.getElementById(`btn-save-sup-${key}`).style.display = 'inline-block';
+            document.getElementById(`sup-edit-input-${key}`).focus();
         }
 
         function inlineSaveSupplier(oldName) {
-            let newName = document.getElementById(`sup-edit-input-${oldName}`).value.trim();
+            const key = supDomKey(oldName);
+            let newName = document.getElementById(`sup-edit-input-${key}`).value.trim();
             
             if(!newName) {
                 alert("Der Lieferantenname darf nicht leer sein!");
@@ -1742,6 +1834,13 @@
                     art.suppliers = art.suppliers.map(s => s === oldName ? newName : s);
                 }
             });
+
+            ensureSupplierMeta();
+            if (db.supplierLines[oldName] !== undefined) {
+                db.supplierLines[newName] = db.supplierLines[oldName];
+                delete db.supplierLines[oldName];
+            }
+            db.deletedSuppliers = db.deletedSuppliers.map(s => s === oldName ? newName : s);
 
             renderAll();
             alert(`✅ Lieferant erfolgreich geändert von "${oldName}" zu "${newName}"!`);
@@ -2143,8 +2242,11 @@
         }
 
         function deleteSupplier(n) { 
-            if(confirm(`Möchtest du den Lieferanten "${n}" wirklich löschen?`)) { 
+            if(confirm(`Möchtest du den Lieferanten "${n}" wirklich löschen?\n\nHinweis: Nach dem Löschen bitte „In Cloud speichern“, damit er nicht wieder aus der Cloud kommt.`)) { 
+                ensureSupplierMeta();
                 db.suppliers = db.suppliers.filter(s => s !== n); 
+                if (!db.deletedSuppliers.includes(n)) db.deletedSuppliers.push(n);
+                if (db.supplierLines[n]) delete db.supplierLines[n];
                 db.articles.forEach(art => { if(art.suppliers) art.suppliers = art.suppliers.filter(s => s !== n); });
                 renderAll(); 
             } 
@@ -2157,9 +2259,15 @@
             const d = document.getElementById('admin-work-date').value;
             const s = document.getElementById('admin-supplier').value;
             const k = parseFloat(document.getElementById('admin-weight').value);
+            const lineEl = document.getElementById('admin-supplier-line');
+            const lineWrap = document.getElementById('admin-supplier-line-wrap');
+            const line = (lineWrap && lineWrap.style.display !== 'none' && lineEl) ? lineEl.value : '';
             if(!d || !s || !k) return alert("Bitte Datum, Lieferant und Gewicht eingeben.");
+            if (getSupplierLines(s).length && !line) return alert("Bitte Warenlinie wählen.");
             
-            db.deliveries.push({ id: Date.now().toString(), date: d, name: s, kg: k, workerShares: [] });
+            const entry = { id: Date.now().toString(), date: d, name: s, kg: k, workerShares: [] };
+            if (line) entry.line = line;
+            db.deliveries.push(entry);
             document.getElementById('admin-weight').value = '';
             renderAll();
         }
@@ -2178,7 +2286,7 @@
                         const isDone = sum >= del.kg || del.isFullySorted;
                         return `<div class="selectable-item" style="border-left: 6px solid ${isDone ? 'var(--success)' : 'var(--accent)'}" onclick="openAdminEditDelivery('${del.id}')">
                             <div>
-                                <strong style="font-size:16px;">${del.name}</strong><br>
+                                <strong style="font-size:16px;">${deliveryDisplayName(del)}</strong><br>
                                 <small style="color:#666;">${del.workerShares ? del.workerShares.length : 0} Mitarbeiter zugewiesen</small>
                             </div>
                             <div style="text-align:right;">
@@ -2205,7 +2313,7 @@
                         const formattedDate = new Date(del.date).toLocaleDateString('de-DE');
                         return `<div style="background: #fff; border: 1px solid #ddd; border-left: 4px solid var(--accent); border-radius: 8px; padding: 15px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.05);" onclick="openAdminEditDelivery('${del.id}')">
                             <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                                <strong style="font-size: 15px; color: var(--primary);">${del.name}</strong>
+                                <strong style="font-size: 15px; color: var(--primary);">${deliveryDisplayName(del)}</strong>
                                 <span style="font-size: 12px; color: #666; background: #eee; padding: 2px 6px; border-radius: 4px;">📅 ${formattedDate}</span>
                             </div>
                             <div style="display:flex; justify-content:space-between; align-items:flex-end;">
@@ -2966,7 +3074,9 @@
                 const cloudDb = await res.json();
                 if(cloudDb) { 
                     if(cloudDb.savedProdukteRaw && cloudDb.savedProdukteRaw.length > 0) { const localSet = new Set(db.savedProdukteRaw || []); cloudDb.savedProdukteRaw.forEach(item => { if(!localSet.has(item)) db.savedProdukteRaw.push(item); }); }
-                    if(cloudDb.suppliers && cloudDb.suppliers.length > 0) { const supSet = new Set(db.suppliers || []); cloudDb.suppliers.forEach(s => { if(!supSet.has(s.trim())) db.suppliers.push(s.trim()); }); }
+                    mergeDeletedSuppliersFromCloud(cloudDb.deletedSuppliers);
+                    mergeSupplierLinesFromCloud(cloudDb.supplierLines);
+                    if(cloudDb.suppliers && cloudDb.suppliers.length > 0) db.suppliers = mergeSuppliersList(db.suppliers, cloudDb.suppliers);
                     if(cloudDb.customers && cloudDb.customers.length > 0) { const custSet = new Set(db.customers || []); cloudDb.customers.forEach(c => { if(!custSet.has(c.trim())) db.customers.push(c.trim()); }); }
                     db.articles = cloudDb.articles || db.articles; db.todo = cloudDb.todo || db.todo; db.lose = cloudDb.lose || db.lose; db.later = cloudDb.later || db.later; db.hidden = cloudDb.hidden || db.hidden; db.workers = cloudDb.workers || db.workers; db.workerColors = cloudDb.workerColors || db.workerColors; db.dailyStaff = cloudDb.dailyStaff || db.dailyStaff; db.dailyAttendance = cloudDb.dailyAttendance || db.dailyAttendance;
                     if (cloudDb.deliveries && cloudDb.deliveries.length > 0) {
@@ -3252,7 +3362,9 @@
                         
                         // 4. Kataloge mergen
                         if(cloudDb.savedProdukteRaw) { const localSet = new Set(db.savedProdukteRaw || []); cloudDb.savedProdukteRaw.forEach(item => { if(!localSet.has(item)) db.savedProdukteRaw.push(item); }); }
-                        if(cloudDb.suppliers) { const supSet = new Set(db.suppliers || []); cloudDb.suppliers.forEach(s => { if(!supSet.has(s.trim())) db.suppliers.push(s.trim()); }); }
+                        mergeDeletedSuppliersFromCloud(cloudDb.deletedSuppliers);
+                        mergeSupplierLinesFromCloud(cloudDb.supplierLines);
+                        if(cloudDb.suppliers) db.suppliers = mergeSuppliersList(db.suppliers, cloudDb.suppliers);
                         
                         // 5. LKW-Erfassungen (Deliveries) verschmelzen
                         if(cloudDb.deliveries) {
