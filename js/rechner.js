@@ -77,8 +77,12 @@ async function loadAllFromCloud() {
             showToast("Lieferanten, Sorten & Nölke-Produkte geladen!", "success");
         }
     } catch(e) { 
-        console.error(e); showToast("Cloud-Fehler", "error"); 
-        if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Listen-Update fehlgeschlagen - " + e.message);
+        console.error(e);
+        const msg = (typeof getCloudSetupHint === 'function' && /Cloud-Zugang|Firebase-Login|nicht konfiguriert/i.test(String(e.message || '')))
+            ? e.message
+            : ('Cloud-Fehler: ' + (e.message || 'Netzwerk'));
+        showToast(msg.length > 120 ? 'Cloud-Fehler – siehe Cloud-Log' : msg, 'error'); 
+        if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Listen-Update fehlgeschlagen - " + (e.message || msg));
     }
     if(btn) btn.classList.remove('sync-active');
 }
@@ -119,12 +123,56 @@ function updateLkwSupplierLineSelect() {
         return;
     }
     wrap.style.display = 'block';
-    sel.innerHTML = lines.map(l => `<option value="${String(l).replace(/"/g, '&quot;')}">${l}</option>`).join('');
+    sel.innerHTML = '<option value="">— Gemischt / optional —</option>' + lines.map(l => `<option value="${String(l).replace(/"/g, '&quot;')}">${l}</option>`).join('');
 }
 
 function lkwEntryLabel(e) {
     if (!e) return '';
     return e.line ? `${e.lief} · ${e.line}` : e.lief;
+}
+
+function aggregateByWarenlinie(records, weightKey) {
+    const byLine = {};
+    let total = 0;
+    (records || []).forEach(r => {
+        const kg = Number(r[weightKey] || r.kg || r.netto || 0);
+        if (!kg) return;
+        const line = (r.line && String(r.line).trim()) ? String(r.line).trim() : 'Gemischt / ohne Linie';
+        byLine[line] = (byLine[line] || 0) + kg;
+        total += kg;
+    });
+    return { byLine, total, count: (records || []).length };
+}
+
+function renderSupplierDetailTable(byLine, total, count) {
+    const keys = Object.keys(byLine).sort((a, b) => {
+        if (a.startsWith('Gemischt')) return 1;
+        if (b.startsWith('Gemischt')) return -1;
+        return byLine[b] - byLine[a];
+    });
+    if (!keys.length) return '<p style="color:#888; text-align:center; padding:12px 0;">Noch keine Einträge mit Gewicht.</p>';
+    let html = '<table style="width:100%; border-collapse:collapse; font-size:14px;"><thead><tr style="background:#f0f4fa;"><th style="text-align:left; padding:8px;">Warenlinie</th><th style="text-align:right; padding:8px;">kg</th></tr></thead><tbody>';
+    keys.forEach(line => {
+        html += `<tr><td style="padding:8px; border-bottom:1px solid #eee;">${line}</td><td style="padding:8px; border-bottom:1px solid #eee; text-align:right; font-weight:600;">${byLine[line].toFixed(2).replace('.', ',')}</td></tr>`;
+    });
+    html += `<tr style="background:#e8f0fa; font-weight:bold;"><td style="padding:10px 8px;">Gesamt (${count} Einträge)</td><td style="padding:10px 8px; text-align:right;">${total.toFixed(2).replace('.', ',')} kg</td></tr></tbody></table>`;
+    return html;
+}
+
+function closeSupplierDetailModal() {
+    const m = document.getElementById('supplier-detail-modal');
+    if (m) m.style.display = 'none';
+}
+
+function openSupplierLkwDetail(lief) {
+    const modal = document.getElementById('supplier-detail-modal');
+    if (!modal) return;
+    const recs = entries.filter(e => e.lief === lief);
+    const agg = aggregateByWarenlinie(recs, 'netto');
+    document.getElementById('supplier-detail-title').textContent = '🚛 ' + lief;
+    document.getElementById('supplier-detail-sub').textContent = 'Aktuelle LKW-Liste · Aufschlüsselung nach Warenlinie';
+    document.getElementById('supplier-detail-body').innerHTML = renderSupplierDetailTable(agg.byLine, agg.total, agg.count);
+    modal.style.display = 'flex';
 }
 
 function switchTab(tabId) {
@@ -476,12 +524,7 @@ function addPal() {
     const lief = document.getElementById('lief').value;
     const lineWrap = document.getElementById('lkw-supplier-line-wrap');
     const lineEl = document.getElementById('lkw-supplier-line');
-    const configuredLines = getSupplierLinesForLief(lief);
-    const line = (lineWrap && lineWrap.style.display !== 'none' && lineEl) ? lineEl.value : '';
-    if (configuredLines.length && !line) {
-        showToast('Bitte Warenlinie wählen', 'warning');
-        return;
-    }
+    const line = (lineWrap && lineWrap.style.display !== 'none' && lineEl && lineEl.value) ? lineEl.value : '';
     let p = { id: Date.now().toString(), lief, type: isSonderMode?'sonder':'normal' };
     if (line) p.line = line;
     if(isSonderMode) {
@@ -541,17 +584,18 @@ function renderLKW() {
         }
     });
     
-    let html = '<div class="summary-card"><div class="summary-title">Lieferanten-Übersicht</div>';
+    let html = '<div class="summary-card"><div class="summary-title">Lieferanten-Übersicht</div><p style="font-size:11px; color:#666; margin:-4px 0 8px;">Antippen für Warenlinien-Details</p>';
     for(let l in stats) {
         let info = []; 
         for(let key in stats[l].leergut) { if(stats[l].leergut[key] > 0) info.push(`${stats[l].leergut[key]} ${key}`); }
         if(stats[l].kart) info.push(stats[l].kart+' Krt');
-        html += `<div class="sup-item-box">
+        const safeL = l.replace(/'/g, "\\'");
+        html += `<div class="sup-item-box" style="cursor:pointer;" onclick="openSupplierLkwDetail('${safeL}')" title="Warenlinien anzeigen">
             <span><b>${l}</b></span> 
             <span class="sup-leergut-inline">${info.join(', ')}</span> 
             <div style="display:flex; align-items:center; gap:5px;">
                 <span class="sup-weight-tag">${stats[l].n.toFixed(2).replace('.',',')} kg</span>
-                <button onclick="openReklamationModal('${l.replace(/'/g, "\\'")}', ${stats[l].n})" style="background:#ffc107; color:black; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer;" title="Reklamation erfassen">❗</button>
+                <button onclick="event.stopPropagation(); openReklamationModal('${safeL}', ${stats[l].n})" style="background:#ffc107; color:black; border:none; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer;" title="Reklamation erfassen">❗</button>
             </div>
         </div>`;
     }

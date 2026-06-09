@@ -212,7 +212,7 @@ function updateSupplierLineSelect() {
     const lines = getSupplierLinesList(supEl.value);
     if (!lines.length) { wrap.style.display = 'none'; sel.innerHTML = ''; return; }
     wrap.style.display = 'block';
-    sel.innerHTML = lines.map(l => `<option value="${l.replace(/"/g, '&quot;')}">${l}</option>`).join('');
+    sel.innerHTML = '<option value="">— Gemischt / optional —</option>' + lines.map(l => `<option value="${l.replace(/"/g, '&quot;')}">${l}</option>`).join('');
 }
 
 function renderApp1() {
@@ -462,10 +462,9 @@ function saveDelivery() {
     const k = parseFloat(document.getElementById('weightInput').value), s = document.getElementById('supplierSelect').value, d = document.getElementById('selectedWorkDate').value;
     const lineWrap = document.getElementById('supplierLineWrap');
     const lineEl = document.getElementById('supplierLineSelect');
-    const line = (lineWrap && lineWrap.style.display !== 'none' && lineEl) ? lineEl.value : '';
+    const line = (lineWrap && lineWrap.style.display !== 'none' && lineEl && lineEl.value) ? lineEl.value : '';
     if(k && s && d) {
-        if (getSupplierLinesList(s).length && !line) { showToast('Bitte Warenlinie wählen', 'warning'); return; }
-        const id = Date.now().toString(); 
+        const id = Date.now().toString();
         let workerShares = [];
         const checkedWorkers = Array.from(document.querySelectorAll('.worker-cb:checked')).map(cb => cb.value);
         if(checkedWorkers.length > 0) {

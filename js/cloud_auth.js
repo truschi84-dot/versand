@@ -56,6 +56,18 @@ const CloudAuth = {
         return null;
     },
 
+    isReady() {
+        return !!(this._config && this._secretsComplete(this._config));
+    },
+
+    async ensureReady() {
+        const cfg = await this.loadSecrets();
+        if (!this._secretsComplete(cfg)) {
+            throw new Error(getCloudSetupHint());
+        }
+        return cfg;
+    },
+
     importSecretsFromJson(cfg) {
         if (!this._secretsComplete(cfg)) return false;
         this._config = cfg;
@@ -78,10 +90,7 @@ const CloudAuth = {
     async _signIn() {
         const cfg = await this.loadSecrets();
         if (!this._secretsComplete(cfg)) {
-            const hint = location.protocol === 'file:'
-                ? 'Öffne über http://localhost:8080/projekt/pc/control-center.html (projekt\\scripts\\start-buero-server.ps1) – oder app-secrets.json per Datei-Button laden.'
-                : 'app-secrets.json fehlt oder ist unvollständig (im Projekt-Root).';
-            throw new Error('Cloud-Zugang nicht konfiguriert. ' + hint);
+            throw new Error(getCloudSetupHint());
         }
         const res = await fetch(
             'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + encodeURIComponent(cfg.firebaseApiKey),
@@ -151,6 +160,18 @@ const CloudAuth = {
 /** Wrapper für alle Firebase-RTDB-Aufrufe. */
 async function cloudFetch(url, options) {
     return CloudAuth.fetch(url, options);
+}
+
+function getCloudSetupHint() {
+    const onGithub = /github\.io/i.test(location.hostname || '');
+    const isApk = location.protocol === 'file:';
+    if (onGithub) {
+        return 'Cloud-Zugang fehlt nach GitHub-Update. Einmal USB-APK installieren (deploy-android) – danach bleibt der Zugang gespeichert. Oder am PC Control Center: Cloud-Secrets laden und „In Cloud speichern“, dann am Handy 🔄 sync.';
+    }
+    if (isApk) {
+        return 'Cloud-Zugang fehlt in der APK. Am PC app-secrets.json anlegen und deploy-android.ps1 ausführen.';
+    }
+    return 'Cloud-Zugang nicht konfiguriert (app-secrets.json fehlt). Am PC Control Center starten oder Secrets einmal laden.';
 }
 
 function isAppAuthenticated() {

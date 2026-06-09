@@ -5,6 +5,63 @@ function escapePrintHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function isIosPrintDevice() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function buildPrintDocumentHtml(title, subtitle, bodyHtml, landscape) {
+    const orient = landscape ? 'landscape' : 'portrait';
+    const tableFont = landscape ? '11px' : '12px';
+    return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapePrintHtml(title) || 'Druck'}</title>
+<style>
+@page { margin: 10mm; size: A4 ${orient}; }
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+html, body { width: 100%; margin: 0; padding: 0; background: #fff; color: #222; }
+body { font-family: -apple-system, BlinkMacSystemFont, Arial, 'Segoe UI', sans-serif; padding: 0; }
+h1.doc-title { text-align: center; color: #004b93; margin: 0 0 4px; font-size: ${landscape ? '18px' : '20px'}; }
+p.doc-subtitle { text-align: center; color: #666; margin: 0 0 14px; font-size: 12px; }
+p.ios-hint { text-align: center; color: #888; font-size: 10px; margin: 0 0 10px; }
+table { border-collapse: collapse; width: 100%; max-width: 100%; table-layout: fixed; }
+th, td { border: 1px solid #333; padding: 5px 6px; text-align: left; font-size: ${tableFont}; color: #222; word-wrap: break-word; overflow-wrap: anywhere; vertical-align: top; }
+th { background: #eee; font-weight: bold; }
+tr:nth-child(even) td { background: #fafafa; }
+img { max-width: 100%; height: auto; }
+.page-break, [style*="page-break-after"] { page-break-after: always; break-after: page; }
+</style></head><body>
+${title ? `<h1 class="doc-title">${escapePrintHtml(title)}</h1>` : ''}
+${subtitle ? `<p class="doc-subtitle">${escapePrintHtml(subtitle)}</p>` : ''}
+${isIosPrintDevice() && landscape ? '<p class="ios-hint">Tipp iPhone: Im Druckdialog „Querformat“ wählen, sonst werden breite Tabellen abgeschnitten.</p>' : ''}
+${bodyHtml}
+</body></html>`;
+}
+
+function printHtmlViaIframe(fullHtml, onClose) {
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+    document.body.appendChild(iframe);
+    const win = iframe.contentWindow;
+    const doc = iframe.contentDocument || win.document;
+    doc.open();
+    doc.write(fullHtml);
+    doc.close();
+    const cleanup = () => { try { iframe.remove(); } catch (_) {} if (onClose) onClose(); };
+    const doPrint = () => {
+        try {
+            win.focus();
+            win.print();
+        } catch (e) {
+            console.error('iframe print', e);
+        }
+        setTimeout(cleanup, 8000);
+    };
+    if (doc.readyState === 'complete') setTimeout(doPrint, 350);
+    else iframe.onload = () => setTimeout(doPrint, 350);
+    return true;
+}
+
 function sharePlainText(text, subject) {
     if (!text) return false;
     if (typeof AndroidApp !== 'undefined' && typeof AndroidApp.shareText === 'function') {
@@ -36,36 +93,15 @@ function printCleanDocument(opts) {
         return true;
     }
 
-    const orient = landscape ? 'landscape' : 'portrait';
+    const docHtml = buildPrintDocumentHtml(title, subtitle, bodyHtml, landscape);
 
-    const docHtml = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>${escapePrintHtml(title) || 'Druck'}</title>
-<style>
-@page { margin: 12mm; size: A4 ${orient}; }
-* { box-sizing: border-box; }
-body { font-family: Arial, 'Segoe UI', sans-serif; padding: 0; margin: 0; color: #222; background: #fff; }
-h1.doc-title { text-align: center; color: #004b93; margin: 0 0 4px; font-size: 20px; }
-p.doc-subtitle { text-align: center; color: #666; margin: 0 0 18px; font-size: 13px; }
-table { border-collapse: collapse; }
-th, td { border: 1px solid #bbb; padding: 7px 10px; text-align: left; font-size: 13px; color: #222; }
-th { background: #f0f0f0; font-weight: bold; }
-tr:nth-child(even) td { background: #fafafa; }
-img { max-width: 100%; height: auto; }
-.page-break, [style*="page-break-after"] { page-break-after: always; }
-</style></head><body>
-${title ? `<h1 class="doc-title">${escapePrintHtml(title)}</h1>` : ''}
-${subtitle ? `<p class="doc-subtitle">${escapePrintHtml(subtitle)}</p>` : ''}
-${bodyHtml}
-<script>
-window.onload = function() {
-    setTimeout(function() {
-        window.print();
-        setTimeout(function() { window.close(); }, 800);
-    }, 400);
-};
-<\/script></body></html>`;
+    if (isIosPrintDevice()) {
+        return printHtmlViaIframe(docHtml, onClose);
+    }
 
     const w = window.open('', '_blank', 'width=920,height=760');
     if (!w) {
+        if (printHtmlViaIframe(docHtml, onClose)) return true;
         const printEl = document.getElementById('printArea');
         if (printEl) {
             printEl.innerHTML = (title ? `<h1>${escapePrintHtml(title)}</h1>` : '') + (subtitle ? `<p>${escapePrintHtml(subtitle)}</p>` : '') + bodyHtml;
@@ -77,7 +113,7 @@ window.onload = function() {
         return false;
     }
     w.document.open();
-    w.document.write(docHtml);
+    w.document.write(docHtml + `<script>window.onload=function(){setTimeout(function(){window.print();setTimeout(function(){window.close();},800);},400);};<\/script>`);
     w.document.close();
     if (onClose) setTimeout(onClose, 3000);
     return true;

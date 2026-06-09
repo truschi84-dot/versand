@@ -1,7 +1,6 @@
 deploy.config.json
 projekt/deploy.config.json
 app-secrets.json
-js/cloud_secrets.embed.js
 node_modules/
 checklistearbeit/
 checklistearbeit.html

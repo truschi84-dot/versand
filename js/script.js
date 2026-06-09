@@ -11,7 +11,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 104;
+const WEB_BUILD_VERSION = 105;
 /** Büro-WLAN – IP bei Bedarf anpassen (muss zu app-shell.json passen). */
 const OFFICE_LAN_URL = 'http://192.168.211.135:8080';
 let pendingOtaUpdate = null;
@@ -1623,7 +1623,8 @@ function forcePrint(filename, htmlContent) {
         }
 
         if (typeof printCleanDocument === 'function') {
-            printCleanDocument({ title, bodyHtml: content, onClose: restoreDark });
+            const useLandscape = isAppleDevice() && content.includes('<table') && content.length > 800;
+            printCleanDocument({ title, bodyHtml: content, landscape: useLandscape, onClose: restoreDark });
         } else {
             const printEl = document.getElementById('printArea');
             if (printEl) printEl.innerHTML = content;

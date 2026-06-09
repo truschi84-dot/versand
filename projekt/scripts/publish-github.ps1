@@ -60,6 +60,10 @@ try {
     }
     if (-not $Message) { $Message = "App Update $(Get-Date -Format 'yyyy-MM-dd HH:mm')" }
 
+    # Nie Firebase-Secrets auf oeffentliches GitHub - nur Stub (APK/USB: deploy-android.ps1)
+    $embedStub = "/** Stub fuer GitHub Pages - echte Zugangsdaten nur lokal/APK. */`nwindow.__FIREBASE_SECRETS__ = null;`n"
+    Write-Utf8NoBom (Join-Path $AppRoot "js\cloud_secrets.embed.js") $embedStub
+
     if (-not $PushToGitHub) {
         Write-Host ""
         Write-Host "=== Nur lokal - kein GitHub-Push ==="
@@ -70,7 +74,7 @@ try {
     }
 
     git add .gitignore .nojekyll README.md projekt/ js/ css/ lib/ icons/
-    git add app-update.json app-version.json manifest.webmanifest index.html sw.js
+    git add app-update.json app-version.json manifest.webmanifest index.html sw.js js/cloud_secrets.embed.js
     git add -u
 
     $status = git status --porcelain
