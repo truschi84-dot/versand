@@ -978,6 +978,16 @@ function artikelMarktTyp(fertigNr, artikelName, artikelMarkt) {
         if (mapped === 'exp') return 'export';
         if (mapped === 'uns') return 'inland';
     }
+    // Klammern-Nr am Ende prüfen: "70730 - Koch TFB EX (80346)" → fertigNr 80346
+    if (artikelMarkt && artikelName) {
+        const m = String(artikelName).match(/\((\d+)\)\s*$/);
+        if (m) {
+            const mapped2 = artikelMarkt[m[1]];
+            if (mapped2 === 'export' || mapped2 === 'inland') return mapped2;
+            if (mapped2 === 'exp') return 'export';
+            if (mapped2 === 'uns') return 'inland';
+        }
+    }
     return istExportArtikel(artikelName) ? 'export' : 'inland';
 }
 
