@@ -675,6 +675,15 @@ const rawData = [
 // ── WINDOW LOAD ───────────────────────────────────────────────
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
+    // PIN-Check bei Rückkehr aus Hintergrund
+    if (!isLogistikPinValid()) {
+        showLogistikPinOverlay(() => {
+            document.body.style.overflow = '';
+            resetBlockingUi();
+            applyLogistikDocumentScroll();
+        });
+        return;
+    }
     resetBlockingUi();
     applyLogistikDocumentScroll();
     if (typeof refreshSortierFromKombi === 'function') refreshSortierFromKombi();
@@ -682,6 +691,64 @@ document.addEventListener('visibilitychange', () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => initLogistikTouch(), { once: true });
+
+// ── PIN-SCHUTZ ───────────────────────────────────────────────
+const LOGISTIK_PIN_KEY = 'logistik_chef_auth';
+const LOGISTIK_PIN_CODE = '3132';
+const LOGISTIK_PIN_TIMEOUT_MS = 5 * 60 * 1000; // 5 Minuten
+
+function isLogistikPinValid() {
+    try {
+        const ts = parseInt(localStorage.getItem(LOGISTIK_PIN_KEY) || '0', 10);
+        return ts > 0 && (Date.now() - ts) < LOGISTIK_PIN_TIMEOUT_MS;
+    } catch (_) { return false; }
+}
+
+function showLogistikPinOverlay(onSuccess) {
+    let overlay = document.getElementById('logistik-pin-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'logistik-pin-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;';
+        overlay.innerHTML = `
+            <div style="background:#fff;border-radius:16px;padding:32px 28px;width:300px;max-width:90vw;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.4);">
+                <div style="font-size:40px;margin-bottom:8px;">🔒</div>
+                <h2 style="margin:0 0 6px;font-size:20px;color:#1a1a2e;">Tresch Logistik</h2>
+                <p style="margin:0 0 20px;font-size:13px;color:#666;">Bitte PIN eingeben</p>
+                <input id="logistik-pin-input" type="password" inputmode="numeric" maxlength="10"
+                    style="width:100%;box-sizing:border-box;padding:12px;font-size:22px;text-align:center;border:2px solid #ddd;border-radius:8px;outline:none;letter-spacing:6px;"
+                    placeholder="• • • •">
+                <div id="logistik-pin-error" style="color:#e53935;font-size:13px;min-height:20px;margin:8px 0;"></div>
+                <button onclick="checkLogistikPin()"
+                    style="width:100%;padding:14px;background:#1976d2;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;">
+                    Entsperren
+                </button>
+            </div>`;
+        document.body.appendChild(overlay);
+        const inp = overlay.querySelector('#logistik-pin-input');
+        inp.addEventListener('keyup', e => { if (e.key === 'Enter') checkLogistikPin(); });
+        setTimeout(() => inp.focus(), 100);
+    }
+    overlay.style.display = 'flex';
+    window._logistikPinSuccess = onSuccess;
+}
+
+window.checkLogistikPin = function() {
+    const inp = document.getElementById('logistik-pin-input');
+    const err = document.getElementById('logistik-pin-error');
+    const pinCode = (db && db.settings && db.settings.chefPin) ? db.settings.chefPin : LOGISTIK_PIN_CODE;
+    if (inp.value === pinCode) {
+        localStorage.setItem(LOGISTIK_PIN_KEY, String(Date.now()));
+        const overlay = document.getElementById('logistik-pin-overlay');
+        if (overlay) overlay.style.display = 'none';
+        if (typeof window._logistikPinSuccess === 'function') window._logistikPinSuccess();
+    } else {
+        inp.value = '';
+        err.textContent = 'Falscher PIN. Bitte erneut versuchen.';
+        setTimeout(() => { err.textContent = ''; }, 3000);
+        inp.focus();
+    }
+};
 
 window.addEventListener('load', async () => {
     initLogistikTouch();
@@ -691,10 +758,21 @@ window.addEventListener('load', async () => {
     ensureDefaults();
     initRawData();
     updateCloudStatus();
-    // Set today in erfassung
     const ed = document.getElementById('erf-date');
     if (ed) ed.value = ccTodayISO();
-    renderAll();
-    resetBlockingUi();
-    applyLogistikDocumentScroll();
+
+    if (!isLogistikPinValid()) {
+        // App-Inhalt verstecken bis PIN stimmt
+        document.querySelector('body > *:not(#logistik-pin-overlay)') && (document.body.style.overflow = 'hidden');
+        showLogistikPinOverlay(() => {
+            document.body.style.overflow = '';
+            renderAll();
+            resetBlockingUi();
+            applyLogistikDocumentScroll();
+        });
+    } else {
+        renderAll();
+        resetBlockingUi();
+        applyLogistikDocumentScroll();
+    }
 });

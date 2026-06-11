@@ -11,11 +11,11 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 112;
+const WEB_BUILD_VERSION = 113;
 /** Fallback nur wenn app-update.json nicht geladen werden kann — echte URL kommt aus Config. */
 const OFFICE_LAN_URL = '';
 let pendingOtaUpdate = null;
-const APP_CHANGELOG = "<b>Was ist neu in 7.2?</b><br><br>• GitHub-Vorschau: kein Cloud-Fehler mehr beim Start (Cloud nur in APK).<br>• PIN: App 3132, Admin 110784 auch ohne Cloud-Login.<br>• Gesundheitscheck im Control Center.";
+const APP_CHANGELOG = "<b>Was ist neu in 7.2?</b><br><br>• GitHub-Vorschau: kein Cloud-Fehler mehr beim Start (Cloud nur in APK).<br>• Gesundheitscheck im Control Center.";
 /** APK (file://): Update-Config nur bei manueller Prüfung – nicht beim Start. */
 const OTA_REMOTE_CONFIG_URL = "https://truschi84-dot.github.io/versand/app-update.json";
 
