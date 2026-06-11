@@ -1,0 +1,14 @@
+LOKALE BACKUPS (vorbereitet fuer spaeter)
+======================================
+
+Dieser Ordner ist fuer PC-Backups gedacht - getrennt von:
+  - Firebase /backup (Live-Daten der App)
+  - Control Center Stammdaten-Sync
+
+Hier rein (spaeter, nach Urlaub):
+  - manuelle JSON-Exports aus dem Control Center
+  - APK-Kopien nach Deploy
+  - Snapshots vor grossen Aenderungen
+
+WICHTIG: Noch nichts automatisch hierhin kopieren!
+Die App laeuft weiter wie bisher.

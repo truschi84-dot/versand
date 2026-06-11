@@ -1,0 +1,6 @@
+{
+  "webBaseUrl": "https://DEIN-PROJEKT.web.app",
+  "webVersion": 81,
+  "minApkVersion": 1,
+  "note": "Diese Datei nach Firebase legen: PUT .../app_config.json (siehe OTA_UPDATE.md)"
+}

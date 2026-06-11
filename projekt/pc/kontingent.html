@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kombi – Server &amp; Limits</title>
+    <style>
+        :root {
+            --bg: #f0f2f5;
+            --card: #fff;
+            --text: #1a1a1a;
+            --muted: #666;
+            --primary: #004b93;
+            --ok: #2e7d32;
+            --warn: #e65100;
+            --danger: #c62828;
+            --bar-bg: #e8eaed;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.45;
+        }
+        header {
+            background: var(--primary);
+            color: #fff;
+            padding: 20px 16px 16px;
+        }
+        header h1 { margin: 0 0 6px; font-size: 1.35rem; }
+        header p { margin: 0; opacity: 0.9; font-size: 0.9rem; }
+        main { max-width: 960px; margin: 0 auto; padding: 16px; }
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        button {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button.secondary { background: #546e7a; }
+        .note {
+            background: #fff8e1;
+            border: 1px solid #ffe082;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 0.88rem;
+            margin-bottom: 16px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .card h2 {
+            margin: 0 0 4px;
+            font-size: 1rem;
+            color: var(--primary);
+        }
+        .card .sub {
+            font-size: 0.78rem;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+        .big {
+            font-size: 1.6rem;
+            font-weight: 800;
+            margin: 4px 0;
+        }
+        .limit-line {
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+        .bar-wrap {
+            height: 12px;
+            background: var(--bar-bg);
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 6px 0 4px;
+        }
+        .bar {
+            height: 100%;
+            border-radius: 999px;
+            transition: width 0.4s ease;
+        }
+        .bar.ok { background: linear-gradient(90deg, #43a047, #66bb6a); }
+        .bar.warn { background: linear-gradient(90deg, #fb8c00, #ffb74d); }
+        .bar.danger { background: linear-gradient(90deg, #e53935, #ef5350); }
+        .pct { font-size: 0.82rem; font-weight: 700; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 8px 6px;
+            border-bottom: 1px solid #eee;
+        }
+        th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
+        .status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .status.ok { background: #e8f5e9; color: var(--ok); }
+        .status.err { background: #ffebee; color: var(--danger); }
+        .status.wait { background: #eceff1; color: #546e7a; }
+        footer {
+            text-align: center;
+            font-size: 0.78rem;
+            color: var(--muted);
+            padding: 20px 16px 40px;
+        }
+        a { color: var(--primary); }
+    </style>
+</head>
+<body>
+<header>
+    <h1>📊 Server &amp; Kontingente</h1>
+    <p>Live-Größen der Cloud-Daten · Free-Tier-Limits · Stand: <span id="last-update">–</span></p>
+</header>
+<main>
+    <div class="note">
+        <strong>Was gemessen wird:</strong> Aktuelle Datengrößen (Firebase, GitHub erreichbar?).<br>
+        <strong>Was nicht automatisch geht:</strong> Exakter Monats-Traffic (Download/Bandbreite) – dafür brauchst du
+        <a href="https://console.firebase.google.com/project/tresch-versand-default/usage" target="_blank" rel="noopener">Firebase Console → Nutzung</a>
+        und ggf. GitHub Repository Insights.
+    </div>
+
+    <div class="toolbar">
+        <button type="button" id="btn-refresh">🔄 Jetzt aktualisieren</button>
+        <button type="button" class="secondary" id="btn-console">Firebase Console öffnen</button>
+    </div>
+
+    <div class="grid" id="summary-cards"></div>
+
+    <div class="card" style="margin-bottom: 16px;">
+        <h2>Firebase Realtime Database – Einzelpfade</h2>
+        <div class="sub">Projekt: tresch-versand-default · Spark (Free) Limit Speicher: 1 GB · Download/Monat: 10 GB</div>
+        <table>
+            <thead>
+                <tr><th>Pfad</th><th>Größe</th><th>Anteil</th><th>Status</th></tr>
+            </thead>
+            <tbody id="firebase-table"></tbody>
+        </table>
+    </div>
+
+    <div class="card" style="margin-bottom: 16px;">
+        <h2>Weitere Dienste</h2>
+        <div class="sub">GitHub Pages (App-Updates) · Büro-LAN-Server · APK-Bundle</div>
+        <table>
+            <thead>
+                <tr><th>Dienst</th><th>URL</th><th>Info</th><th>Status</th></tr>
+            </thead>
+            <tbody id="services-table"></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>Grob-Schätzung Monats-Download (Firebase Backup)</h2>
+        <div class="sub">Nur Orientierung – reale Werte in der Firebase Console prüfen</div>
+        <label>Handys die täglich synchronisieren: <input type="number" id="sim-devices" min="1" max="200" value="8" style="width:60px;padding:4px;border-radius:6px;border:1px solid #ccc;"></label>
+        <div id="sim-result" style="margin-top:10px;font-size:0.92rem;"></div>
+    </div>
+</main>
+<footer>
+    Kombi-App · <a href="../../index.html">Zur App</a> · <a href="control-center.html">Admin</a>
+</footer>
+
+<script>
+const LIMITS = {
+    firebaseRtdbStorage: 1024 * 1024 * 1024,      // 1 GB
+    firebaseRtdbDownloadMonth: 10 * 1024 * 1024 * 1024, // 10 GB
+    firebaseHostingStorage: 10 * 1024 * 1024 * 1024,    // 10 GB
+    firebaseHostingTransferDay: 360 * 1024 * 1024,      // 360 MB/Tag
+    githubPagesBandwidthMonth: 100 * 1024 * 1024 * 1024, // ~100 GB
+    githubRepoSoftLimit: 1024 * 1024 * 1024             // 1 GB empfohlen
+};
+
+const FIREBASE_BASE = 'https://tresch-versand-default-rtdb.firebaseio.com';
+const FIREBASE_PATHS = [
+    { key: 'backup', label: '/backup (Stammdaten & Lieferungen)', url: FIREBASE_BASE + '/backup.json' },
+    { key: 'snapshots', label: '/snapshots (Sicherungen)', url: FIREBASE_BASE + '/snapshots.json' },
+    { key: 'reklamationen', label: '/reklamationen', url: FIREBASE_BASE + '/reklamationen.json' },
+    { key: 'kaninchen', label: '/kaninchen_futter_2026', url: FIREBASE_BASE + '/kaninchen_futter_2026.json' },
+    { key: 'shared_lkw', label: '/backup/_shared_lkw', url: FIREBASE_BASE + '/backup/_shared_lkw.json' },
+    { key: 'app_config', label: '/app_config (OTA-Hinweis)', url: FIREBASE_BASE + '/app_config.json' }
+];
+
+const SERVICES = [
+    { key: 'github_ota', label: 'GitHub Pages – OTA', url: 'https://truschi84-dot.github.io/versand/app-update.json', limit: null },
+    { key: 'github_app', label: 'GitHub Pages – App', url: 'https://truschi84-dot.github.io/versand/index.html', limit: null },
+    { key: 'office', label: 'Büro-LAN Server', url: 'http://192.168.2.204:8080/app-update.json', limit: null },
+    { key: 'firebase_hosting', label: 'Firebase Hosting (Reserve)', url: 'https://tresch-versand-default.web.app/index.html', limit: LIMITS.firebaseHostingStorage }
+];
+
+/** Lokale Schätzung Web-Deploy – wird beim Build/Deploy aktualisiert */
+const LOCAL_DEPLOY_ESTIMATE_BYTES = 1.53 * 1024 * 1024;
+const APK_ESTIMATE_BYTES = 6.1 * 1024 * 1024;
+
+function fmtBytes(n) {
+    if (n == null || isNaN(n)) return '–';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(2) + ' MB';
+    return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+function barClass(pct) {
+    if (pct >= 85) return 'danger';
+    if (pct >= 60) return 'warn';
+    return 'ok';
+}
+
+function cardHtml(title, sub, used, limit, extra) {
+    const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
+    const pctStr = limit ? pct.toFixed(1) + ' % belegt' : 'Kein hartes Limit in App';
+    return `<div class="card">
+        <h2>${title}</h2>
+        <div class="sub">${sub}</div>
+        <div class="big">${fmtBytes(used)}</div>
+        <div class="limit-line">Limit: ${limit ? fmtBytes(limit) : '–'} · ${pctStr}</div>
+        ${limit ? `<div class="bar-wrap"><div class="bar ${barClass(pct)}" style="width:${pct}%"></div></div><div class="pct">${pctStr}</div>` : ''}
+        ${extra || ''}
+    </div>`;
+}
+
+async function fetchSize(url, timeoutMs) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs || 20000);
+    try {
+        const res = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), {
+            signal: ctrl.signal,
+            credentials: 'omit',
+            cache: 'no-store'
+        });
+        clearTimeout(t);
+        const text = await res.text();
+        const bytes = new TextEncoder().encode(text).length;
+        return { ok: res.ok, status: res.status, bytes, text: text.slice(0, 80) };
+    } catch (e) {
+        clearTimeout(t);
+        return { ok: false, error: e.name === 'AbortError' ? 'Timeout' : (e.message || 'Fehler') };
+    }
+}
+
+function updateSimulation(totalBackupBytes) {
+    const devices = parseInt(document.getElementById('sim-devices').value, 10) || 1;
+    const perDay = totalBackupBytes * devices;
+    const perMonth = perDay * 30;
+    const pct = (perMonth / LIMITS.firebaseRtdbDownloadMonth) * 100;
+    document.getElementById('sim-result').innerHTML =
+        `Bei <b>${devices}</b> Geräten × <b>${fmtBytes(totalBackupBytes)}</b> Backup/Tag ≈
+        <b>${fmtBytes(perMonth)}</b>/Monat Firebase-Download
+        (${pct.toFixed(2)} % vom Free-Limit 10 GB) – plus Reklamationen, Kaninchen, Snapshots.`;
+}
+
+async function refreshAll() {
+    document.getElementById('last-update').textContent = new Date().toLocaleString('de-DE');
+
+    const fbResults = [];
+    for (const p of FIREBASE_PATHS) {
+        const r = await fetchSize(p.url);
+        fbResults.push({ ...p, ...r });
+    }
+
+    const totalFirebase = fbResults.filter(r => r.ok).reduce((s, r) => s + (r.bytes || 0), 0);
+    const backupBytes = fbResults.find(r => r.key === 'backup')?.bytes || 0;
+
+    document.getElementById('summary-cards').innerHTML =
+        cardHtml('Firebase DB – gesamt (gemessen)', 'Summe aller abgefragten Pfade', totalFirebase, LIMITS.firebaseRtdbStorage) +
+        cardHtml('GitHub Pages – Web-App (Schätzung)', 'Lokaler Deploy-Stand ~1,53 MB', LOCAL_DEPLOY_ESTIMATE_BYTES, LIMITS.githubRepoSoftLimit,
+            '<div style="font-size:0.82rem;margin-top:8px;color:#666;">Bandbreite Free Tier: ~100 GB/Monat (nicht live messbar)</div>') +
+        cardHtml('APK auf dem Handy', 'Eingebaute Web-Dateien pro Gerät', APK_ESTIMATE_BYTES, null);
+
+    const tbody = document.getElementById('firebase-table');
+    tbody.innerHTML = fbResults.map(r => {
+        const share = totalFirebase && r.bytes ? ((r.bytes / totalFirebase) * 100).toFixed(1) + ' %' : '–';
+        const st = r.ok
+            ? `<span class="status ok">OK ${r.status || ''}</span>`
+            : `<span class="status err">${r.error || 'Fehler'}</span>`;
+        return `<tr><td>${r.label}</td><td><b>${fmtBytes(r.bytes)}</b></td><td>${share}</td><td>${st}</td></tr>`;
+    }).join('') + `<tr style="font-weight:bold;background:#f8f9fa"><td>Gesamt (Summe Pfade*)</td><td>${fmtBytes(totalFirebase)}</td><td>100 %</td><td><span class="status ok">${((totalFirebase/LIMITS.firebaseRtdbStorage)*100).toFixed(2)} % von 1 GB</span></td></tr>`;
+
+    const svcBody = document.getElementById('services-table');
+    const svcRows = [];
+    for (const s of SERVICES) {
+        svcRows.push('<tr><td colspan="4"><span class="status wait">Prüfe…</span> ' + s.label + '</td></tr>');
+        svcBody.innerHTML = svcRows.join('');
+    }
+    svcBody.innerHTML = '';
+    for (const s of SERVICES) {
+        const r = await fetchSize(s.url, s.key === 'office' ? 4000 : 15000);
+        let info = r.ok ? fmtBytes(r.bytes) + ' Antwort' : (r.error || 'Nicht erreichbar');
+        if (s.key === 'github_app' && r.ok) info = 'index.html ' + fmtBytes(r.bytes);
+        if (s.key === 'office' && !r.ok) info = 'Nur im Büro-WLAN erreichbar (normal)';
+        const st = r.ok ? '<span class="status ok">Online</span>' : '<span class="status err">Offline</span>';
+        svcBody.innerHTML += `<tr><td>${s.label}</td><td style="word-break:break-all;font-size:0.8rem">${s.url}</td><td>${info}</td><td>${st}</td></tr>`;
+    }
+    svcBody.innerHTML += `<tr><td>Web-Deploy (lokal)</td><td>assets/ Ordner</td><td>~${fmtBytes(LOCAL_DEPLOY_ESTIMATE_BYTES)} (33 Dateien)</td><td><span class="status ok">Schätzung</span></td></tr>`;
+
+    updateSimulation(backupBytes);
+}
+
+document.getElementById('btn-refresh').addEventListener('click', () => refreshAll().catch(console.error));
+document.getElementById('btn-console').addEventListener('click', () => {
+    window.open('https://console.firebase.google.com/project/tresch-versand-default/usage', '_blank');
+});
+document.getElementById('sim-devices').addEventListener('input', () => {
+    const backup = document.querySelector('#firebase-table tr td b');
+    // re-run sim with last known backup from table if loaded
+    const rows = document.querySelectorAll('#firebase-table tr');
+    let backupBytes = 83462;
+    if (rows.length > 1) {
+        const first = rows[0]?.querySelector('td b')?.textContent;
+        if (first && first.includes('KB')) backupBytes = parseFloat(first) * 1024;
+    }
+    updateSimulation(backupBytes);
+});
+
+refreshAll().catch(console.error);
+</script>
+</body>
+</html>

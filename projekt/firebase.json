@@ -1,0 +1,24 @@
+{
+  "database": {
+    "rules": "config/database.rules.json"
+  },
+  "hosting": {
+    "public": "..",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "projekt/**",
+      "**/app-secrets.json",
+      "**/.vscode/**"
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css|html|json)",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+        ]
+      }
+    ]
+  }
+}

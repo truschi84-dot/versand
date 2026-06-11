@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><title>App-Gesundheitscheck</title>
+<style>
+body{font-family:Segoe UI,sans-serif;margin:24px;background:#f5f5f5;color:#222;}
+h1{margin:0 0 8px;} .meta{color:#666;font-size:14px;margin-bottom:20px;}
+.summary{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.badge{padding:10px 16px;border-radius:8px;font-weight:bold;background:#fff;border:1px solid #ddd;}
+.badge.ok{border-color:#4caf50;color:#2e7d32}.badge.warn{border-color:#ff9800;color:#e65100}.badge.fail{border-color:#f44336;color:#b71c1c}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #eee;vertical-align:top;}
+th{background:#263238;color:#fff;font-size:13px;}
+tr.ok td:first-child{color:#2e7d32;font-weight:bold;} tr.warn td:first-child{color:#e65100;font-weight:bold;} tr.fail td:first-child{color:#b71c1c;font-weight:bold;}
+.hint{color:#666;font-size:12px;margin-top:4px;} a{color:#1565c0;}
+.card{background:#fff;padding:16px;border-radius:8px;margin-top:20px;border:1px solid #ddd;}
+</style></head><body>
+<h1>App-Gesundheitscheck</h1>
+<p class="meta">2026-06-09T08:34:14.499Z · <a href="https://truschi84-dot.github.io/versand/app-update.json" target="_blank">GitHub app-update.json</a> · <a href="https://truschi84-dot.github.io/versand/index.html" target="_blank">GitHub App</a></p>
+<div class="summary">
+<span class="badge ok">OK 37</span>
+<span class="badge warn">WARN 0</span>
+<span class="badge fail">FAIL 0</span>
+</div>
+<table><thead><tr><th>Status</th><th>Pruefung</th></tr></thead><tbody><tr class="ok"><td>OK</td><td>Datei: index.html<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: app-version.json<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: app-update.json<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: .nojekyll<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: js/script.js<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: js/rechner.js<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: js/logistik.js<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: js/cloud_auth.js<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: js/cloud_secrets.embed.js<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: js/druck_utils.js<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: projekt/pc/control-center.html<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: projekt/server.js<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>Datei: projekt/local-deploy-api.js<br><small>Vorhanden</small></td></tr>
+<tr class="ok"><td>OK</td><td>app-version.json<br><small>webVersion 105, label 7.2</small></td></tr>
+<tr class="ok"><td>OK</td><td>app-update.json<br><small>webVersion 105</small></td></tr>
+<tr class="ok"><td>OK</td><td>Version app-version vs app-update<br><small>Beide: 105</small></td></tr>
+<tr class="ok"><td>OK</td><td>WEB_BUILD_VERSION in script.js<br><small>Stimmt: 105</small></td></tr>
+<tr class="ok"><td>OK</td><td>APP_VERSION Label in script.js<br><small>Stimmt: 7.2</small></td></tr>
+<tr class="ok"><td>OK</td><td>app-secrets.json (lokal)<br><small>Firebase-Zugang vorhanden (nicht in Git)</small></td></tr>
+<tr class="ok"><td>OK</td><td>cloud_secrets.embed.js<br><small>Stub (null) - korrekt fuer GitHub Pages</small><div class="hint">Nach OTA: einmal USB-Deploy damit Handys echte Secrets haben</div></td></tr>
+<tr class="ok"><td>OK</td><td>deploy.config.json<br><small>Android-Projekt: C:\Users\Trusc\AndroidStudioProjects\LogistikApp</small></td></tr>
+<tr class="ok"><td>OK</td><td>JS Syntax: js/script.js<br><small>Keine Syntaxfehler</small></td></tr>
+<tr class="ok"><td>OK</td><td>JS Syntax: js/rechner.js<br><small>Keine Syntaxfehler</small></td></tr>
+<tr class="ok"><td>OK</td><td>JS Syntax: js/logistik.js<br><small>Keine Syntaxfehler</small></td></tr>
+<tr class="ok"><td>OK</td><td>JS Syntax: js/cloud_auth.js<br><small>Keine Syntaxfehler</small></td></tr>
+<tr class="ok"><td>OK</td><td>JS Syntax: js/druck_utils.js<br><small>Keine Syntaxfehler</small></td></tr>
+<tr class="ok"><td>OK</td><td>JS Syntax: projekt/server.js<br><small>Keine Syntaxfehler</small></td></tr>
+<tr class="ok"><td>OK</td><td>JS Syntax: projekt/local-deploy-api.js<br><small>Keine Syntaxfehler</small></td></tr>
+<tr class="ok"><td>OK</td><td>Lieferanten-Loeschen (Blacklist)<br><small>Im Code vorhanden (js/script.js)</small></td></tr>
+<tr class="ok"><td>OK</td><td>Warenlinien in Cloud-Sync<br><small>Im Code vorhanden (js/script.js)</small></td></tr>
+<tr class="ok"><td>OK</td><td>Warenlinie LKW-Tab<br><small>Im Code vorhanden (js/rechner.js)</small></td></tr>
+<tr class="ok"><td>OK</td><td>Control Center Cloud-Merge<br><small>Im Code vorhanden (projekt/pc/control-center.html)</small></td></tr>
+<tr class="ok"><td>OK</td><td>Lokal: /index.html<br><small>HTTP 200</small></td></tr>
+<tr class="ok"><td>OK</td><td>Lokal: /projekt/pc/control-center.html<br><small>HTTP 200</small></td></tr>
+<tr class="ok"><td>OK</td><td>Lokal: /api/deploy/status<br><small>HTTP 200</small></td></tr>
+<tr class="ok"><td>OK</td><td>GitHub OTA Version<br><small>Online und lokal: 105</small></td></tr>
+<tr class="ok"><td>OK</td><td>GitHub Pages App<br><small>index.html erreichbar</small></td></tr></tbody></table>
+<div class="card"><h3 style="margin-top:0">Handy-Checkliste (manuell)</h3><ol><li>Handy: Menue -&gt; App-Update pruefen (OTA oder Buero-WLAN)</li>
+<li>LKW-Tab: Lieferant waehlen, optional Warenlinie, Speichern</li>
+<li>Cloud: Aenderung machen -&gt; In Cloud speichern -&gt; auf zweitem Geraet laden</li>
+<li>Druck: eine Tabelle drucken (besonders iPhone quer bei breiten Tabellen)</li>
+<li>Lieferant loeschen: danach In Cloud speichern, nicht wieder da?</li>
+<li>Control Center: Lieferanten / Warenlinien / Statistik oeffnen</li></ol></div>
+</body></html>

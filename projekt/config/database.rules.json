@@ -1,0 +1,34 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "backup": {
+      "settings": {
+        ".read": true,
+        ".write": "auth != null"
+      },
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "reklamationen": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "snapshots": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "archive": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "app_config": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "kaninchen_futter_2026": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}
