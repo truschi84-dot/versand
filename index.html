@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Kombi - Logistik & Rechner V7.2</title>
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Kombi App">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="theme-color" content="#004b93">
+    
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/app-icon-192.png?v=111">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/app-icon-180.png?v=111">
+
+    <script src="lib/xlsx.full.min.js?v=111"></script>
+    <script src="lib/html5-qrcode.min.js?v=111"></script>
+    <link rel="stylesheet" href="css/style.css?v=111">
+    <style>
+        /* Burger Menu Icon design */
+        .burger { font-size: 22px !important; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(255,255,255,0.18); color: white; border: 1px solid rgba(255,255,255,0.35); box-shadow: 0 4px 10px rgba(0,0,0,0.12); transition: transform 0.2s ease, background 0.2s ease; cursor: pointer; user-select: none; }
+        .burger:hover { transform: translateY(-1px); background: rgba(255,255,255,0.26); }
+        html, body { overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; height: auto; }
+        body.menu-open { overflow: hidden; touch-action: none; }
+
+        /* Burger-Menü: zu = display:none (blockiert Scroll in WebView nicht) */
+        #drawer2 {
+            display: none; position: fixed; left: 0; top: 0; width: 320px; max-width: 88vw; height: 100%;
+            background: linear-gradient(180deg, #ffffff 0%, #f6f8ff 100%); box-shadow: 2px 0 30px rgba(0,0,0,0.20);
+            z-index: 3000; padding: 24px 18px 18px; overflow-y: auto; border-right: 1px solid rgba(0,0,0,0.08);
+            backdrop-filter: blur(12px); box-sizing: border-box;
+            transform: translateX(-100%); transition: transform 0.28s ease;
+        }
+        #drawer2.open { transform: translateX(0); }
+        #drawer2 .drawer-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+        #drawer2 .drawer-title { font-size: 18px; font-weight: 900; letter-spacing: 0.02em; color: var(--primary); }
+        #drawer2 .drawer-close { border: none; background: rgba(0,75,147,0.1); color: var(--primary); width: 42px; height: 42px; border-radius: 12px; cursor: pointer; transition: background 0.2s ease; font-size: 20px; display: inline-flex; align-items: center; justify-content: center; }
+        #drawer2 .drawer-close:hover { background: rgba(0,75,147,0.18); }
+        #drawer2 .drawer-item { display: flex; align-items: center; justify-content: flex-start; gap: 10px; padding: 14px 16px; margin: 8px 0; border-radius: 16px; border: 1px solid rgba(0,75,147,0.12); background: rgba(255,255,255,0.9); color: #1d325f; font-weight: 700; font-size: 15px; box-shadow: 0 10px 20px rgba(19, 54, 100, 0.05); cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease; }
+        #drawer2 .drawer-item:hover { transform: translateX(2px); box-shadow: 0 14px 26px rgba(19, 54, 100, 0.09); background: #f4f7ff; }
+        #drawer2 .drawer-item.active { background: var(--primary); color: #ffffff; border-color: rgba(255,152,0,0.8); box-shadow: 0 18px 30px rgba(0,75,147,0.25); border-left: 5px solid #ff9800; }
+        #drawer2 .drawer-item .item-icon { font-size: 18px; }
+        #drawer2 .drawer-item.small-note { font-size: 14px; opacity: 0.85; font-weight: 600; }
+        #drawer2 .drawer-separator { border: 0; border-top: 1px solid rgba(0,0,0,0.08); margin: 16px 0; }
+        #overlay2 { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); z-index: 2999; display: none; }
+        /* Dark mode: siehe css/style.css body.dark-mode */
+        .side-menu { position: fixed; right: -350px; top: 0; width: 320px; height: 100%; background: white; border-left: 2px solid #ccc; transition: 0.3s; z-index: 2000; padding: 15px; display: flex; flex-direction: column; box-shadow: -2px 0 10px rgba(0,0,0,0.2); box-sizing: border-box; pointer-events: none; }
+        .side-menu.open { right: 0 !important; pointer-events: auto; }
+        .toggle-btn { flex: 1; padding: 14px; text-align: center; cursor: pointer; font-weight: bold; color: #5f6368; transition: 0.3s; border-radius: 10px; border: none; }
+        .toggle-btn.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(0,75,147,0.35); }
+        .modal-content .input-area .field { display: flex; flex-direction: column; margin-bottom: 8px; }
+        .modal-content .input-area .field label { display: block !important; font-size: 10px !important; color: #666 !important; font-weight: bold !important; text-transform: uppercase !important; margin-bottom: 4px !important; }
+        body.dark-mode .modal-content .input-area .field label { color: #aaa !important; }
+        .modal-content .input-area .field input, .modal-content .input-area .field select, .modal-content .input-area .field textarea { width: 100% !important; box-sizing: border-box !important; padding: 12px !important; border-radius: 8px !important; border: 1px solid #ccc !important; font-size: 16px !important; background: #fafafa !important; color: #333 !important; }
+        body.dark-mode .modal-content .input-area .field input, body.dark-mode .modal-content .input-area .field select, body.dark-mode .modal-content .input-area .field textarea { background: #2c2c2c !important; border-color: #444 !important; color: #fff !important; }
+
+        @media print {
+            #printArea h2 { font-size: 38px !important; font-weight: 900 !important; margin-bottom: 10px !important; }
+            #printArea h3 { font-size: 28px !important; font-weight: bold !important; }
+        }
+
+        /* --- Checkliste Styles --- */
+        .checklist-tabs { display: flex; gap: 10px; margin-top: 15px; }
+        .checklist-tab-btn { flex: 1; padding: 12px; border: none; background: #eef2f7; color: #5a6b7d; border-radius: 12px; font-weight: 700; cursor: pointer; transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
+        .checklist-tab-btn.active { background: linear-gradient(135deg, #005baa, #004b93); color: white; box-shadow: 0 6px 14px rgba(0,75,147,0.25); }
+        .task-list { list-style: none; padding: 0; margin: 0 0 15px 0; }
+        .empty-list-info { text-align: center; padding: 20px; color: #999; font-size: 14px; background: #fafafa; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 15px; }
+        .checklist-form { display: flex; gap: 8px; margin-bottom: 15px; }
+        .checklist-form input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; background: #fafafa; color: #333; }
+        .checklist-form button[type="submit"] { padding: 0 20px; background: var(--primary, #004b93); color: white; border: none; border-radius: 8px; font-size: 24px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .checklist-form #mic-checklist { padding: 0 15px; background: var(--primary, #004b93); color: white; border: none; border-radius: 8px; font-size: 20px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn-secondary { width: 100%; padding: 12px; background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        #checklist-progress-bar-container { height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden; margin-bottom: 5px; }
+        #checklist-progress-bar { height: 100%; background: var(--success, #4caf50); width: 0%; transition: width 0.3s ease; }
+        #checklist-progress-text { margin: 0; font-size: 12px; color: #555; text-align: center; font-weight: bold; }
+        body.dark-mode .checklist-tab-btn { background: #2c2c2c; color: #aaa; }
+        body.dark-mode .checklist-tab-btn.active { background: var(--primary, #004b93); color: white; }
+        body.dark-mode .empty-list-info { background: #1e1e1e; border-color: #444; color: #777; }
+        body.dark-mode .checklist-form input { background: #2c2c2c; border-color: #444; color: white; }
+        body.dark-mode .btn-secondary { background: #3b1c1c; color: #ff5555; border-color: #552222; }
+        body.dark-mode #checklist-progress-bar-container { background: #333; }
+    </style>
+</head>
+<body>
+
+<div id="pin-protection-overlay" class="pin-overlay">
+    <h2 id="pin-title">App gesperrt</h2>
+    <p id="pin-desc">Bitte Firmen-PIN eingeben (Rechner &amp; Logistik)</p>
+    <input type="password" id="pin-input" pattern="[0-9]*" inputmode="numeric" autocomplete="one-time-code" enterkeyhint="go">
+    <button id="pin-submit-btn" class="pin-btn pin-btn-primary">Entsperren</button>
+    <button type="button" id="pin-cancel-btn" class="pin-btn pin-btn-ghost" style="display:none; margin-top:10px;">Abbrechen</button>
+    <div class="pin-settings-link" onclick="promptCustomCloudUrl()">⚙️ Server-Adresse ändern</div>
+</div>
+
+<div id="ota-update-modal" class="modal ota-update-modal" style="display:none; z-index:10006;">
+    <div class="modal-content ota-update-modal-content" style="text-align:center; padding:28px 22px; max-width:340px;">
+        <div class="ota-update-icon" style="font-size:48px; line-height:1; margin-bottom:8px;">📲</div>
+        <h2 style="color:var(--primary); margin:0 0 8px; font-size:20px;">App-Update verfügbar</h2>
+        <p id="ota-update-text" style="margin:0 0 20px; color:#555; font-size:15px; line-height:1.45;">
+            Version <strong id="ota-update-ver">—</strong> ist bereit.<br>Nach dem Bestätigen wird die neue Version installiert.
+        </p>
+        <button type="button" id="ota-update-confirm" style="width:100%; padding:15px; background:var(--success); color:white; border:none; border-radius:10px; font-weight:bold; font-size:17px; cursor:pointer; margin-bottom:10px;">Jetzt installieren</button>
+        <button type="button" id="ota-update-later" style="width:100%; padding:12px; background:transparent; color:#666; border:1px solid #ccc; border-radius:10px; font-size:15px; cursor:pointer;">Später</button>
+    </div>
+</div>
+
+<div id="app2_wrapper">
+    <div class="overlay" id="overlay2" onclick="toggleMenuApp2(false)"></div>
+    <nav class="drawer" id="drawer2">
+        <div class="drawer-header">
+            <div class="drawer-title">Rechner Menü</div>
+            <button class="drawer-close" onclick="toggleMenuApp2(false)">✕</button>
+        </div>
+        <hr class="drawer-separator">
+        <div class="drawer-item menu-tab" id="menu-tab-lkw" onclick="switchTabAndCloseMenu('lkw')"><span class="item-icon">🚛</span><span>LKW</span></div>
+        <div class="drawer-item menu-tab" id="menu-tab-sort" onclick="switchTabAndCloseMenu('sort')"><span class="item-icon">📦</span><span>Sortierung</span></div>
+        <div class="drawer-item menu-tab" id="menu-tab-noelke" onclick="switchTabAndCloseMenu('noelke')"><span class="item-icon">📝</span><span>Nölke</span></div>
+        <div class="drawer-item menu-tab" id="menu-tab-leergut" onclick="switchTabAndCloseMenu('leergut')"><span class="item-icon">♻️</span><span>Leergut</span></div>
+        <div class="drawer-item menu-tab" id="menu-tab-brandenburg" onclick="switchTabAndCloseMenu('brandenburg')"><span class="item-icon">🏭</span><span>Brandenburg WE</span></div>
+        <div class="drawer-item menu-tab" id="menu-tab-checklist" onclick="switchTabAndCloseMenu('checklist')"><span class="item-icon">📋</span><span>Arbeits-Checkliste</span></div>
+        <hr class="drawer-separator">
+        <div class="drawer-item" id="menu-wlan-update-item" onclick="checkForWebUpdateManual();"><span class="item-icon">📶</span><span>App-Update prüfen</span><span class="update-available-chip menu-chip" style="display:none;">NEU</span></div>
+        <div class="drawer-item" id="menu-office-reload-item" onclick="loadWlanUpdateNow();"><span class="item-icon">💻</span><span>Vom Büro-Server laden</span></div>
+        <div class="drawer-item" onclick="clearAppBrowserCache(); toggleMenuApp2(false);"><span class="item-icon">🧹</span><span>App-Cache leeren</span></div>
+        <div class="drawer-item" onclick="toggleDarkMode(); toggleMenuApp2(false);" style="display: flex; align-items: center; gap: 10px;"><span class="item-icon dark-mode-icon">🌙</span><span class="dark-mode-label">Dunkelmodus</span></div>
+        <div class="drawer-item" onclick="toggleCalc(true); toggleMenuApp2(false);" style="display: flex; align-items: center; gap: 10px;"><span class="item-icon">🖩</span><span>Taschenrechner</span></div>
+        <div class="drawer-item small-note" style="pointer-events:none; justify-content:center; opacity:0.5; margin-top:4px; font-size:12px;">
+            <span>Build 102 · Update-Test</span>
+        </div>
+    </nav>
+
+    <header>
+        <div style="display:flex; align-items:center; gap: 15px;">
+            <div class="burger" onclick="toggleMenuApp2(true)">☰</div>
+        </div>
+        <div class="header-center">
+            <p class="head-title">Tresch & Sohn</p>
+            <p class="head-subtitle">Logistik & Rechner · v7.2</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            <button type="button" class="update-available-chip header-update-chip" style="display:none;" onclick="openOtaUpdatePrompt()" title="Neues Update installieren">UPDATE</button>
+            <button class="header-btn" id="global-sync-btn" onclick="loadAllFromCloud()" style="font-size: 16px;" title="Stammdaten laden: Lieferanten, Sorten, Nölke-Produkte">🔄</button>
+        </div>
+    </header>
+
+    <div id="team-day-banner" class="team-day-banner" style="display:none;" onclick="openTeamDayPanel()" role="button" tabindex="0" aria-live="polite">
+        <span class="team-day-banner-icon">📢</span>
+        <span id="team-day-banner-text" class="team-day-banner-text"></span>
+        <span id="team-day-banner-badge" class="team-day-banner-badge" style="display:none;"></span>
+    </div>
+
+    <div id="tab-lkw" class="tab-content active">
+        <button type="button" class="btn-reklamation" onclick="openReklamationModal()">⚠️ Reklamation / Mangel erfassen</button>
+        <div class="input-area">
+            <div class="field"><label>Lieferant / Fahrer</label>
+                <div style="display:flex; gap:5px;">
+                    <select id="lief" onchange="updateLkwSupplierLineSelect()"></select>
+                </div>
+            </div>
+            <div class="field" id="lkw-supplier-line-wrap" style="display:none;">
+                <label>Warenlinie (optional)</label>
+                <select id="lkw-supplier-line"></select>
+            </div>
+            <div id="sonder-box" class="sonder-box" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+                    <div style="font-size: 10px; font-weight: bold; color: var(--sonder);">SONDERPOSTEN / KARTONZÄHLUNG & E2</div>
+                    <button onclick="openSonderTplModal(false)" style="background:transparent; color:var(--sonder); border:1px solid var(--sonder); border-radius:4px; font-size:10px; padding:4px 8px; cursor:pointer; font-weight:bold;">💾 Vorlage speichern</button>
+                </div>
+                <div style="display:flex; gap:5px; margin-bottom:10px;">
+                    <div id="selected-sonder-tpl" class="select-trigger" style="flex:1; margin-bottom:0; border-color:var(--sonder); color:var(--sonder);" onclick="openSearchModal('sonder-tpl')">Vorlage wählen / scannen...</div>
+                    <button onclick="startBarcodeScanner('sonder-tpl')" style="background:var(--sonder); color:white; border:none; border-radius:8px; cursor:pointer; width:55px; font-size:24px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">📷</button>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 8px;">
+                    <div class="field"><label>Krt/R</label><input type="number" id="s-reihe" oninput="calcSonder()" inputmode="numeric"></div>
+                    <div class="field"><label>Rh</label><input type="number" id="s-reihen" oninput="calcSonder()" inputmode="numeric"></div>
+                    <div class="field"><label>Krt/Lg</label><input type="number" id="s-krtlage" oninput="calcSonder()" inputmode="numeric"></div>
+                    <div class="field"><label>Lag</label><input type="number" id="s-lagen" oninput="calcSonder()" inputmode="numeric"></div>
+                    <div class="field"><label>Einz</label><input type="number" id="s-einzel" oninput="calcSonder()" inputmode="numeric"></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; border-top: 1px dashed #ccc; padding-top: 5px; margin-bottom: 8px;">
+                    <div class="field"><label>E2-Kisten</label><input type="number" id="s-e2kisten" oninput="calcSonder()" inputmode="numeric"></div>
+                    <div class="field"><label>Stk / E2</label><input type="number" id="s-stke2" oninput="calcSonder()" inputmode="numeric"></div>
+                    <div class="field"><label>Stk / Krt</label><input type="number" id="s-stk" oninput="calcSonder()" inputmode="numeric"></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+                    <div class="field"><label>Brutto (kg)</label><input type="number" step="0.01" id="s-brutto" oninput="calcSonder()" inputmode="decimal" placeholder="Opt."></div>
+                    <div class="field"><label>kg / Stück</label><input type="number" step="0.001" id="s-kg" oninput="calcSonder()" inputmode="decimal"></div>
+                    <div class="field"><label>MHD</label><input type="text" id="s-mhd" placeholder="TT.MM" oninput="formatMHD(this)" inputmode="numeric"></div>
+                </div>
+                <div class="field" style="margin-top: 5px;"><label>Herkunft</label><input type="text" id="s-herkunft" placeholder="Von wem? (Optional)"></div>
+                <div class="field" style="margin-top: 5px;"><label>Ergebnis (KG)</label><input type="text" id="s-res" readonly style="color:var(--sonder); font-weight:bold;"></div>
+            </div>
+            
+            <div id="normal-box">
+                <div id="dynamic-leergut-lkw"></div>
+            </div>
+        </div>
+        <div class="list-area" id="list"></div>
+    </div>
+       <div id="tab-sort" class="tab-content">
+        
+        <div class="input-area">
+            <div class="field"><label>Lieferant</label><select id="lief-sort" onchange="resetSorteSelection()"></select></div>
+            
+            <div id="sonder-box-sort" class="sonder-box" style="display:none; margin-top: 10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+                    <div style="font-size: 10px; font-weight: bold; color: var(--sonder);">SONDERPOSTEN SORTIERUNG</div>
+                    <button onclick="openSonderTplModal(false)" style="background:transparent; color:var(--sonder); border:1px solid var(--sonder); border-radius:4px; font-size:10px; padding:4px 8px; cursor:pointer; font-weight:bold;">💾 Vorlage speichern</button>
+                </div>
+                <div style="display:flex; gap:5px; margin-bottom:10px;">
+                    <div id="selected-sonder-tpl-sort" class="select-trigger" style="flex:1; margin-bottom:0; border-color:var(--sonder); color:var(--sonder);" onclick="openSearchModal('sonder-tpl-sort')">Vorlage wählen / scannen...</div>
+                    <button onclick="startBarcodeScanner('sonder-tpl-sort')" style="background:var(--sonder); color:white; border:none; border-radius:8px; cursor:pointer; width:55px; font-size:24px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">📷</button>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 8px;">
+                    <div class="field"><label>Krt/R</label><input type="number" id="s-reihe-sort" oninput="calcSonderSort()" inputmode="numeric"></div>
+                    <div class="field"><label>Rh</label><input type="number" id="s-reihen-sort" oninput="calcSonderSort()" inputmode="numeric"></div>
+                    <div class="field"><label>Krt/Lg</label><input type="number" id="s-krtlage-sort" oninput="calcSonderSort()" inputmode="numeric"></div>
+                    <div class="field"><label>Lag</label><input type="number" id="s-lagen-sort" oninput="calcSonderSort()" inputmode="numeric"></div>
+                    <div class="field"><label>Einz</label><input type="number" id="s-einzel-sort" oninput="calcSonderSort()" inputmode="numeric"></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; border-top: 1px dashed #ccc; padding-top: 5px; margin-bottom: 8px;">
+                    <div class="field"><label>E2-Kisten</label><input type="number" id="s-e2kisten-sort" oninput="calcSonderSort()" inputmode="numeric"></div>
+                    <div class="field"><label>Stk / E2</label><input type="number" id="s-stke2-sort" oninput="calcSonderSort()" inputmode="numeric"></div>
+                    <div class="field"><label>Stk / Krt</label><input type="number" id="s-stk-sort" oninput="calcSonderSort()" inputmode="numeric"></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+                    <div class="field"><label>Brutto (kg)</label><input type="number" step="0.01" id="s-brutto-sort" oninput="calcSonderSort()" inputmode="decimal" placeholder="Opt."></div>
+                    <div class="field"><label>kg / Stück</label><input type="number" step="0.001" id="s-kg-sort" oninput="calcSonderSort()" inputmode="decimal"></div>
+                    <div class="field"><label>MHD</label><input type="text" id="s-mhd-sort" placeholder="TT.MM" oninput="formatMHD(this)" inputmode="numeric"></div>
+                </div>
+                <div class="field" style="margin-top: 5px;"><label>Herkunft</label><input type="text" id="s-herkunft-sort" placeholder="Von wem? (Optional)"></div>
+                <div class="field" style="margin-top: 5px;"><label>Ergebnis (KG)</label><input type="text" id="s-res-sort" readonly style="color:var(--sonder); font-weight:bold;"></div>
+            </div>
+
+            <div id="normal-box-sort">
+            <label style="font-size: 9px; font-weight: bold; color: #666; display:block; text-align:center;">SORTE / ARTIKEL-NR</label>
+            <div style="display:flex; gap:5px;">
+                <div id="selected-sorte-display" class="select-trigger" style="flex:1; margin-bottom:0;" onclick="openSearchModal('sorte')">Bitte Sorte wählen...</div>
+                <button onclick="startBarcodeScanner('sorte')" style="background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; width:55px; font-size:24px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display:flex; align-items:center; justify-content:center;">📷</button>
+            </div>
+            <div id="dynamic-leergut-sort"></div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+                <button onclick="sortierungDrucken()" style="flex:1; background: #ff6b00; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 15px; font-weight: bold; cursor: pointer;">🖨️ Wiegeschein</button>
+                <button onclick="exportWiegescheinExcel()" style="flex:1; background: #107c41; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 15px; font-weight: bold; cursor: pointer;">📊 Excel</button>
+            </div>
+        </div>
+        <div class="list-area" id="list-sort"></div>
+    </div>
+
+    <div id="tab-noelke" class="tab-content">
+        <div class="input-area" style="border-top: 4px solid #137333;">
+            <label style="font-size: 9px; font-weight: bold; color: #666; display:block; text-align:center;">PRODUKT AUS KATALOG</label>
+            <div style="display:flex; gap:5px; margin-bottom:10px;">
+                <div id="selected-noelke-display" class="select-trigger" style="border-color:#137333; color:#137333; flex:1; margin-bottom:0;" onclick="openSearchModal('noelke')">Produkt suchen...</div>
+                <button onclick="startBarcodeScanner('noelke')" style="background:#137333; color:white; border:none; border-radius:8px; cursor:pointer; width:55px; font-size:24px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">📷</button>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="field"><label>E2 Kisten</label><input type="number" id="n-e2" inputmode="numeric"></div>
+                <div class="field"><label>Charge</label><input type="text" id="n-charge" placeholder="Unsere Charge"></div>
+                <div class="field"><label>MHD</label><input type="text" id="n-mhd" placeholder="TT.MM" oninput="formatMHD(this)" inputmode="numeric"></div>
+                <div class="field"><label>Gewicht (kg)</label>
+                    <div style="display:flex; gap:5px;">
+                        <input type="number" id="n-kg" style="flex:1;" inputmode="decimal">
+                        <button id="mic-btn-noelke" onclick="startVoiceRecognition('n-kg')" style="background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; width:45px; font-size:18px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 5px rgba(0,0,0,0.1);">🎤</button>
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex; gap:5px; align-items:flex-end; margin-top:10px;">
+                <button class="clear-btn" onclick="fullResetNoelke()">↺</button>
+                <button class="add-btn" style="flex:1; background:#004b93;" onclick="addNoelkeLocal(false)">+ Speichern</button>
+            </div>
+            
+        </div>
+        
+        <div class="list-area" id="list-noelke"></div>
+        
+        <div style="display:flex; gap:8px; margin-top: 15px; padding: 0 10px;">
+            <button onclick="listeDrucken()" style="flex:1; background: #ff6b00; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ Liste</button>
+            <button onclick="shareNoelkeListePdf()" style="flex:1; background: #25D366; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">📤 WhatsApp</button>
+            <button onclick="printSelectedZebraLabels()" style="flex:1; background: #ffc107; color: black; padding: 15px; border-radius: 8px; border: none; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🦓 Etiketten</button>
+        </div>
+        <p style="text-align: center; font-size: 11px; color: #777; margin-top: 5px;">Häkchen für Zebra-Druck · „WhatsApp“ = Liste als Text senden</p>
+
+    </div>
+
+    <div id="tab-leergut" class="tab-content">
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <button id="btn-lg-mode-zaehler" onclick="setLgMode('zaehler')" style="flex:1; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; font-size:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🔢 Zählen (Kunde)</button>
+            <button id="btn-lg-mode-laden" onclick="setLgMode('laden')" style="flex:1; padding:12px; background:#f5f5f5; color:#555; border:1px solid #ccc; border-radius:8px; font-weight:bold; font-size:15px;">🚛 Lade-Assistent</button>
+        </div>
+
+        <!-- Modus: Zählen -->
+        <div id="lg-mode-zaehler">
+            <div class="input-area" style="border-top: 4px solid var(--primary);">
+                <div style="font-weight:bold; color:var(--primary); margin-bottom:15px; text-align:center;">Leergut-Beleg Erfassung</div>
+                
+                <div style="display:flex; gap:10px; margin-bottom:15px;">
+                    <div class="field" style="flex:1;">
+                        <label>Spedition / Kunde (Leergut)</label>
+                        <input list="kunde-datalist" id="lg-kunde" placeholder="Spedition / Kunde tippen...">
+                        <datalist id="kunde-datalist"></datalist>
+                    </div>
+                </div>
+
+                <div id="lg-zaehler-container" style="display:flex; flex-direction:column; gap:15px;"></div>
+
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <button onclick="importFromLKW()" style="flex:1; background:#e3f2fd; color:#1565c0; border:1px solid #90caf9; padding:10px; border-radius:8px; font-weight:bold; font-size:12px; cursor:pointer;">📥 LKW-Liste übernehmen<br><small style="font-weight:normal;">(als Entladen)</small></button>
+                    <button onclick="importFromLadeplan()" style="flex:1; background:#fff3e0; color:#e65100; border:1px solid #ffcc80; padding:10px; border-radius:8px; font-weight:bold; font-size:12px; cursor:pointer;">📤 Ladeplan übernehmen<br><small style="font-weight:normal;">(als Geladen)</small></button>
+                </div>
+
+                <div style="display:flex; gap:8px; margin-top:20px;">
+                    <button onclick="resetLgZaehler()" style="flex:1; padding:12px; background:#ffebee; color:#c62828; border:1px solid #ffcdd2; border-radius:8px; font-weight:bold;">🗑️ Reset</button>
+                    <button onclick="printLgZaehler()" style="flex:1; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ Drucken</button>
+                    <button onclick="exportLeergutExcel()" style="flex:1; padding:12px; background:#107c41; color:white; border:none; border-radius:8px; font-weight:bold;">📊 Excel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modus: Beladen -->
+        <div id="lg-mode-laden" style="display:none;">
+            <div class="input-area" style="border-top: 4px solid #f39c12;">
+                <div style="font-weight:bold; color:#f39c12; margin-bottom:10px; text-align:center;">Ziel-Beladung eingeben</div>
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <div class="field" style="flex:1;"><label>Soll E2-Kisten</label><input type="number" id="lg-soll-e2" placeholder="z.B. 377" inputmode="numeric"></div>
+                    <div class="field" style="flex:1;"><label>Soll H1-Paletten</label><input type="number" id="lg-soll-h1" placeholder="Gesamt (Opt.)" inputmode="numeric"></div>
+                    <div class="field" style="flex:1;"><label>Soll Euro-Pal.</label><input type="number" id="lg-soll-eu" placeholder="Gesamt (Opt.)" inputmode="numeric"></div>
+                </div>
+                <div class="field" style="margin-bottom:10px;"><label>Kisten pro voller Palette</label><input type="number" id="lg-e2-per-pal" value="40" inputmode="numeric"></div>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="if(typeof clearLadeAssiInputs === 'function') clearLadeAssiInputs();" style="flex:1; padding:12px; background:#ffebee; color:#c62828; border:1px solid #ffcdd2; border-radius:8px; font-weight:bold;">🗑️ Reset</button>
+                    <button onclick="calcLadePlan()" style="flex:2; padding:12px; background:#f39c12; color:white; border:none; border-radius:8px; font-weight:bold; font-size:16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Ladeplan berechnen</button>
+                </div>
+            </div>
+            
+            <div id="ladeplan-result" style="display:none; margin-top:15px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h4 style="color:#333; margin:0;">Lade-Fortschritt:</h4>
+                    <button onclick="if(typeof resetLadeProgress === 'function') resetLadeProgress();" style="background:#ffebee; color:#c62828; border:1px solid #ffcdd2; padding:6px 12px; border-radius:6px; font-weight:bold; font-size:12px; cursor:pointer;">↺ Zähler Reset</button>
+                </div>
+                
+                <div class="palette-card" id="lp-full-card" style="border-left-color: #27ae60; padding:15px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                    <div><b style="font-size:16px;" id="lp-full-desc">0x volle H1 (á 40 E2)</b></div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button onclick="updateLadeProgress('full', -1)" style="width:50px; height:50px; border-radius:12px; border:none; background:#f5f5f5; font-size:26px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">-</button>
+                        <b style="font-size:20px; min-width:40px; text-align:center;" id="lp-full-count">0 / 0</b>
+                        <button onclick="updateLadeProgress('full', 1)" style="width:50px; height:50px; border-radius:12px; border:none; background:#27ae60; color:white; font-size:26px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2);">+</button>
+                    </div>
+                </div>
+
+                <div class="palette-card" id="lp-partial-card" style="border-left-color: #f39c12; padding:15px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; cursor: pointer;" onclick="const cb = document.getElementById('lp-partial-cb'); cb.checked = !cb.checked;">
+                    <div><b style="font-size:16px;" id="lp-partial-desc">1x H1 mit 17 E2</b></div>
+                    <input type="checkbox" id="lp-partial-cb" style="width:35px; height:35px; pointer-events: none;">
+                </div>
+
+                <div class="palette-card" id="lp-h1stack-card" style="border-left-color: #34495e; padding:15px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                    <div><b style="font-size:16px;" id="lp-h1stack-desc">0x H1-Stapel (á 15)</b></div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button onclick="updateLadeProgress('h1stack', -1)" style="width:50px; height:50px; border-radius:12px; border:none; background:#f5f5f5; font-size:26px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">-</button>
+                        <b style="font-size:20px; min-width:40px; text-align:center;" id="lp-h1stack-count">0 / 0</b>
+                        <button onclick="updateLadeProgress('h1stack', 1)" style="width:50px; height:50px; border-radius:12px; border:none; background:#34495e; color:white; font-size:26px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2);">+</button>
+                    </div>
+                </div>
+
+                <div class="palette-card" id="lp-h1loose-card" style="border-left-color: #7f8c8d; padding:15px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                    <div><b style="font-size:16px;" id="lp-h1loose-desc">0x einzelne H1 (leer)</b></div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button onclick="updateLadeProgress('h1loose', -1)" style="width:50px; height:50px; border-radius:12px; border:none; background:#f5f5f5; font-size:26px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">-</button>
+                        <b style="font-size:20px; min-width:40px; text-align:center;" id="lp-h1loose-count">0 / 0</b>
+                        <button onclick="updateLadeProgress('h1loose', 1)" style="width:50px; height:50px; border-radius:12px; border:none; background:#7f8c8d; color:white; font-size:26px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2);">+</button>
+                    </div>
+                </div>
+
+                <div class="palette-card" id="lp-eu-card" style="border-left-color: #8e44ad; padding:15px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                    <div><b style="font-size:16px;" id="lp-eu-desc">0x Euro-Paletten</b></div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button onclick="updateLadeProgress('eu', -1)" style="width:50px; height:50px; border-radius:12px; border:none; background:#f5f5f5; font-size:26px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">-</button>
+                        <b style="font-size:20px; min-width:40px; text-align:center;" id="lp-eu-count">0 / 0</b>
+                        <button onclick="updateLadeProgress('eu', 1)" style="width:50px; height:50px; border-radius:12px; border:none; background:#8e44ad; color:white; font-size:26px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.2);">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-brandenburg" class="tab-content">
+        <input type="hidden" id="brandenburg-scan-input" oninput="handleBrandenburgScan(this.value)">
+        <div class="input-area" style="border-top: 4px solid #8e44ad;">
+            <div style="font-weight:bold; color:#8e44ad; margin-bottom:15px; text-align:center;">Brandenburg Wareneingang</div>
+            
+            <div id="brandenburg-scan-status" style="text-align: center; padding: 10px; background: #f3e5f5; color: #8e44ad; border-radius: 8px; font-weight: bold; margin-bottom: 10px;">
+                Warte auf Scan 1...
+            </div>
+            <div id="brandenburg-debug" style="display:none; text-align:left; font-size:12px; color:#333; background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px; margin-bottom:10px; white-space: pre-wrap; max-height:120px; overflow:auto;"></div>
+            
+            <div id="brandenburg-data-form" style="display: none;">
+                <div class="field" style="margin-bottom:10px;">
+                    <label>LS-Nummer</label>
+                    <input type="text" id="bb-ls-nummer" placeholder="z. B. 12345678" inputmode="numeric" oninput="saveBrandenburgLsNummer()">
+                </div>
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <div class="field" style="flex:1;"><label>Artikel</label><input type="text" id="bb-artikel" readonly style="background: #eee;"></div>
+                    <div class="field" style="flex:1;"><label>Charge</label><input type="text" id="bb-charge" readonly style="background: #eee;"></div>
+                </div>
+                <div class="field" style="margin-bottom:10px;"><label>Netto (Etikett)</label><input type="text" id="bb-netto-scan" readonly style="background: #e8f5e9; color: #2e7d32; font-weight: bold;"></div>
+                
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                                        <div class="field" style="flex:1;"><label>Brutto (Ist)</label><input type="number" step="0.01" id="bb-brutto" inputmode="decimal" oninput="calcBrandenburgNetto()"></div>
+                    <div class="field" style="flex:1; display: none;"><label>Leergut (Auto)</label><input type="text" id="bb-leergut" readonly style="background: #f0f2f5;"></div>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-bottom:10px; background: #f9f9f9; padding: 8px; border-radius: 6px; border: 1px solid #eee;">
+                    <div class="field" style="flex:1; margin-bottom:0;">
+                        <label style="font-size:10px; font-weight:bold; color:#555;">E2 Kisten</label>
+                        <input type="number" id="bb-e2" placeholder="0" oninput="calcBrandenburgNetto()" inputmode="numeric"></div>
+                    <div class="field" style="flex:1; margin-bottom:0;">
+                        <label style="font-size:10px; font-weight:bold; color:#555;">H1 Paletten</label>
+                        <input type="number" id="bb-h1" placeholder="0" oninput="calcBrandenburgNetto()" inputmode="numeric"></div>
+                </div>
+                
+                <div class="field" style="margin-bottom:15px;"><label>Ist-Netto (Berechnet)</label><input type="text" id="bb-netto-ist" readonly style="font-weight: bold; font-size: 18px;"></div>
+                
+                <div style="display:flex; gap:10px;">
+                    <button class="clear-btn" type="button" onclick="resetBrandenburgForm()" title="Eingabe zurücksetzen">↺</button>
+                    <button class="clear-btn" type="button" onclick="fullResetBrandenburg()" title="Alle Paletten löschen" style="background:#ffebee; color:#c62828; border:1px solid #ffcdd2;">🗑️</button>
+                    <button class="add-btn" style="flex:1; background:#8e44ad;" onclick="saveBrandenburgPalette()">+ Palette speichern</button>
+                </div>
+            </div>
+        </div>
+        
+        <div style="padding: 10px; text-align: center; font-weight: bold; color: #555;">Erfasste Paletten: <span id="bb-counter">0</span></div>
+        <div class="list-area" id="list-brandenburg"></div>
+        <div style="padding: 10px;"><button onclick="showBrandenburgSummary()" style="background: #34495e; color: white; width: 100%; padding: 15px; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ Drucken / Zusammenfassung</button></div>
+    </div>
+
+    <div id="tab-checklist" class="tab-content" style="padding: 10px;">
+        <div class="card" style="padding: 15px; margin-bottom: 10px; flex-shrink: 0;">
+            <h3 style="margin:0; color:var(--primary);">📋 Arbeits-Checkliste</h3>
+            <div class="checklist-tabs">
+                <button id="checklist-tab-morning" class="checklist-tab-btn active" onclick="switchChecklistTab('morning')">Morgen-Check</button>
+                <button id="checklist-tab-adhoc" class="checklist-tab-btn" onclick="switchChecklistTab('adhoc')">Zusatzaufgaben</button>
+            </div>
+        </div>
+
+        <div id="checklist-view-morning" class="checklist-view">
+            <p class="checklist-template-hint" style="font-size:12px; color:#666; margin:0 0 10px; text-align:center;">Morgen-Routinen kommen vom Büro (Control Center)</p>
+            <div class="card" style="padding: 10px; margin-bottom: 10px;">
+                <div id="checklist-progress-bar-container">
+                    <div id="checklist-progress-bar"></div>
+                </div>
+                <p id="checklist-progress-text">0/0 erledigt</p>
+            </div>
+            <ul id="morning-list" class="task-list"></ul>
+            <div id="morning-empty" class="empty-list-info">Keine Aufgaben.</div>
+            <div class="checklist-controls">
+                <form id="form-morning" class="checklist-form">
+                    <input type="text" id="input-morning" placeholder="Morgen-Aufgabe hinzufügen...">
+                    <button type="submit">+</button>
+                </form>
+                <button id="reset-btn" class="btn-secondary">Neuer Tag: Alle Haken entfernen</button>
+            </div>
+        </div>
+
+        <div id="checklist-view-adhoc" class="checklist-view" style="display: none;">
+            <ul id="adhoc-list" class="task-list"></ul>
+            <div id="adhoc-empty" class="empty-list-info">Keine Zusatzaufgaben.</div>
+            <div class="checklist-controls">
+                <form id="form-adhoc" class="checklist-form">
+                    <button type="button" id="mic-checklist">🎤</button>
+                    <input type="text" id="input-adhoc" placeholder="Aufgabe tippen oder sprechen...">
+                    <button type="submit">+</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="printArea"></div>
+
+<div id="edit-modal" class="modal">
+    <div class="modal-content" style="border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+            <h3 style="margin:0; font-size: 18px; color: var(--primary);">✏️ Eintrag bearbeiten</h3>
+            <span onclick="closeEditModal()" style="font-size: 26px; color: #999; cursor: pointer; line-height: 1;">&times;</span>
+        </div>
+        
+        <input type="hidden" id="edit-index">
+        <input type="hidden" id="edit-type">
+
+        <div class="input-area" style="padding:0; margin:0; box-shadow:none; border:none; background:transparent;">
+            <div class="field" id="edit-lief-container">
+                <label>Lieferant</label>
+                <select id="edit-lief" onchange="if(document.getElementById('edit-type').value === 'sort') populateEditSorteDropdown(this.value, document.getElementById('edit-sorte').value, 'sort')"></select>
+            </div>
+            <div class="field" id="edit-sorte-container" style="display:none;">
+                <label>Sorte / Artikel-Name</label>
+                <select id="edit-sorte"></select>
+            </div>
+
+            <div id="edit-normal-fields">
+                <div id="dynamic-leergut-edit"></div>
+            </div>
+
+            <div id="edit-sonder-fields" style="display:none;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+                    <div class="field"><label>Gesamt (kg)</label><input type="number" id="edit-sonder-netto" step="0.01" inputmode="decimal"></div>
+                    <div class="field"><label>MHD</label><input type="text" id="edit-sonder-mhd" placeholder="TT.MM" oninput="formatMHD(this)" inputmode="numeric"></div>
+                    <div class="field"><label>Herkunft</label><input type="text" id="edit-sonder-herkunft" placeholder="Von wem?"></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 6px;">
+                    <div class="field"><label>E2-Kisten</label><input type="number" id="edit-sonder-e2" inputmode="numeric"></div>
+                </div>
+            </div>
+
+            <div id="edit-noelke-fields" style="display:none;">
+                <div class="grid-row-1">
+                    <div class="field"><label>E2 Kisten</label><input type="number" id="edit-n-e2" inputmode="numeric"></div>
+                    <div class="field"><label>MHD</label><input type="text" id="edit-n-mhd" oninput="formatMHD(this)" inputmode="numeric"></div>
+                    <div class="field"><label>Gewicht (kg)</label><input type="number" id="edit-n-kg" inputmode="decimal"></div>
+                </div>
+            </div>
+        </div>
+
+        <button onclick="saveEdit()" style="width: 100%; margin-top: 15px; padding: 15px; font-size: 16px; background: #ff6b00; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">💾 Änderungen speichern</button>
+    </div>
+</div>
+
+<div id="search-modal" class="modal search-modal">
+    <div class="modal-content search-modal-content">
+        <h3 id="modal-title" style="margin-top:0; color:var(--primary); text-align:center;">Suchen</h3>
+        <input type="text" id="modal-search-input" class="search-box" placeholder="Tippen zum Filtern..." oninput="filterResults()" onfocus="typeof updateSearchModalViewport==='function'&&updateSearchModalViewport()">
+        
+        <div id="modal-sonder-filter-bar" style="display: none; margin-top: 10px; margin-bottom: 10px;">
+            <select id="modal-sonder-lief-filter" onchange="filterResults()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; background: #fff3e0; color: #e65100; font-weight: bold;"></select>
+        </div>
+
+        <div id="modal-sorte-filter-bar" style="display: none; gap: 5px; margin-top: 10px; margin-bottom: 10px;">
+            <button id="filter-btn-all" onclick="setSorteFilter('all')" style="flex:1; padding:8px 4px; font-size:12px; font-weight:bold; border:1px solid #ccc; background:#004b93; color:white; border-radius:6px; cursor:pointer;">✨ ALLE</button>
+            <button id="filter-btn-uns" onclick="setSorteFilter('uns')" style="flex:1; padding:8px 4px; font-size:12px; font-weight:bold; border:1px solid #ccc; background:#f4f6f9; color:#555; border-radius:6px; cursor:pointer;">📦 UNS</button>
+            <button id="filter-btn-exp" onclick="setSorteFilter('exp')" style="flex:1; padding:8px 4px; font-size:12px; font-weight:bold; border:1px solid #ccc; background:#f4f6f9; color:#555; border-radius:6px; cursor:pointer;">🌍 EXPORT</button>
+        </div>
+
+        <div id="search-action-btn" style="display:none; margin-bottom: 10px;"></div>
+        <div id="modal-results" class="results-list"></div>
+        <button onclick="closeSearchModal()" style="margin-top:10px; padding:15px; background:#f5f5f5; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer;">Abbrechen</button>
+    </div>
+</div>
+
+<div id="scanner-modal" class="modal" style="z-index: 10010;">
+    <div class="modal-content" style="padding: 15px; text-align: center;">
+        <h3 style="margin-top:0; color:#137333;">📷 Barcode scannen</h3>
+        <div id="qr-reader" style="width:100%; min-height: 250px; border-radius: 8px; overflow: hidden; border: 2px solid #137333;"></div>
+        <div style="display:flex; gap:10px; margin-top:15px;">
+            <button id="torch-btn" onclick="toggleTorch()" style="flex:1; padding:15px; background:#fff3e0; color: #e65100; border:1px solid #ffe0b2; border-radius:8px; font-weight:bold; cursor:pointer;">🔦 Licht an</button>
+            <button id="zoom-btn" onclick="toggleZoom()" style="flex:1; padding:15px; background:#e3f2fd; color: #1565c0; border:1px solid #bbdefb; border-radius:8px; font-weight:bold; cursor:pointer;">🔍 Zoom</button>
+            <button onclick="stopBarcodeScanner()" style="flex:1; padding:15px; background:#ffebee; color: #c62828; border:1px solid #ffcdd2; border-radius:8px; font-weight:bold; cursor:pointer;">Abbrechen</button>
+        </div>
+    </div>
+</div>
+
+<div id="sonder-tpl-modal" class="modal">
+    <div class="modal-content">
+        <h3 style="margin-top:0; color:var(--sonder);">📦 Vorlage anlegen</h3>
+        <div class="input-area" style="padding:0; box-shadow:none; border:none; background:transparent;">
+            <div class="field"><label>Name der Vorlage</label><input type="text" id="tpl-name" placeholder="z.B. Schweinebauch 10kg"></div>
+            <div class="field"><label>Lieferant (Optional)</label><select id="tpl-lief"></select></div>
+            <div class="field"><label>Barcode / EAN</label>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="tpl-ean" placeholder="Optional" style="flex:1;">
+                    <button onclick="startBarcodeScanner('tpl-ean-input')" style="background:#137333; color:white; border:none; border-radius:6px; cursor:pointer; width:45px; font-size:16px;">📷</button>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px;">
+                <div class="field"><label>Krt/R</label><input type="number" id="tpl-reihe" inputmode="numeric"></div>
+                <div class="field"><label>Rh</label><input type="number" id="tpl-reihen" inputmode="numeric"></div>
+                <div class="field"><label>Krt/Lg</label><input type="number" id="tpl-krtlage" inputmode="numeric"></div>
+                <div class="field"><label>Lag</label><input type="number" id="tpl-lagen" inputmode="numeric"></div>
+            </div>
+            <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px; background: #fff3e0; padding: 6px 10px; border-radius: 6px; border: 1px solid #ffe0b2;" onclick="document.getElementById('tpl-variabel').click()">
+                <input type="checkbox" id="tpl-variabel" onclick="event.stopPropagation()" style="width: 18px; height: 18px; margin: 0;">
+                <label style="font-size: 11px; font-weight: bold; color: #e65100; text-transform: uppercase; cursor: pointer;">Variables Gewicht (Direkt wiegen)</label>
+            </div>
+            <div class="grid-row-1">
+                <div class="field"><label>Stk/E2</label><input type="number" id="tpl-stke2" inputmode="numeric"></div>
+                <div class="field"><label>Stk/Krt</label><input type="number" id="tpl-stk" inputmode="numeric"></div>
+                <div class="field"><label>kg/Stk</label><input type="number" id="tpl-kg" step="0.001" inputmode="decimal"></div>
+            </div>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:15px;"><button onclick="document.getElementById('sonder-tpl-modal').style.display='none'" style="flex:1; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer;">Abbrechen</button><button onclick="saveSonderTplFromModal()" style="flex:1; padding:12px; background:var(--sonder); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">💾 Speichern</button></div>
+    </div>
+</div>
+
+<div id="calc-modal" class="calc-screen">
+    <div class="calc-header">
+        <button type="button" class="calc-header-btn" onclick="toggleCalc(false)">↘ Zurück</button>
+        <span>Taschenrechner</span>
+        <button type="button" class="calc-header-btn" onclick="clearCalc()">C</button>
+    </div>
+    <input type="text" id="c-disp" value="0" readonly inputmode="none" aria-label="Anzeige">
+    <div class="c-grid" id="c-grid-btns"></div>
+</div>
+
+<div id="custom-confirm-modal" class="modal" style="z-index: 9999;">
+    <div class="modal-content" style="max-width: 350px; text-align: center; padding: 25px;">
+        <h3 style="margin-top: 0; color: var(--primary);">Bestätigung</h3>
+        <p id="confirm-modal-text" style="font-size: 16px; margin-bottom: 25px;"></p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button id="confirm-no-btn" style="background: #eee; color: #333; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Abbrechen</button>
+            <button id="confirm-yes-btn" style="background: var(--danger); color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Ja</button>
+        </div>
+    </div>
+</div>
+
+<div id="supplier-detail-modal" class="modal" style="z-index: 10004;">
+    <div class="modal-content" style="border-radius: 16px; padding: 20px; max-width: 420px; width: 92%;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+            <h3 id="supplier-detail-title" style="margin:0; font-size: 17px; color: var(--primary);">Lieferant</h3>
+            <span onclick="closeSupplierDetailModal()" style="font-size: 26px; color: #999; cursor: pointer; line-height: 1;">&times;</span>
+        </div>
+        <p id="supplier-detail-sub" style="font-size: 12px; color: #666; margin: 0 0 12px;"></p>
+        <div id="supplier-detail-body" style="font-size: 14px;"></div>
+        <button type="button" onclick="closeSupplierDetailModal()" style="width:100%; margin-top:16px; padding:12px; background:#eee; color:#333; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Schließen</button>
+    </div>
+</div>
+
+<div id="reklamation-modal" class="modal" style="z-index: 10000;">
+    <div class="modal-content" style="border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+            <h3 id="rek-modal-title" style="margin:0; font-size: 18px; color: #d32f2f;">⚠️ Reklamation anlegen</h3>
+            <span onclick="document.getElementById('reklamation-modal').style.display='none'" style="font-size: 26px; color: #999; cursor: pointer; line-height: 1;">&times;</span>
+        </div>
+        
+        <div class="input-area" style="padding:0; margin:0; box-shadow:none; border:none; background:transparent;">
+            <div style="display:flex; gap:10px;">
+                <div class="field" style="flex:1;"><label>Datum</label><input type="date" id="rek-datum"></div>
+                <div class="field" style="flex:1;"><label>Uhrzeit</label><input type="time" id="rek-zeit"></div>
+            </div>
+            
+            <div class="field">
+                <label>Lieferant / Spedition *</label>
+                <select id="rek-lief"></select>
+            </div>
+            
+            <div style="display:flex; gap:10px;">
+                <div class="field" style="flex:1;">
+                    <label>Lieferschein-Nr. *</label>
+                    <div style="display:flex; gap:5px;">
+                        <input type="text" id="rek-ls" placeholder="Pflichtfeld" style="flex:1; min-width:0;">
+                        <button onclick="startBarcodeScanner('rek-ls')" style="background:#137333; color:white; border:none; border-radius:6px; cursor:pointer; width:45px; font-size:16px; display:flex; align-items:center; justify-content:center;">📷</button>
+                    </div>
+                </div>
+                <div class="field" style="flex:1;"><label>Angenommen von *</label><select id="rek-worker"></select></div>
+            </div>
+
+            <div class="field">
+                <label>Mangel-Kategorie *</label>
+                <select id="rek-kategorie">
+                    <option value="">Bitte wählen...</option>
+                    <option value="Mindergewicht (Soll/Ist Abweichung)">Mindergewicht (Soll/Ist Abweichung)</option>
+                    <option value="Temperatur-Überschreitung (> 5°C)">Temperatur-Überschreitung (> 5°C)</option>
+                    <option value="Beschädigte Verpackung / Ware offen">Beschädigte Verpackung / Ware offen</option>
+                    <option value="Falsches Leergut">Falsches Leergut</option>
+                    <option value="Falschlieferung / Falsche Artikel">Falschlieferung / Falsche Artikel</option>
+                    <option value="MHD abgelaufen / zu kurzes MHD">MHD abgelaufen / zu kurzes MHD</option>
+                    <option value="Hygienemängel LKW / Fahrer">Hygienemängel LKW / Fahrer</option>
+                </select>
+            </div>
+            
+            <div style="display:flex; gap:10px;">
+                <div class="field" style="flex:1;"><label>Temperatur (°C)</label><input type="number" step="0.1" id="rek-temp" placeholder="Optional"></div>
+                <div class="field" style="flex:1;"><label>MHD (Datum)</label><input type="text" id="rek-mhd" placeholder="Optional" oninput="formatMHD(this)"></div>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <div class="field" style="flex:1;"><label>Soll-Gewicht (kg)</label><input type="number" id="rek-soll" step="0.01" placeholder="Optional"></div>
+                <div class="field" style="flex:1;"><label>Ist-Gewicht (kg)</label><input type="number" id="rek-ist" step="0.01" placeholder="Optional"></div>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <div class="field" style="flex:1;"><label>Soll Leergut</label><input type="text" id="rek-leergut-soll" placeholder="z.B. 10 E2"></div>
+                <div class="field" style="flex:1;"><label>Ist Leergut</label><input type="text" id="rek-leergut-ist" placeholder="z.B. 10 Herta"></div>
+            </div>
+
+            <div class="field">
+                <label>Betroffene Positionen / Details *</label>
+                <textarea id="rek-positionen" rows="2" placeholder="Welche Artikel/Kisten sind betroffen? (Pflichtfeld)"></textarea>
+            </div>
+            
+            <div class="field">
+                <label>Allgemeine Bemerkung</label>
+                <textarea id="rek-bemerkung" rows="2" placeholder="Was genau ist beschädigt/falsch? (Optional)"></textarea>
+            </div>
+
+            <div class="field" style="margin-top: 10px; background: #fff3e0; padding: 10px; border-radius: 8px; border: 1px dashed #ff9800;">
+                <label style="color: #e65100;">📷 Beweisfoto aufnehmen</label>
+                <input type="file" id="rek-foto" accept="image/*" capture="environment" style="width: 100%; padding: 8px; background: white; border-radius: 6px; font-size: 14px;">
+            <div id="rek-foto-preview" style="margin-top: 10px; display: none;"></div>
+            </div>
+        </div>
+
+    <button id="rek-print-btn" onclick="printReklamation()" style="width: 100%; margin-top: 15px; padding: 22px; font-size: 20px; background: #d32f2f; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 6px 20px rgba(211,47,47,0.4);">🖨️ Reklamation Drucken</button>
+    <button id="rek-update-btn" onclick="updateCloudReklamation()" style="display:none; width: 100%; margin-top: 15px; padding: 15px; font-size: 18px; background: #ff6b00; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer;">💾 Änderungen in Cloud speichern</button>
+    </div>
+</div>
+
+<div id="brandenburg-summary-modal" class="modal" style="z-index: 10000;">
+    <div class="modal-content" style="border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+            <h3 style="margin:0; font-size: 18px; color: #8e44ad;">📑 Zusammenfassung</h3>
+            <span onclick="document.getElementById('brandenburg-summary-modal').style.display='none'" style="font-size: 26px; color: #999; cursor: pointer; line-height: 1;">&times;</span>
+        </div>
+        <div id="bb-summary-content" style="font-size: 14px; margin-bottom: 20px;"></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+            <button onclick="document.getElementById('brandenburg-summary-modal').style.display='none'" style="padding: 12px; background: #eee; color: #333; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Schließen</button>
+            <button onclick="printBrandenburgSummary()" style="padding: 12px; background: #34495e; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">🖨️ Drucken</button>
+            <button onclick="exportBrandenburgExcel()" style="padding: 12px; background: #107c41; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">📊 Excel</button>
+        </div>
+    </div>
+</div>
+
+<div id="changelog-modal" class="modal" style="z-index: 10005;">
+    <div class="modal-content" style="text-align: center; padding: 25px;">
+        <h2 style="color: var(--primary); margin-top: 0;">🚀 Update Erfolgreich!</h2>
+        <h3 style="color: #666; margin-top: -10px;">Version <span id="changelog-version"></span></h3>
+        <div id="changelog-text" style="text-align: left; font-size: 14px; line-height: 1.5; margin: 15px 0; background: #e8f0fe; padding: 15px; border-radius: 8px; color: #333;"></div>
+        <button onclick="document.getElementById('changelog-modal').style.display='none'" style="width:100%; padding:14px; background:var(--success); color:white; border:none; border-radius:8px; font-weight:bold; font-size: 16px; cursor:pointer;">Klasse, weiter!</button>
+    </div>
+</div>
+
+<div id="cloud-url-modal" class="modal" style="z-index: 10001;">
+    <div class="modal-content" style="max-width: 400px;">
+        <h3 style="margin-top:0; color:var(--primary);">⚙️ Server-Adresse ändern</h3>
+        <p style="font-size:13px; color:#666; margin-bottom:15px;">Gib hier die URL deiner Firebase Realtime Database ein. Leer lassen, um den Standard-Server zu verwenden.</p>
+        <input type="text" id="cloud-url-input" placeholder="https://....firebaseio.com" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:15px; box-sizing:border-box;">
+        <div style="display:flex; gap:10px;">
+            <button style="flex:1; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="document.getElementById('cloud-url-modal').style.display='none'">Abbrechen</button>
+            <button style="flex:1; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="saveCustomCloudUrl()">💾 Speichern</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/druck_utils.js?v=111"></script>
+<script src="js/cloud_secrets.embed.js?v=111"></script>
+<script src="js/cloud_auth.js?v=111"></script>
+<script src="js/gemeinsam/datenbank.js?v=111"></script>
+<script src="js/gemeinsam/metriken.js?v=112"></script>
+<script src="js/script.js?v=111"></script>
+<script src="js/team_brief.js?v=111"></script>
+<script src="js/rechner.js?v=111"></script>
+<script src="js/rechner_scanner.js?v=111"></script>
+<script src="js/rechner_druck.js?v=111"></script>
+<script src="js/rechner_reklamation.js?v=111"></script>
+<script src="js/rechner_leergut.js?v=111"></script>
+<script src="js/logistik.js?v=111"></script>
+
+</body>
+</html>

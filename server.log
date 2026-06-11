@@ -1,0 +1,9 @@
+
+  ================================
+   Tresch Apps Server · Port 8080
+  ================================
+  Start:    http://localhost:8080/Start.html
+  Logistik: http://localhost:8080/logistik/
+  Control:  http://localhost:8080/control/
+  Deploy:   http://localhost:8080/api/deploy/status
+

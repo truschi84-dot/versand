@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Tresch & Sohn – Apps</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #eef1f6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+        }
+        .logo {
+            font-size: 15px;
+            color: #888;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        h1 {
+            font-size: 28px;
+            color: #004b93;
+            margin-bottom: 40px;
+            font-weight: 800;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            max-width: 800px;
+            width: 100%;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px 24px;
+            text-align: center;
+            text-decoration: none;
+            color: inherit;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            border: 2px solid transparent;
+            transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+            cursor: pointer;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,75,147,0.15);
+            border-color: #004b93;
+        }
+        .card .icon { font-size: 48px; margin-bottom: 14px; display: block; }
+        .card .name { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
+        .card .desc { font-size: 13px; color: #777; line-height: 1.4; }
+        .card.blue { border-top: 4px solid #004b93; }
+        .card.green { border-top: 4px solid #137333; }
+        .card.dark { border-top: 4px solid #141820; }
+        .footer {
+            margin-top: 40px;
+            font-size: 12px;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+
+<div class="logo">Tresch & Sohn Logistik</div>
+<h1>App-Übersicht</h1>
+
+<div class="grid">
+    <a class="card blue" href="index.html" target="_blank">
+        <span class="icon">📱</span>
+        <div class="name">Rechner-App</div>
+        <div class="desc">Für alle Mitarbeiter<br>LKW, Sortierung, Leergut</div>
+    </a>
+
+    <a class="card green" href="logistik/index.html" target="_blank">
+        <span class="icon">📊</span>
+        <div class="name">Logistik-App</div>
+        <div class="desc">Chef / Admin<br>Touren, Lieferanten, Artikel</div>
+    </a>
+
+    <a class="card dark" href="control/index.html" target="_blank">
+        <span class="icon">🖥️</span>
+        <div class="name">Control Center</div>
+        <div class="desc">Nur Büro-PC<br>Verwaltung & Einstellungen</div>
+    </a>
+</div>
+
+<div class="footer" id="footer-hint">Lokal · C:/Users/Trusc/Desktop/Tresch-Apps</div>
+
+<script>
+(function () {
+    var isFile = location.protocol === 'file:';
+    var serverBase = 'http://localhost:8080/';
+
+    function fixLinks() {
+        document.querySelectorAll('.grid a.card').forEach(function (a) {
+            var href = a.getAttribute('href');
+            if (href && !/^https?:\/\//i.test(href)) a.href = serverBase + href.replace(/^\//, '');
+        });
+    }
+
+    if (isFile) {
+        fixLinks();
+        fetch(serverBase + 'api/deploy/status', { cache: 'no-store' })
+            .then(function (r) { if (r.ok) location.replace(serverBase + 'Start.html'); })
+            .catch(function () {
+                var el = document.getElementById('footer-hint');
+                if (el) {
+                    el.innerHTML = '⚠️ Server nicht gestartet — bitte <b>START.bat</b> oder Desktop-Verknüpfung <b>Tresch Apps</b> doppelklicken.';
+                    el.style.color = '#c62828';
+                }
+            });
+    }
+})();
+</script>
+</body>
+</html>
