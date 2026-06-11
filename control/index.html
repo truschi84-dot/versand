@@ -242,6 +242,51 @@
             .print-header { display: block !important; text-align: center; font-size: 22px; font-weight: bold; margin-bottom: 20px; color: black; }
         }
         .print-header { display: none; }
+
+        /* ── Deploy Page ── */
+        .deploy-page { display:flex; flex-direction:column; gap:20px; }
+        .deploy-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:4px; }
+        .deploy-header h1 { margin:0; font-size:24px; font-weight:800; color:var(--primary); display:flex; align-items:center; gap:10px; }
+        .deploy-status-banner { background:white; border-radius:12px; border:1px solid #e8eaf0; box-shadow:0 2px 8px rgba(0,0,0,0.04); padding:18px 20px; }
+        .deploy-status-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:14px 0 0; }
+        .dstat { background:#f8fafc; border-radius:10px; padding:13px 10px; text-align:center; border:1px solid #eef0f4; }
+        .dstat .dval { font-size:17px; font-weight:800; color:#1a1a2e; line-height:1.2; }
+        .dstat .dval.ok  { color:#16a34a; }
+        .dstat .dval.warn{ color:#d97706; }
+        .dstat .dval.err { color:#dc2626; }
+        .dstat .dlbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; margin-top:4px; }
+        .deploy-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+        .deploy-card, .deploy-card-full { background:white; border-radius:12px; border:1px solid #e8eaf0; box-shadow:0 2px 8px rgba(0,0,0,0.05); overflow:hidden; }
+        .deploy-card-header { padding:16px 18px 12px; display:flex; align-items:flex-start; gap:12px; border-bottom:1px solid #f1f5f9; }
+        .deploy-card-icon { width:44px; height:44px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+        .deploy-card-body h3 { margin:0 0 3px; font-size:14px; font-weight:800; color:#1a1a2e; }
+        .deploy-card-body p  { margin:0; font-size:12px; color:#64748b; line-height:1.5; }
+        .deploy-card-actions { padding:14px 18px 16px; display:flex; flex-direction:column; gap:8px; }
+        .btn-row { display:flex; gap:8px; flex-wrap:wrap; }
+        .dbtn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:8px; font-size:13px; font-weight:700; border:none; cursor:pointer; transition:opacity .15s; white-space:nowrap; text-decoration:none; }
+        .dbtn:hover { opacity:.85; }
+        .dbtn:disabled { opacity:.45; cursor:not-allowed; }
+        .dbtn-full { width:100%; justify-content:center; box-sizing:border-box; }
+        .dbtn-primary { background:#004b93; color:white; }
+        .dbtn-success { background:#16a34a; color:white; }
+        .dbtn-success.rechner { background:#25D366; color:white; }
+        .dbtn-success.logistik { background:#137333; color:white; }
+        .dbtn-teal    { background:#00897b; color:white; }
+        .dbtn-github  { background:#24292e; color:white; }
+        .dbtn-dark    { background:#1e293b; color:white; }
+        .dbtn-ghost   { background:#f1f5f9; color:#374151; border:1px solid #e2e8f0; }
+        .deploy-commit-input { width:100%; padding:9px 13px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; background:#f8fafc; box-sizing:border-box; margin-bottom:4px; }
+        .deploy-commit-input:focus { outline:none; border-color:#004b93; background:white; }
+        .deploy-log-modern { background:#0f172a; border-radius:9px; padding:12px 14px; font-family:monospace; font-size:12px; min-height:56px; max-height:220px; overflow-y:auto; color:#94a3b8; line-height:1.7; }
+        .deploy-steps { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; }
+        .deploy-step { background:#f8fafc; border-radius:10px; padding:13px 10px; text-align:center; border:1px solid #eef0f4; }
+        .deploy-step-num { width:26px; height:26px; border-radius:50%; background:var(--primary); color:white; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; margin:0 auto 7px; }
+        .deploy-step-icon { font-size:18px; margin-bottom:5px; }
+        .deploy-step-title { font-size:11px; font-weight:800; color:#1a1a2e; margin-bottom:2px; }
+        .deploy-step-desc { font-size:10px; color:#64748b; line-height:1.4; }
+        .offline-banner { background:#fff8e1; border:1.5px solid #ff9800; border-radius:10px; padding:14px 18px; display:none; }
+        .offline-banner h3 { margin:0 0 6px; color:#e65100; font-size:14px; }
+        .offline-banner p  { margin:0; font-size:13px; color:#5d4037; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="../js/druck_utils.js?v=1"></script>
@@ -524,7 +569,7 @@
 
         <div id="tab-erfassung" class="tab-content">
             <h1>📅 Tages-Erfassung (Verteilung)</h1>
-            <p style="font-size:13px; color:#666; margin:-8px 0 16px;">Am PC direkt — am Handy/Tablet nur mit Admin-PIN unter „LKW-Auswertung“ in der App.</p>
+            <p style="font-size:13px; color:#666; margin:-8px 0 16px;">Am PC direkt — am Handy/Tablet nur mit Admin-PIN unter „LKW-Auswertung" in der App.</p>
             <div style="display:flex; gap:20px; align-items:flex-start;">
                 <div class="card" style="flex:1;">
                     <h3 style="margin-top:0;">Manuelle Eingabe (nur PC)</h3>
@@ -715,7 +760,7 @@
                         <input type="text" id="new-brief-task" placeholder="Neue Aufgabe…" style="flex:1;" onkeyup="if(event.key==='Enter') addBriefingTask()">
                         <button class="btn btn-save" type="button" onclick="addBriefingTask()">+</button>
                     </div>
-                    <p style="font-size:12px; color:#888; margin:14px 0 0;">Erledigt-Haken setzen die Kollegen auf dem Tablet. Danach „In Cloud speichern“.</p>
+                    <p style="font-size:12px; color:#888; margin:14px 0 0;">Erledigt-Haken setzen die Kollegen auf dem Tablet. Danach „In Cloud speichern".</p>
                 </div>
                 <div class="card">
                     <h3 style="margin-top:0; color:var(--primary);">Morgen-Checkliste (Vorlage)</h3>
@@ -850,98 +895,202 @@
         </div>
 
         <div id="tab-handy-update" class="tab-content">
-            <div class="page-header">
-                <h1>🚀 Updates & Deploy</h1>
-                <p>Handy per USB · GitHub online · alles per Knopf — <strong>ohne Cursor-AI</strong>.</p>
-            </div>
+            
+            <div class="deploy-page">
 
-            <div id="deploy-offline-card" class="card" style="display:none; border:2px solid #ff9800; background:#fff8e1;">
-                <h3 style="margin-top:0; color:#e65100;">⚠️ Control Center noch nicht gestartet</h3>
-                <p style="font-size:14px; line-height:1.5; margin:0 0 12px;">Die Knöpfe funktionieren erst, wenn der kleine Server auf deinem PC läuft. Das geht mit <strong>einem Doppelklick</strong>:</p>
-                <p style="font-size:15px; font-weight:bold; background:#fff; padding:12px; border-radius:8px; border:1px dashed #ff9800; margin:0 0 12px;">
-                    📂 Desktop-Verknüpfung <code>Tresch Apps</code> oder <code>START.bat</code>
-                </p>
-                <p style="font-size:13px; color:#666; margin:0;">Dann öffnet sich der Browser automatisch — diese Seite neu laden (F5) und die Knöpfe sind aktiv.</p>
-            </div>
-
-            <div class="card" style="border-top: 4px solid var(--primary);">
-                <h3 style="margin-top:0;">Status</h3>
-                <p id="deploy-server-hint" style="font-size:13px; color:var(--text-muted); margin:0 0 12px;">Prüfe…</p>
-                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:12px; margin-bottom:16px;">
-                    <div class="stat-card"><div class="num" id="deploy-stat-server" style="font-size:16px;">—</div><div class="lbl">Server</div></div>
-                    <div class="stat-card"><div class="num" id="deploy-stat-version" style="font-size:16px;">—</div><div class="lbl">Web-Version</div></div>
-                    <div class="stat-card"><div class="num" id="deploy-stat-config" style="font-size:16px;">—</div><div class="lbl">USB-Config</div></div>
-                    <div class="stat-card"><div class="num" id="deploy-stat-adb" style="font-size:16px;">—</div><div class="lbl">Handy USB</div></div>
+                <!-- Header -->
+                <div>
+                    <div class="deploy-header">
+                        <div>
+                            <h1>🚀 Updates &amp; Deploy</h1>
+                            <p>Handy per USB · GitHub online · alles per Knopf</p>
+                        </div>
+                        <button class="dbtn dbtn-ghost" onclick="refreshDeployStatus()" style="font-size:12px;">🔄 Status aktualisieren</button>
+                    </div>
                 </div>
-                <button class="btn btn-black" onclick="refreshDeployStatus()">🔄 Status aktualisieren</button>
-            </div>
 
-            <div class="card" style="border-top: 4px solid #00897b;">
-                <h3 style="margin-top:0;">🩺 Gesundheitscheck nach Update</h3>
-                <p style="font-size:13px; color:#666; margin:0 0 12px;">Prüft automatisch Versionen, wichtige Dateien, Server, GitHub und JS-Syntax. Am Handy bleiben ein paar Punkte manuell (Checkliste unten).</p>
-                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
-                    <button class="btn btn-success" id="btn-health-check" style="background:#00897b;" onclick="runHealthCheckUi()">▶ Gesundheitscheck starten</button>
-                    <a class="btn btn-save" href="https://truschi84-dot.github.io/versand/app-update.json" target="_blank" rel="noopener" style="text-decoration:none;">🌐 GitHub Version (JSON)</a>
-                    <a class="btn btn-black" href="https://truschi84-dot.github.io/versand/index.html" target="_blank" rel="noopener" style="text-decoration:none;">📱 GitHub App öffnen</a>
+                <!-- Offline warning -->
+                <div class="offline-banner" id="deploy-offline-card">
+                    <h3>⚠️ Server nicht gestartet</h3>
+                    <p>Doppelklick auf <strong>Tresch Apps</strong> auf dem Desktop, dann F5 drücken — die Knöpfe sind danach aktiv.</p>
                 </div>
-                <p style="font-size:11px; color:#888; margin:0 0 8px;">Ohne Control Center: Doppelklick <code>projekt\skripte\App-Gesundheitscheck.bat</code></p>
-                <div id="health-check-summary" style="display:none; margin-bottom:10px; font-size:14px; font-weight:bold;"></div>
-                <div id="health-check-results" style="font-size:12px; max-height:320px; overflow:auto; background:#fafafa; border:1px solid #e0e0e0; border-radius:8px; padding:10px; display:none;"></div>
-                <div id="health-check-manual" style="display:none; margin-top:12px; font-size:12px; color:#555;"></div>
-            </div>
 
-            <div class="card" style="border-top: 4px solid #25D366;">
-                <h3 style="margin-top:0;">📱 Rechner-App per USB (Mitarbeiter-Handys)</h3>
-                <p style="font-size:13px; color:#666; margin:0 0 12px;">Kopiert Web-Dateien ins Android-Projekt <code>Versand</code>, baut die APK und installiert per USB. USB-Debugging muss an sein.<br><span style="font-size:12px;">Dauert beim ersten Mal einige Minuten (Gradle). Danach meist schneller.</span></p>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <button class="btn btn-success" id="btn-deploy-full" style="background:#25D366;" onclick="startUsbDeployFull()">▶ APK bauen + USB installieren</button>
-                    <button class="btn btn-save" id="btn-deploy-apk" onclick="startUsbDeployApkOnly()">📦 Nur Rechner-APK installieren</button>
+                <!-- Status -->
+                <div class="deploy-status-banner" id="deploy-status-banner">
+                    <div class="deploy-status-row">
+                        <div style="font-size:13px; color:#64748b;">
+                            <span class="status-dot ok" id="deploy-status-dot"></span>
+                            <span id="deploy-server-hint">Prüfe…</span>
+                        </div>
+                    </div>
+                    <div class="deploy-status-grid">
+                        <div class="dstat">
+                            <div class="dval" id="deploy-stat-server">—</div>
+                            <div class="dlbl">Server</div>
+                        </div>
+                        <div class="dstat">
+                            <div class="dval" id="deploy-stat-version">—</div>
+                            <div class="dlbl">Web-Version</div>
+                        </div>
+                        <div class="dstat">
+                            <div class="dval" id="deploy-stat-config">—</div>
+                            <div class="dlbl">USB-Config</div>
+                        </div>
+                        <div class="dstat">
+                            <div class="dval" id="deploy-stat-adb">—</div>
+                            <div class="dlbl">Handy USB</div>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card" style="border-top: 4px solid #137333;">
-                <h3 style="margin-top:0;">📊 Logistik-App per USB (Chef-Handys)</h3>
-                <p style="font-size:13px; color:#666; margin:0 0 12px;">Kopiert <code>logistik/</code> ins Android-Projekt <code>LogistikApp</code>, baut die APK und installiert per USB.<br>
-                <span style="font-size:12px;">Alternativ im WLAN (ohne APK): <strong id="logistik-lan-url">http://&lt;PC-IP&gt;:8080/logistik/</strong> → „Zum Startbildschirm hinzufügen"</span></p>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <button class="btn btn-success" id="btn-deploy-logistik-usb" style="background:#137333;" onclick="startUsbDeployLogistik()">▶ Logistik-APK bauen + USB installieren</button>
-                    <button class="btn btn-save" id="btn-deploy-logistik-apk" onclick="startUsbDeployLogistikApkOnly()">📦 Nur Logistik-APK installieren</button>
-                    <a class="btn btn-black" href="https://truschi84-dot.github.io/versand/logistik/" target="_blank" rel="noopener" style="text-decoration:none;">🌐 Logistik GitHub-URL öffnen</a>
+                <!-- Gesundheitscheck -->
+                <div class="deploy-card-full">
+                    <div class="deploy-card-header">
+                        <div class="deploy-card-icon teal">🩺</div>
+                        <div class="deploy-card-body">
+                            <h3>Gesundheitscheck</h3>
+                            <p>Prüft Versionen, Dateien, Server, GitHub und JS-Syntax automatisch.</p>
+                        </div>
+                    </div>
+                    <div class="deploy-card-actions">
+                        <div class="btn-row">
+                            <button class="dbtn dbtn-teal" id="btn-health-check" onclick="runHealthCheckUi()">▶ Gesundheitscheck starten</button>
+                            <a class="dbtn dbtn-ghost" href="https://truschi84-dot.github.io/versand/app-update.json" target="_blank" rel="noopener" style="text-decoration:none;">🌐 GitHub Version (JSON)</a>
+                            <a class="dbtn dbtn-ghost" href="https://truschi84-dot.github.io/versand/index.html" target="_blank" rel="noopener" style="text-decoration:none;">📱 App öffnen</a>
+                        </div>
+                        <div id="health-check-summary" style="display:none; font-size:14px; font-weight:bold; padding-top:4px;"></div>
+                        <div id="health-check-results" class="health-result-box" style="display:none;"></div>
+                        <div id="health-check-manual" style="display:none; font-size:12px; color:#555; padding-top:4px;"></div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card" style="border-top: 4px solid #24292e;">
-                <h3 style="margin-top:0;">🌐 GitHub – für alle Handys online</h3>
-                <p style="font-size:13px; color:#666; margin:0 0 12px;">Erhöht die Versionsnummer, committed und pushed auf GitHub Pages. Handys holen das Update über <strong>App-Update prüfen</strong> (braucht WLAN/Mobile).</p>
-                <label style="font-size:11px; font-weight:bold; color:#444;">Commit-Nachricht (optional)</label>
-                <input type="text" id="deploy-github-message" style="width:100%; margin:6px 0 12px;" placeholder="z.B. WhatsApp-Teilen + Control Center Updates">
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <button class="btn btn-black" id="btn-deploy-github" style="background:#24292e;" onclick="startGithubPublish()">📤 Version +1 und auf GitHub veröffentlichen</button>
-                    <button class="btn btn-save" id="btn-deploy-github-local" onclick="startGithubLocalBump()">🔢 Nur Version lokal +1 (ohne Push)</button>
+                <!-- Deploy Grid: Rechner + Logistik -->
+                <div class="deploy-grid">
+                    <!-- Rechner -->
+                    <div class="deploy-card">
+                        <div class="deploy-card-header">
+                            <div class="deploy-card-icon green">📱</div>
+                            <div class="deploy-card-body">
+                                <h3>Rechner-App</h3>
+                                <p>Mitarbeiter-Handys · APK per USB<br><span style="font-size:11px; color:#94a3b8;">Projekt: <code>Versand</code> · USB-Debugging nötig</span></p>
+                            </div>
+                        </div>
+                        <div class="deploy-card-actions">
+                            <button class="dbtn dbtn-success rechner dbtn-full" id="btn-deploy-full" onclick="startUsbDeployFull()">▶ APK bauen + USB installieren</button>
+                            <button class="dbtn dbtn-ghost dbtn-full" id="btn-deploy-apk" onclick="startUsbDeployApkOnly()">📦 Nur APK installieren</button>
+                        </div>
+                    </div>
+                    <!-- Logistik -->
+                    <div class="deploy-card">
+                        <div class="deploy-card-header">
+                            <div class="deploy-card-icon" style="background:#dcfce7;">📊</div>
+                            <div class="deploy-card-body">
+                                <h3>Logistik-App</h3>
+                                <p>Chef-Handys · APK per USB oder WLAN<br><span style="font-size:11px; color:#94a3b8;"><strong id="logistik-lan-url">http://&lt;PC-IP&gt;:8080/logistik/</strong></span></p>
+                            </div>
+                        </div>
+                        <div class="deploy-card-actions">
+                            <button class="dbtn dbtn-success logistik dbtn-full" id="btn-deploy-logistik-usb" onclick="startUsbDeployLogistik()">▶ APK bauen + USB installieren</button>
+                            <div class="btn-row">
+                                <button class="dbtn dbtn-ghost" style="flex:1;" id="btn-deploy-logistik-apk" onclick="startUsbDeployLogistikApkOnly()">📦 Nur APK</button>
+                                <a class="dbtn dbtn-ghost" style="flex:1; text-decoration:none; justify-content:center;" href="https://truschi84-dot.github.io/versand/logistik/" target="_blank" rel="noopener">🌐 GitHub-URL</a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <p style="font-size:11px; color:#888; margin:12px 0 0;">Live-Check: <a href="https://truschi84-dot.github.io/versand/app-update.json" target="_blank" rel="noopener">app-update.json auf GitHub</a> · Git muss eingeloggt sein (<code>git push</code>).</p>
-            </div>
 
-            <div class="card" style="border-top: 4px solid #4285F4;">
-                <h3 style="margin-top:0;">☁️ Firebase OTA (optional)</h3>
-                <p style="font-size:13px; color:#666; margin:0 0 12px;">Alternative zu GitHub — nur wenn Firebase CLI installiert ist (<code>firebase login</code>).</p>
-                <button class="btn btn-cloud" id="btn-deploy-ota" onclick="startOtaFirebase()">Firebase Hosting deploy</button>
-            </div>
+                <!-- Log -->
+                <div class="deploy-card-full">
+                    <div class="deploy-card-header" style="padding-bottom:0;">
+                        <div class="deploy-card-icon dark" style="background:#1e293b; color:#94a3b8;">▶</div>
+                        <div class="deploy-card-body">
+                            <h3>Protokoll</h3>
+                            <p>Ausgaben der letzten Aktion</p>
+                        </div>
+                    </div>
+                    <div class="deploy-card-actions">
+                        <div class="deploy-log-modern" id="deploy-log-box">Noch nichts gestartet.</div>
+                    </div>
+                </div>
 
-            <div class="card">
-                <h3 style="margin-top:0;">Protokoll</h3>
-                <div id="deploy-log-box" class="deploy-log-box">Noch nichts gestartet.</div>
-            </div>
+                <!-- GitHub + Firebase Grid -->
+                <div class="deploy-grid">
+                    <!-- GitHub -->
+                    <div class="deploy-card">
+                        <div class="deploy-card-header">
+                            <div class="deploy-card-icon dark">🐙</div>
+                            <div class="deploy-card-body">
+                                <h3>GitHub – alle Handys online</h3>
+                                <p>Version +1 · commit · push → Handys holen Update via WLAN</p>
+                            </div>
+                        </div>
+                        <div class="deploy-card-actions">
+                            <input type="text" class="deploy-commit-input" id="deploy-github-message" placeholder="Commit-Nachricht (optional)…">
+                            <button class="dbtn dbtn-github dbtn-full" id="btn-deploy-github" onclick="startGithubPublish()">📤 Version +1 und auf GitHub veröffentlichen</button>
+                            <button class="dbtn dbtn-ghost dbtn-full" id="btn-deploy-github-local" onclick="startGithubLocalBump()">🔢 Nur Version lokal +1 (kein Push)</button>
+                            <p style="font-size:11px; color:#94a3b8; margin:4px 0 0;">Git muss eingeloggt sein · <a href="https://truschi84-dot.github.io/versand/app-update.json" target="_blank" rel="noopener" style="color:#60a5fa;">app-update.json prüfen</a></p>
+                        </div>
+                    </div>
+                    <!-- Firebase OTA -->
+                    <div class="deploy-card">
+                        <div class="deploy-card-header">
+                            <div class="deploy-card-icon blue">☁️</div>
+                            <div class="deploy-card-body">
+                                <h3>Firebase OTA</h3>
+                                <p>Alternative zu GitHub — nur wenn Firebase CLI installiert ist (<code>firebase login</code>)</p>
+                            </div>
+                        </div>
+                        <div class="deploy-card-actions">
+                            <button class="dbtn dbtn-primary dbtn-full" id="btn-deploy-ota" onclick="startOtaFirebase()">☁️ Firebase Hosting deploy</button>
+                        </div>
+                    </div>
+                </div>
 
-            <div class="card" style="background:#f0f7ff; border:1px solid #90caf9;">
-                <h3 style="margin-top:0;">📖 Kurz-Anleitung</h3>
-                <ol style="font-size:13px; line-height:1.7; margin:0; padding-left:22px;">
-                    <li><strong>Desktop-Icon (einmal):</strong> <code>skripte\Control-Center-Desktop.bat</code></li>
-                    <li><strong>Jede Session:</strong> Doppelklick Desktop <code>Tresch Apps</code> — Server-Fenster offen lassen</li>
-                    <li><strong>Büro + USB:</strong> Handy anschließen → „Web kopieren + installieren“</li>
-                    <li><strong>Chef-Tablet Logistik:</strong> „Logistik-App auf Handy kopieren (USB)“ → URL am Handy öffnen</li>
-                    <li><strong>Alle Handys remote:</strong> „Version +1 und auf GitHub veröffentlichen“ → Handy „App-Update prüfen“</li>
-                </ol>
+                <!-- Quick Steps -->
+                <div class="deploy-card-full">
+                    <div class="deploy-card-header">
+                        <div class="deploy-card-icon orange">📖</div>
+                        <div class="deploy-card-body">
+                            <h3>Kurz-Anleitung — 5 Schritte</h3>
+                            <p>Schritt-für-Schritt zum nächsten Update</p>
+                        </div>
+                    </div>
+                    <div class="deploy-card-actions">
+                        <div class="deploy-steps">
+                            <div class="deploy-step">
+                                <div class="deploy-step-num">1</div>
+                                <div class="deploy-step-icon">🖥️</div>
+                                <div class="deploy-step-title">Desktop-Icon</div>
+                                <div class="deploy-step-desc">Einmalig: <code>Control-Center-Desktop.bat</code></div>
+                            </div>
+                            <div class="deploy-step">
+                                <div class="deploy-step-num">2</div>
+                                <div class="deploy-step-icon">🖱️</div>
+                                <div class="deploy-step-title">Server starten</div>
+                                <div class="deploy-step-desc">Doppelklick <code>Tresch Apps</code> — Fenster offen lassen</div>
+                            </div>
+                            <div class="deploy-step">
+                                <div class="deploy-step-num">3</div>
+                                <div class="deploy-step-icon">🔌</div>
+                                <div class="deploy-step-title">Büro + USB</div>
+                                <div class="deploy-step-desc">Handy anschließen → APK bauen + installieren</div>
+                            </div>
+                            <div class="deploy-step">
+                                <div class="deploy-step-num">4</div>
+                                <div class="deploy-step-icon">📊</div>
+                                <div class="deploy-step-title">Chef-Tablet</div>
+                                <div class="deploy-step-desc">Logistik-APK USB oder WLAN-URL öffnen</div>
+                            </div>
+                            <div class="deploy-step">
+                                <div class="deploy-step-num">5</div>
+                                <div class="deploy-step-icon">🌐</div>
+                                <div class="deploy-step-title">Remote Update</div>
+                                <div class="deploy-step-desc">GitHub push → Handy „App-Update prüfen"</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
