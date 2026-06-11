@@ -431,6 +431,14 @@ function renderTeamDashboard() {
         ${renderLieferantenTabelle(lieferantenTag)}
     </div>
 
+    <div class="card no-print">
+        <div class="ana-section-h">
+            <h3>📱 Sortier-Buchungen — ${anaDatumLabel(selDatum)}</h3>
+            <span style="font-size:12px;color:#888;">Einzelne Buchungen löschen</span>
+        </div>
+        <div id="sortier-buchungen-liste">${renderSortierBuchungenFuerDatum(selDatum)}</div>
+    </div>
+
     <div class="card">${periodHtml}</div>
     ${periodLieferantenHtml}`;
 }
@@ -664,3 +672,44 @@ function renderMonthlyOverview() {
 }
 
 // =========================================================================
+// Sortier-Buchungen Verwaltung (Löschen)
+// =========================================================================
+
+function renderSortierBuchungenFuerDatum(datum) {
+    const alle = (db.teamSortierBuchungen || []).filter(b => b.datum === datum);
+    const deleted = db.deletedSortierBuchungen || [];
+    const aktiv = alle.filter(b => !deleted.includes(b.sessionKey + '\0' + b.datum));
+    if (!aktiv.length) return '<div style="color:#888;font-size:13px;padding:8px 0;">Keine Buchungen für dieses Datum.</div>';
+    return `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:#f5f5f5;">
+            <th style="padding:6px 8px;text-align:left;">Lieferant</th>
+            <th style="padding:6px 8px;text-align:left;">Sorte</th>
+            <th style="padding:6px 8px;text-align:right;">kg</th>
+            <th style="padding:6px 8px;"></th>
+        </tr></thead>
+        <tbody>${aktiv.map(b => `<tr style="border-bottom:1px solid #eee;">
+            <td style="padding:6px 8px;">${b.lief || '–'}</td>
+            <td style="padding:6px 8px;color:#555;">${b.sorte || '–'}</td>
+            <td style="padding:6px 8px;text-align:right;font-weight:bold;">${parseFloat(b.gebuchtKg || 0).toLocaleString('de-DE')}</td>
+            <td style="padding:6px 8px;text-align:right;">
+                <button onclick="deleteSortierBuchung('${b.sessionKey}','${b.datum}')" style="background:#e53935;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;">🗑️ Löschen</button>
+            </td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+}
+
+function deleteSortierBuchung(sessionKey, datum) {
+    if (!confirm('Buchung wirklich löschen? Sie wird auch aus der Cloud entfernt.')) return;
+    if (!Array.isArray(db.deletedSortierBuchungen)) db.deletedSortierBuchungen = [];
+    const key = sessionKey + '\0' + datum;
+    if (!db.deletedSortierBuchungen.includes(key)) db.deletedSortierBuchungen.push(key);
+    db.teamSortierBuchungen = (db.teamSortierBuchungen || []).filter(b => !(b.sessionKey === sessionKey && b.datum === datum));
+    localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+    renderWorkerStats();
+    if (typeof pushToCloud === 'function') pushToCloud(true);
+}
+
+function renderBuchungenVerwaltung(datum) {
+    const el = document.getElementById('sortier-buchungen-liste');
+    if (el) el.innerHTML = renderSortierBuchungenFuerDatum(datum);
+}
