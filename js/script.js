@@ -11,7 +11,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 121;
+const WEB_BUILD_VERSION = 122;
 /** Fallback nur wenn app-update.json nicht geladen werden kann — echte URL kommt aus Config. */
 const OFFICE_LAN_URL = '';
 let pendingOtaUpdate = null;
@@ -345,10 +345,6 @@ function initAppAfterUnlock() {
     if (typeof loadRechnerData === 'function') loadRechnerData();
     if (typeof initCalc === 'function') initCalc();
     /* Cloud-Laden nur manuell über 🔄 — kein Auto-Load nach PIN */
-    /* Einmaliger Auto-Push beim Start — nur hochladen, kein Pull, Dropdowns bleiben */
-    setTimeout(() => {
-        if (typeof pushSortierNachDruckSilent === 'function') pushSortierNachDruckSilent();
-    }, 3000);
     if (typeof renderAppCloudLogs === 'function') renderAppCloudLogs();
     if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
     if (typeof initLkwShareButtons === 'function') initLkwShareButtons();
