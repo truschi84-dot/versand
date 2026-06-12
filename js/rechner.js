@@ -209,7 +209,14 @@ function toggleMenuApp2(s) {
     const overlay = document.getElementById('overlay2');
     const open = !!s;
     document.body.classList.toggle('menu-open', open);
-    if (overlay) overlay.style.display = open ? 'block' : 'none';
+    if (overlay) {
+        overlay.style.display = open ? 'block' : 'none';
+        overlay.style.pointerEvents = open ? 'auto' : 'none';
+        if (open && !overlay._menuListener) {
+            overlay._menuListener = () => toggleMenuApp2(false);
+            overlay.addEventListener('touchend', overlay._menuListener, { passive: true });
+        }
+    }
     if (!drawer) return;
     if (open) {
         drawer.style.display = 'block';
