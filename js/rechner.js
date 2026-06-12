@@ -220,6 +220,7 @@ function toggleMenuApp2(s) {
     } else {
         drawer.classList.remove('open');
         drawer.style.display = 'none';
+        requestAnimationFrame(() => { void document.body.offsetHeight; });
     }
 }
 function switchTabAndCloseMenu(tabId) {
