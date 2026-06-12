@@ -11,7 +11,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 123;
+const WEB_BUILD_VERSION = 124;
 /** Fallback nur wenn app-update.json nicht geladen werden kann — echte URL kommt aus Config. */
 const OFFICE_LAN_URL = '';
 let pendingOtaUpdate = null;
