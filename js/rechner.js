@@ -210,6 +210,8 @@ function toggleMenuApp2(s) {
     const open = !!s;
     if (open) {
         document.body.classList.add('menu-open');
+        document.documentElement.style.overflow = 'hidden';
+        document.documentElement.style.touchAction = 'none';
         if (overlay) {
             overlay.style.display = 'block';
             overlay.style.pointerEvents = 'auto';
@@ -224,6 +226,8 @@ function toggleMenuApp2(s) {
     } else {
         const cleanup = () => {
             document.body.classList.remove('menu-open');
+            document.documentElement.style.overflow = '';
+            document.documentElement.style.touchAction = '';
             if (overlay) { overlay.style.display = 'none'; overlay.style.pointerEvents = 'none'; }
             if (drawer) { drawer.style.display = 'none'; }
         };
