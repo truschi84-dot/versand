@@ -264,25 +264,29 @@ function anaDatumLabel(iso) {
     return new Date(iso + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function renderExUnsSplitBar(exportKg, unsKg) {
+function renderExUnsSplitBar(exportKg, unsKg, gesamtKg) {
     const ex = parseFloat(exportKg) || 0;
     const uns = parseFloat(unsKg) || 0;
-    const sum = ex + uns;
+    const gesamt = parseFloat(gesamtKg) || 0;
+    const nz = Math.max(0, gesamt - ex - uns);
+    const sum = ex + uns + nz;
     if (sum <= 0) {
         return '<div class="ana-empty" style="padding:16px;">Noch keine Sortier-Daten mit Export/Uns für diesen Zeitraum.</div>';
     }
     const exPct = Math.round((ex / sum) * 100);
-    const unsPct = 100 - exPct;
-    const exW = Math.max(exPct, ex > 0 ? 8 : 0);
+    const unsPct = Math.round((uns / sum) * 100);
+    const nzPct = 100 - exPct - unsPct;
     return `
     <div class="ana-split">
         <div class="ana-split-head">
             <span class="ex-lbl">Export ${anaFmtKg(ex)} kg (${exPct}%)</span>
             <span class="uns-lbl">Uns ${anaFmtKg(uns)} kg (${unsPct}%)</span>
+            ${nz > 0 ? `<span style="color:#888;font-size:12px;">Nicht zugeordnet ${anaFmtKg(nz)} kg (${nzPct}%)</span>` : ''}
         </div>
         <div class="ana-split-bar">
-            <div class="ana-split-ex" style="width:${exW}%;">${ex > 0 ? 'EX' : ''}</div>
-            <div class="ana-split-uns">${uns > 0 ? 'UNS' : ''}</div>
+            <div class="ana-split-ex" style="width:${exPct}%;">${ex > 0 ? 'EX' : ''}</div>
+            <div class="ana-split-uns" style="width:${unsPct}%;">${uns > 0 ? 'UNS' : ''}</div>
+            ${nz > 0 ? `<div style="flex:${nzPct};background:#ddd;display:flex;align-items:center;justify-content:center;font-size:10px;color:#888;">N/Z</div>` : ''}
         </div>
     </div>`;
 }
@@ -320,11 +324,13 @@ function renderLieferantenTabelle(rows, summe) {
 
 function renderAnaKpiRow(team) {
     const sortKg = team.sortiertKg > 0 ? team.sortiertKg : team.gesamtKg;
+    const nz = Math.max(0, sortKg - (parseFloat(team.exportKg) || 0) - (parseFloat(team.unsKg) || 0));
     return `
     <div class="ana-kpi-row">
         <div class="ana-kpi kpi-gesamt"><div class="val">${anaFmtKg(sortKg)}</div><div class="unit">kg</div><div class="cap">Sortiert (Handy)</div></div>
         <div class="ana-kpi kpi-ex"><div class="val">${anaFmtKg(team.exportKg)}</div><div class="unit">kg</div><div class="cap">Export</div></div>
         <div class="ana-kpi kpi-uns"><div class="val">${anaFmtKg(team.unsKg)}</div><div class="unit">kg</div><div class="cap">Uns</div></div>
+        ${nz > 1 ? `<div class="ana-kpi" style="background:#f5f5f5;"><div class="val" style="color:#888;">${anaFmtKg(nz)}</div><div class="unit">kg</div><div class="cap" style="color:#888;">Nicht zugeordnet</div></div>` : ''}
         <div class="ana-kpi kpi-kopf"><div class="val">${team.proKopf > 0 ? anaFmtKg(team.proKopf) : '–'}</div><div class="unit">kg</div><div class="cap">pro Kopf</div></div>
     </div>`;
 }
@@ -423,7 +429,7 @@ function renderTeamDashboard() {
         </div>
         <div class="ana-chef no-print"><b>📋 Für den Chef:</b> ${chefHinweis}</div>
         ${renderAnaKpiRow(tagTeam)}
-        ${renderExUnsSplitBar(tagTeam.exportKg, tagTeam.unsKg)}
+        ${renderExUnsSplitBar(tagTeam.exportKg, tagTeam.unsKg, tagTeam.gesamtKg)}
         <div class="ana-section-h" style="margin-top:8px;">
             <h3>Wer schickt wie viel?</h3>
             <span>Sortiert (Handy), Export/Uns aus Wiegescheinen</span>
@@ -462,7 +468,7 @@ function renderTeamWeeklyOverview() {
             <button class="btn btn-black" onclick="changeWeek(1)">▶</button>
         </div>
     </div>
-    ${renderExUnsSplitBar(metriken.summeExport, metriken.summeUns)}
+    ${renderExUnsSplitBar(metriken.summeExport, metriken.summeUns, metriken.summeKg)}
     <div class="ana-table-wrap"><table class="ana-table"><thead><tr>
         <th>Tag</th><th>Sortiert</th><th>Personal</th><th>kg/Kopf</th><th>Export</th><th>Uns</th>
     </tr></thead><tbody>`;
@@ -525,7 +531,7 @@ function renderTeamMonthlyOverview() {
         <div class="ana-kpi kpi-uns"><div class="val">${anaFmtKg(metriken.summeUns)}</div><div class="unit">kg</div><div class="cap">Uns</div></div>
         <div class="ana-kpi kpi-kopf"><div class="val">${metriken.proKopf > 0 ? anaFmtKg(metriken.proKopf) : '–'}</div><div class="unit">kg</div><div class="cap">Ø pro Kopf</div></div>
     </div>
-    ${renderExUnsSplitBar(metriken.summeExport, metriken.summeUns)}
+    ${renderExUnsSplitBar(metriken.summeExport, metriken.summeUns, metriken.summeKg)}
     <div class="ana-table-wrap"><table class="ana-table"><thead><tr>
         <th>Datum</th><th>Sortiert</th><th>Personal</th><th>kg/Kopf</th><th>Export</th><th>Uns</th>
     </tr></thead><tbody>`;
