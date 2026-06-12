@@ -156,7 +156,8 @@ function sortierungDrucken() {
     });
 
     if (typeof bucheTeamSortierungBeimDruck === 'function') {
-        bucheTeamSortierungBeimDruck(aggregatedDaten);
+        const sitzungId = typeof getSortierSitzungId === 'function' ? getSortierSitzungId() : 'default';
+        bucheTeamSortierungBeimDruck(aggregatedDaten, sitzungId);
     } else if (typeof pushSortierNachDruckSilent === 'function') {
         setTimeout(() => pushSortierNachDruckSilent(), 800);
     }

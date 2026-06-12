@@ -940,7 +940,9 @@ function saveEdit() {
 }
 
 function fullReset() { customConfirm("LKW Liste löschen?", () => { entries = []; reklamationDrafts = {}; saveRechnerDB(); renderLKW(); showToast("LKW Liste geleert", "success"); }); }
-function fullResetSort() { customConfirm("Sortierung löschen?", () => { entriesSort = []; saveRechnerDB(); renderSort(); showToast("Sortierung geleert", "success"); }); }
+function fullResetSort() { customConfirm("Sortierung löschen?", () => { entriesSort = []; neueSortierSitzung(); saveRechnerDB(); renderSort(); showToast("Sortierung geleert", "success"); }); }
+function neueSortierSitzung() { const id = Date.now().toString() + '_' + Math.random().toString(36).slice(2, 6); if (typeof AppStorage !== 'undefined') AppStorage.setRaw('sortier_sitzung_id', id); return id; }
+function getSortierSitzungId() { const id = typeof AppStorage !== 'undefined' ? AppStorage.getRaw('sortier_sitzung_id') : null; if (id) return id; return neueSortierSitzung(); }
 function fullResetNoelke() { 
     customConfirm("Nölke Eingaben & Liste löschen?", () => { 
         entriesNoelke = []; saveRechnerDB(); renderNoelke(); 

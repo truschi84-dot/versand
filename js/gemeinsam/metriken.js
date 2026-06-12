@@ -789,10 +789,11 @@ function fertigNrAusSorte(sorte, articles) {
     return hit ? (hit.fertigNr || hit.nr || null) : null;
 }
 
-function bucheTeamSortierungBeimDruck(aggregatedDaten) {
+function bucheTeamSortierungBeimDruck(aggregatedDaten, sitzungId) {
     if (!Array.isArray(aggregatedDaten) || aggregatedDaten.length === 0) return false;
     const heute = typeof getLocalISO === 'function' ? getLocalISO() : new Date().toISOString().split('T')[0];
     const jetzt = new Date().toISOString();
+    const aktSitzung = sitzungId || 'default';
 
     const lDb = typeof ladeLogistikDb === 'function' ? ladeLogistikDb() : {};
     const artikelMarkt = lDb.artikelMarkt || {};
@@ -814,21 +815,21 @@ function bucheTeamSortierungBeimDruck(aggregatedDaten) {
     aggregatedDaten.forEach((item) => {
         const sessionKey = sortierungSessionKey(item.lief, item.sorte, item.herkunft);
         const aktuellesGewicht = parseFloat(item.netto) || 0;
-        let buchung = buchungen.find((b) => b.sessionKey === sessionKey && b.datum === heute);
+        // Buchung nur innerhalb derselben Sitzung suchen → verschiedene Lieferungen am selben Tag bleiben getrennt
+        let buchung = buchungen.find((b) => b.sessionKey === sessionKey && b.datum === heute && (b.sitzungId || 'default') === aktSitzung);
 
         // Duplikat-Bereinigung: wenn Artikel-Name durch Sync geändert wurde entsteht ein
-        // verwaister Eintrag mit anderem sessionKey aber gleicher FertigNr+Lief+Herkunft.
-        // Diese alten Buchungen auf 0 setzen bevor die neue gezählt wird.
+        // verwaister Eintrag mit anderem sessionKey aber gleicher FertigNr+Lief+Herkunft (nur in derselben Sitzung).
         const fertigNr = fertigNrAusSorte(item.sorte, articles);
         if (fertigNr && articles.length > 0) {
             buchungen.forEach((b) => {
                 if (b.datum !== heute || b.sessionKey === sessionKey) return;
+                if ((b.sitzungId || 'default') !== aktSitzung) return; // andere Sitzung → nicht anfassen
                 if ((b.lief || '') !== (item.lief || '') || (b.herkunft || '') !== (item.herkunft || '')) return;
                 const altFertigNr = fertigNrAusSorte(b.sorte, articles);
                 if (!altFertigNr || altFertigNr !== fertigNr) return;
                 const altKg = parseFloat(b.gebuchtKg) || 0;
                 if (altKg <= 0) return;
-                // Veraltete Buchung (gleiche FertigNr, andere Sorte-Bezeichnung) → auf 0 setzen
                 const altTyp = artikelMarktTyp(altFertigNr, b.sorte, artikelMarkt);
                 teamTagesMengen[heute].gesamtKg = Math.max(0, (parseFloat(teamTagesMengen[heute].gesamtKg) || 0) - altKg);
                 if (altTyp === 'export') {
@@ -870,6 +871,7 @@ function bucheTeamSortierungBeimDruck(aggregatedDaten) {
             buchungen.push({
                 id: Date.now().toString() + '_' + Math.random().toString(36).slice(2, 7),
                 sessionKey,
+                sitzungId: aktSitzung,
                 datum: heute,
                 lief: item.lief || '',
                 sorte: item.sorte || '',
