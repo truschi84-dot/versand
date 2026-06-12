@@ -209,7 +209,6 @@ function toggleMenuApp2(s) {
     const overlay = document.getElementById('overlay2');
     const open = !!s;
     document.body.classList.toggle('menu-open', open);
-    document.body.style.touchAction = open ? 'none' : '';
     if (overlay) overlay.style.display = open ? 'block' : 'none';
     if (!drawer) return;
     if (open) {
