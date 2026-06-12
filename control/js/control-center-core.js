@@ -915,6 +915,7 @@ function adminSaveDelivery() {
     const entry = { id: Date.now().toString(), date: d, name: s, kg: k, workerShares: [], source: 'lkw' };
     if (line) entry.line = line;
     db.deliveries.push(entry);
+    localStorage.setItem('logistik_offline_db', JSON.stringify(db));
     document.getElementById('admin-weight').value = '';
     renderAll();
 }
