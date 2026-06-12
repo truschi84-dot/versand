@@ -1,8 +1,8 @@
 {
-  "webVersion": 115,
+  "webVersion": 116,
   "label": "7.2",
-  "publishedAt": "2026-06-11 18:00",
+  "publishedAt": "2026-06-12 16:00",
   "officeBundleId": "bc160c91e361",
-  "logistikVersion": 9,
-  "logistikLabel": "1.9"
+  "logistikVersion": 10,
+  "logistikLabel": "1.10"
 }

@@ -84,6 +84,7 @@ const CloudAuth = {
     },
 
     async ensureAuth() {
+        if (window.__useSupabase) return 'supabase-mode';
         if (this._idToken && Date.now() < this._expiresAt - 60000) return this._idToken;
         if (this._authPromise) return this._authPromise;
         this._authPromise = this._signIn().finally(() => { this._authPromise = null; });
@@ -197,8 +198,11 @@ async function guardCloudAccess(showUserMessage) {
     return false;
 }
 
-/** Wrapper für alle Firebase-RTDB-Aufrufe. */
+/** Wrapper für alle Cloud-Aufrufe. Supabase bevorzugt, Fallback Firebase. */
 async function cloudFetch(url, options) {
+    if (window.__useSupabase && typeof supabaseCloudFetch === 'function') {
+        return supabaseCloudFetch(url, options);
+    }
     if (isGithubPagesHost()) {
         await CloudAuth.loadSecrets();
         if (!CloudAuth.isReady()) {

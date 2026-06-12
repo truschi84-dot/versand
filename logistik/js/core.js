@@ -6,6 +6,35 @@ const FIREBASE_URL = "https://tresch-versand-default-rtdb.firebaseio.com/backup"
 let _secrets = null;
 let _idToken = null;
 
+// ── SUPABASE ──────────────────────────────────────────────────
+const _SB_URL = 'https://qoaqpzmclvacaorginor.supabase.co';
+const _SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvYXFwem1jbHZhY2Fvcmdpbm9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNzQ3NjYsImV4cCI6MjA5Njg1MDc2Nn0.QddH8vVM2-yD8PIW89phVVKAkwX8Rl4-occwmabeUyk';
+
+function _sbHeaders() {
+    return { 'apikey': _SB_KEY, 'Authorization': 'Bearer ' + _SB_KEY, 'Content-Type': 'application/json' };
+}
+
+async function sbGet(rowKey) {
+    const res = await fetch(
+        _SB_URL + '/rest/v1/cloud_backup?key=eq.' + encodeURIComponent(rowKey) + '&select=data',
+        { headers: _sbHeaders() }
+    );
+    if (!res.ok) throw new Error('Supabase Lesefehler: ' + res.status);
+    const rows = await res.json();
+    return (rows && rows[0]) ? rows[0].data : null;
+}
+
+async function sbPatch(rowKey, partial) {
+    const current = await sbGet(rowKey) || {};
+    const merged = { ...current, ...partial };
+    const res = await fetch(_SB_URL + '/rest/v1/cloud_backup', {
+        method: 'POST',
+        headers: { ..._sbHeaders(), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ key: rowKey, data: merged, updated_at: new Date().toISOString() })
+    });
+    if (!res.ok) throw new Error('Supabase Schreibfehler: ' + res.status);
+}
+
 // ── SECRETS ──────────────────────────────────────────────────
 // Normalisiert beide Formate: {apiKey/authEmail/authPassword} und {firebaseApiKey/firebaseAuthEmail/firebaseAuthPassword}
 function normalizeSecrets(cfg) {
@@ -95,13 +124,8 @@ function renderCloudLog() {
 
 function updateCloudStatus() {
     const el = document.getElementById('cloud-status-text'); if (!el) return;
-    if (secretsOk()) {
-        el.textContent = '✅ Cloud konfiguriert (' + (_secrets.authEmail || '') + ')';
-        el.style.color = 'var(--success)';
-    } else {
-        el.textContent = '⚠️ Kein Cloud-Zugang — app-secrets.json laden';
-        el.style.color = 'var(--danger)';
-    }
+    el.textContent = '✅ Supabase Cloud aktiv';
+    el.style.color = 'var(--success)';
 }
 
 function showToast(msg, type) {
@@ -136,15 +160,10 @@ function buildLogistikCloudPatch(mergedDb) {
 }
 
 async function pullCloud() {
-    if (!secretsOk()) { showToast('⚠️ Bitte zuerst app-secrets.json laden', 'warn'); openCloudPanel(); return; }
     closeAllSheets();
     try {
         cloudLog('⏳ Lade aus Cloud…');
-        const token = await getIdToken();
-        const dbUrl = (_secrets.databaseURL || FIREBASE_URL.replace('/backup','')).replace(/\/$/, '');
-        const resp = await fetch(`${dbUrl}/backup.json?auth=${token}`);
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json();
+        const data = await sbGet('main');
         if (data && typeof data === 'object') {
             const keys = ['suppliers','customers','articles','todo','lose','later','hidden','workers','workerColors',
                 'entries','settings','company','deletedSuppliers','supplierLines','supplierLinesCleared',
@@ -198,33 +217,23 @@ async function pullCloud() {
 }
 
 async function pushCloud() {
-    if (!secretsOk()) { showToast('⚠️ Bitte zuerst app-secrets.json laden', 'warn'); openCloudPanel(); return; }
     closeAllSheets();
     try {
         cloudLog('⏳ Speichere in Cloud…');
         if (typeof hydrateSortierBuchungenInDb === 'function') hydrateSortierBuchungenInDb(db);
-        const token = await getIdToken();
-        const dbUrl = (_secrets.databaseURL || FIREBASE_URL.replace('/backup','')).replace(/\/$/, '');
         let uploadDb = db;
         try {
-            const pull = await fetch(`${dbUrl}/backup.json?auth=${token}&t=${Date.now()}`);
-            if (pull.ok) {
-                const cloud = await pull.json();
-                if (cloud && typeof mergeLogistikPayloadMitCloud === 'function') {
-                    uploadDb = mergeLogistikPayloadMitCloud(db, cloud);
-                    db.teamSortierBuchungen = uploadDb.teamSortierBuchungen;
-                    db.deliveries = uploadDb.deliveries;
-                    db.teamTagesMengen = uploadDb.teamTagesMengen;
-                    db.deletedSortierBuchungen = uploadDb.deletedSortierBuchungen;
-                }
+            const cloud = await sbGet('main');
+            if (cloud && typeof mergeLogistikPayloadMitCloud === 'function') {
+                uploadDb = mergeLogistikPayloadMitCloud(db, cloud);
+                db.teamSortierBuchungen = uploadDb.teamSortierBuchungen;
+                db.deliveries = uploadDb.deliveries;
+                db.teamTagesMengen = uploadDb.teamTagesMengen;
+                db.deletedSortierBuchungen = uploadDb.deletedSortierBuchungen;
             }
         } catch (e) { /* nur lokaler Stand */ }
         const patchPayload = buildLogistikCloudPatch(uploadDb);
-        const resp = await fetch(`${dbUrl}/backup.json?auth=${token}`, {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(patchPayload)
-        });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        await sbPatch('main', patchPayload);
         saveDb();
         cloudLog('✅ In Cloud gespeichert [OK]');
         showToast('✅ Daten in Cloud gesichert!');
