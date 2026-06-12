@@ -1017,11 +1017,13 @@ function teamTagesAnzeigeAusDb(db, datum) {
     );
     let sortiertKg = sortSum.gesamtKg;
     if (sortiertKg <= 0) sortiertKg = sortiertKgAusDeliveries(db.deliveries || [], datum);
-    const gesamtKg = sortiertKg;
+    // Manuelle LKW-Einträge (ohne Handy erfasst) separat addieren → erscheinen als N/Z
+    const manuellKg = lkwKgFuerDatum(db.deliveries || [], datum);
+    const gesamtKg = sortiertKg + manuellKg;
     return {
         personalAnzahl,
         gesamtKg,
-        lkwKg: 0,
+        lkwKg: manuellKg,
         sortiertKg,
         exportKg: sortSum.exportKg,
         unsKg: sortSum.unsKg,
