@@ -24,7 +24,7 @@
         .burger { font-size: 22px !important; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(255,255,255,0.18); color: white; border: 1px solid rgba(255,255,255,0.35); box-shadow: 0 4px 10px rgba(0,0,0,0.12); transition: transform 0.2s ease, background 0.2s ease; cursor: pointer; user-select: none; }
         .burger:hover { transform: translateY(-1px); background: rgba(255,255,255,0.26); }
         html, body { overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; height: auto; }
-        body.menu-open { overflow: hidden; touch-action: none; }
+        body.menu-open { /* overflow bleibt scrollbar — nur Drawer sperrt sich selbst */ }
 
         /* Burger-Menü: zu = display:none (blockiert Scroll in WebView nicht) */
         #drawer2 {
@@ -745,11 +745,11 @@
 
 <script src="js/druck_utils.js?v=111"></script>
 <script src="js/cloud_secrets.embed.js?v=111"></script>
-<script src="js/supabase_sync.js?v=117"></script>
-<script src="js/cloud_auth.js?v=117"></script>
+<script src="js/supabase_sync.js?v=118"></script>
+<script src="js/cloud_auth.js?v=118"></script>
 <script src="js/gemeinsam/datenbank.js?v=111"></script>
 <script src="js/gemeinsam/metriken.js?v=115"></script>
-<script src="js/script.js?v=117"></script>
+<script src="js/script.js?v=118"></script>
 <script src="js/team_brief.js?v=111"></script>
 <script src="js/rechner.js?v=115"></script>
 <script src="js/rechner_scanner.js?v=111"></script>
