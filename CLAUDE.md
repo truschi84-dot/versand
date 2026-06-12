@@ -67,6 +67,14 @@ GitHub Pages deployed automatisch nach dem Push.
 - Bei HTML-Änderungen: Versionsnummer in `?v=XXX` erhöhen
 - Beide Apps (index.html + logistik.html) müssen nach Änderungen getestet werden
 
+## Bestätigungspflicht vor Änderungen (PFLICHT)
+**Vor jeder Codeänderung** zuerst ankündigen:
+- Welche App betroffen ist (Rechner / Logistik / Control Center)
+- Welche Datei(en) geändert werden
+- Was genau geändert wird
+Dann **warten bis der Nutzer "ok" oder eine Bestätigung gibt** — erst dann die Änderung durchführen.
+Gilt für alle Edit/Write-Operationen an Quellcode. Ausnahme: reine Leseoperationen (Read, Grep, Glob).
+
 ## Sicherheit
 - Firebase-Daten werden über `js/cloud_secrets.embed.js` und `js/cloud_auth.js` geschützt
 - PIN-System: Firmen-PIN schützt beide Apps

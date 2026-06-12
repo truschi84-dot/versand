@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tresch – Data Inspector</title>
+<script src="js/cloud_secrets.embed.js?v=1"></script>
+<script src="js/cloud_auth.js?v=1"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh;padding:20px}
+h1{color:#60a5fa;font-size:22px;margin-bottom:4px}
+.sub{color:#64748b;font-size:13px;margin-bottom:20px}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+.toolbar input[type=date]{background:#1e2433;border:1px solid #334155;color:#e2e8f0;padding:8px 12px;border-radius:8px;font-size:14px}
+.btn{padding:9px 18px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.btn-primary{background:#3b82f6;color:white}
+.btn-secondary{background:#334155;color:#e2e8f0}
+.btn-danger{background:#dc2626;color:white}
+.btn:hover{opacity:.85}
+.status{padding:8px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}
+.status.ok{background:#14532d;color:#86efac;display:block}
+.status.err{background:#450a0a;color:#fca5a5;display:block}
+.status.info{background:#1e3a5f;color:#93c5fd;display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#1e2433;border:1px solid #334155;border-radius:12px;padding:16px}
+.kpi-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.kpi-val{font-size:26px;font-weight:800;color:#f1f5f9}
+.kpi-sub{font-size:12px;color:#64748b;margin-top:2px}
+.kpi.warn{border-color:#f59e0b;background:#1c1a0e}
+.kpi.err{border-color:#ef4444;background:#1a0e0e}
+.kpi.ok{border-color:#22c55e;background:#0e1a10}
+.section{background:#1e2433;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:16px}
+.section h2{font-size:15px;font-weight:700;color:#93c5fd;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.badge{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600}
+.badge-ok{background:#14532d;color:#86efac}
+.badge-warn{background:#713f12;color:#fde68a}
+.badge-err{background:#450a0a;color:#fca5a5}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:7px 10px;color:#64748b;font-weight:600;border-bottom:1px solid #334155;font-size:11px;text-transform:uppercase}
+td{padding:7px 10px;border-bottom:1px solid #1e293b}
+tr:hover td{background:#1a2236}
+.tag-export{color:#60a5fa;font-weight:700}
+.tag-uns{color:#f97316;font-weight:700}
+.tag-nz{color:#94a3b8}
+.warn-row td{background:#1c1800 !important}
+.alert{background:#450a0a;border:1px solid #dc2626;border-radius:8px;padding:10px 14px;font-size:13px;color:#fca5a5;margin-bottom:8px}
+.alert-warn{background:#1c1400;border-color:#f59e0b;color:#fde68a}
+details summary{cursor:pointer;font-size:13px;color:#60a5fa;margin-bottom:8px;user-select:none}
+details summary:hover{color:#93c5fd}
+pre{font-size:11px;color:#94a3b8;overflow-x:auto;max-height:300px;background:#0f1117;padding:12px;border-radius:6px;border:1px solid #1e293b}
+.paste-area{width:100%;background:#0f1117;border:1px solid #334155;color:#e2e8f0;padding:12px;border-radius:8px;font-family:monospace;font-size:12px;min-height:80px;resize:vertical}
+.separator{border:none;border-top:1px solid #334155;margin:20px 0}
+.lief-block{border:1px solid #334155;border-radius:8px;margin-bottom:10px;overflow:hidden}
+.lief-header{background:#172032;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
+.lief-name{font-weight:700;font-size:14px}
+.lief-kg{font-size:18px;font-weight:800;color:#60a5fa}
+.zero-badge{background:#450a0a;color:#fca5a5;font-size:11px;padding:2px 7px;border-radius:10px}
+</style>
+</head>
+<body>
+<h1>🔍 Data Inspector</h1>
+<div class="sub">Tresch & Sohn – Cloud-Daten Diagnose-Tool</div>
+
+<div class="toolbar">
+    <input type="date" id="datePicker">
+    <button class="btn btn-primary" onclick="ladeCloud()">☁️ Cloud laden</button>
+    <button class="btn btn-secondary" onclick="togglePaste()">📋 JSON einfügen</button>
+    <button class="btn btn-danger" onclick="clearAll()" style="margin-left:auto">✕ Leeren</button>
+</div>
+
+<div id="pasteArea" style="display:none;margin-bottom:16px">
+    <div class="section">
+        <h2>📋 JSON manuell einfügen</h2>
+        <textarea class="paste-area" id="jsonPaste" placeholder='Hier backup.json Inhalt einfügen...'></textarea>
+        <button class="btn btn-primary" style="margin-top:10px" onclick="ladeJson()">Analysieren</button>
+    </div>
+</div>
+
+<div id="statusBox" class="status"></div>
+<div id="output" style="display:none">
+    <div class="grid" id="kpiGrid"></div>
+    <div id="alerts"></div>
+    <div id="buchungenSection"></div>
+    <div id="deliveriesSection"></div>
+    <div id="tagesmengenSection"></div>
+    <hr class="separator">
+    <div class="section">
+        <details>
+            <summary>🗄️ Rohdaten (JSON)</summary>
+            <pre id="rawJson"></pre>
+        </details>
+    </div>
+</div>
+
+<script>
+const CLOUD_URL = 'https://tresch-versand-default-rtdb.firebaseio.com/backup';
+let rawData = null;
+
+// Datum initialisieren
+const dp = document.getElementById('datePicker');
+dp.value = new Date().toISOString().slice(0,10);
+
+function zeigStatus(msg, typ) {
+    const s = document.getElementById('statusBox');
+    s.textContent = msg; s.className = 'status ' + typ;
+}
+
+function togglePaste() {
+    const el = document.getElementById('pasteArea');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function clearAll() {
+    rawData = null;
+    document.getElementById('output').style.display = 'none';
+    document.getElementById('statusBox').className = 'status';
+}
+
+async function ladeCloud() {
+    zeigStatus('🔄 Verbinde mit Firebase...', 'info');
+    try {
+        let token = '';
+        if (typeof CloudAuth !== 'undefined') {
+            try {
+                await CloudAuth.ensureAuth();
+                token = CloudAuth._idToken ? '?auth=' + CloudAuth._idToken : '';
+            } catch(e) { console.warn('Auth:', e); }
+        }
+        const url = CLOUD_URL + '.json' + (token || '?') + '&t=' + Date.now();
+        const res = await fetch(url.replace('?&','?'), { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        rawData = await res.json();
+        zeigStatus('✅ Cloud-Daten geladen (' + new Date().toLocaleTimeString('de') + ')', 'ok');
+        analysiereData(rawData, dp.value);
+    } catch(e) {
+        zeigStatus('❌ Fehler: ' + e.message, 'err');
+    }
+}
+
+function ladeJson() {
+    try {
+        rawData = JSON.parse(document.getElementById('jsonPaste').value);
+        zeigStatus('✅ JSON geladen', 'ok');
+        analysiereData(rawData, dp.value);
+    } catch(e) {
+        zeigStatus('❌ Ungültiges JSON: ' + e.message, 'err');
+    }
+}
+
+dp.addEventListener('change', () => { if (rawData) analysiereData(rawData, dp.value); });
+
+function normDatum(d) {
+    if (!d) return '';
+    d = String(d).trim();
+    // DD.MM.YYYY → YYYY-MM-DD
+    const m = d.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (m) return m[3]+'-'+m[2]+'-'+m[1];
+    return d.slice(0,10);
+}
+
+function analysiereData(data, datum) {
+    document.getElementById('output').style.display = 'block';
+    const alerts = [];
+
+    // --- Buchungen für diesen Tag ---
+    const alleBuch = Array.isArray(data.teamSortierBuchungen)
+        ? data.teamSortierBuchungen
+        : Object.values(data.teamSortierBuchungen || {});
+    const buchHeute = alleBuch.filter(b => normDatum(b.datum) === datum);
+    const buchAktiv = buchHeute.filter(b => (parseFloat(b.gebuchtKg)||0) > 0);
+    const buchNull  = buchHeute.filter(b => (parseFloat(b.gebuchtKg)||0) <= 0);
+
+    // --- Deliveries für diesen Tag ---
+    const alleDeliv = Array.isArray(data.deliveries)
+        ? data.deliveries
+        : Object.values(data.deliveries || {});
+    const delivHeute = alleDeliv.filter(d => normDatum(d.date) === datum);
+    const delivSort  = delivHeute.filter(d => d.source === 'sortieren' || d.source === 'sortieren_tag');
+    const delivLkw   = delivHeute.filter(d => d.source !== 'sortieren' && d.source !== 'sortieren_tag');
+
+    // --- Tagesmengen ---
+    const tm = (data.teamTagesMengen || {})[datum] || null;
+
+    // --- KPIs ---
+    const gesamtBuchKg = buchAktiv.reduce((s,b)=>s+(parseFloat(b.gebuchtKg)||0),0);
+    const gesamtDelivKg = delivSort.reduce((s,d)=>s+(parseFloat(d.kg)||0),0);
+    const tmKg = tm ? (parseFloat(tm.gesamtKg)||0) : 0;
+    const lieferantenSet = new Set(buchAktiv.map(b=>b.lief||'Unbekannt'));
+
+    document.getElementById('kpiGrid').innerHTML = `
+        <div class="kpi ${buchAktiv.length===0?'err':'ok'}">
+            <div class="kpi-label">Buchungen</div>
+            <div class="kpi-val">${buchAktiv.length}</div>
+            <div class="kpi-sub">${buchNull.length} auf 0 gesetzt · ${buchHeute.length} gesamt</div>
+        </div>
+        <div class="kpi ${lieferantenSet.size===0?'err':'ok'}">
+            <div class="kpi-label">Lieferanten</div>
+            <div class="kpi-val">${lieferantenSet.size}</div>
+            <div class="kpi-sub">${[...lieferantenSet].join(', ').slice(0,60)}</div>
+        </div>
+        <div class="kpi ${gesamtBuchKg===0?'err':Math.abs(gesamtBuchKg-gesamtDelivKg)>1?'warn':'ok'}">
+            <div class="kpi-label">Buchungen kg</div>
+            <div class="kpi-val">${gesamtBuchKg.toFixed(0)}</div>
+            <div class="kpi-sub">Deliveries: ${gesamtDelivKg.toFixed(0)} kg</div>
+        </div>
+        <div class="kpi ${tmKg===0&&gesamtBuchKg>0?'warn':''}">
+            <div class="kpi-label">TagesMengen</div>
+            <div class="kpi-val">${tmKg.toFixed(0)}</div>
+            <div class="kpi-sub">Export: ${parseFloat(tm?.exportKg||0).toFixed(0)} · Uns: ${parseFloat(tm?.unsKg||0).toFixed(0)}</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-label">LKW / Manuell</div>
+            <div class="kpi-val">${delivLkw.length}</div>
+            <div class="kpi-sub">${delivLkw.reduce((s,d)=>s+(parseFloat(d.kg)||0),0).toFixed(0)} kg</div>
+        </div>`;
+
+    // --- Warnungen ---
+    if (buchAktiv.length === 0 && buchHeute.length > 0)
+        alerts.push({typ:'err', msg:`Alle ${buchHeute.length} Buchungen für heute haben kg=0 — mögliche Doppel-Reset-Problem`});
+    if (buchNull.length > 0)
+        alerts.push({typ:'warn', msg:`${buchNull.length} Buchungen mit gebuchtKg=0 (bereinigt oder fehlerhaft)`});
+    if (Math.abs(gesamtBuchKg - gesamtDelivKg) > 5 && gesamtBuchKg > 0)
+        alerts.push({typ:'warn', msg:`Buchungen (${gesamtBuchKg.toFixed(0)} kg) ≠ Delivery-Summe (${gesamtDelivKg.toFixed(0)} kg) — Differenz: ${(gesamtBuchKg-gesamtDelivKg).toFixed(0)} kg`});
+    if (tmKg > 0 && Math.abs(tmKg - gesamtBuchKg) > 10)
+        alerts.push({typ:'warn', msg:`TagesMengen (${tmKg.toFixed(0)} kg) ≠ Buchungen-Summe (${gesamtBuchKg.toFixed(0)} kg) — Cache veraltet?`});
+    if (delivSort.length === 0 && buchAktiv.length > 0)
+        alerts.push({typ:'err', msg:`Buchungen vorhanden aber keine sortieren-Deliveries — syncSortierenBuchungenZuDeliveries nicht ausgeführt?`});
+    buchNull.forEach(b => {
+        if ((parseFloat(b.letztesGewichtKg)||0) > 0)
+            alerts.push({typ:'warn', msg:`Buchung "${b.lief}|${b.sorte?.slice(0,30)}" war ${b.letztesGewichtKg} kg, jetzt 0 (bereinigt durch FertigNr-Dedup)`});
+    });
+
+    document.getElementById('alerts').innerHTML = alerts.map(a=>
+        `<div class="alert${a.typ==='warn'?' alert-warn':''}">⚠️ ${a.msg}</div>`
+    ).join('');
+
+    // --- Buchungen nach Lieferant ---
+    const grouped = {};
+    buchAktiv.forEach(b => {
+        const lief = b.lief || 'Unbekannt';
+        if (!grouped[lief]) grouped[lief] = [];
+        grouped[lief].push(b);
+    });
+    // auch Null-Buchungen zeigen
+    buchNull.forEach(b => {
+        const lief = (b.lief || 'Unbekannt') + ' ⚠️';
+        if (!grouped[lief]) grouped[lief] = [];
+        grouped[lief].push(b);
+    });
+
+    const buchHtml = Object.entries(grouped).map(([lief, list]) => {
+        const total = list.reduce((s,b)=>s+(parseFloat(b.gebuchtKg)||0),0);
+        const rows = list.map(b => {
+            const kg = parseFloat(b.gebuchtKg)||0;
+            const zeit = b.letzterDruck ? new Date(b.letzterDruck).toLocaleTimeString('de',{hour:'2-digit',minute:'2-digit'}) : '–';
+            return `<tr class="${kg<=0?'warn-row':''}">
+                <td>${b.sorte||'–'}</td>
+                <td style="text-align:right;font-weight:700;color:${kg<=0?'#ef4444':'#60a5fa'}">${kg.toFixed(1)} kg</td>
+                <td style="text-align:right;color:#64748b">${zeit}</td>
+                <td style="color:#64748b;font-size:11px">${b.sessionKey?.slice(0,40)||'–'}</td>
+            </tr>`;
+        }).join('');
+        return `<div class="lief-block">
+            <div class="lief-header">
+                <span class="lief-name">${lief}</span>
+                <span class="lief-kg">${total.toFixed(0)} kg</span>
+            </div>
+            <table>
+                <thead><tr><th>Sorte</th><th style="text-align:right">kg</th><th style="text-align:right">Druck</th><th>SessionKey</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+    }).join('') || '<div style="color:#64748b;padding:10px">Keine Buchungen für diesen Tag</div>';
+
+    document.getElementById('buchungenSection').innerHTML = `
+        <div class="section">
+            <h2>📦 Sortier-Buchungen <span class="badge ${buchAktiv.length?'badge-ok':'badge-err'}">${buchAktiv.length} aktiv</span></h2>
+            ${buchHtml}
+        </div>`;
+
+    // --- Deliveries ---
+    const delivRows = delivHeute.map(d => {
+        const kg = parseFloat(d.kg)||0;
+        return `<tr>
+            <td>${d.name||'–'}</td>
+            <td><span class="badge ${d.source==='sortieren'?'badge-ok':d.source==='lkw'?'badge-warn':'badge-err'}">${d.source||'?'}</span></td>
+            <td style="text-align:right;font-weight:700;color:#60a5fa">${kg.toFixed(1)} kg</td>
+            <td style="color:#64748b">${d.exportKg?parseFloat(d.exportKg).toFixed(0)+' Ex':''}</td>
+            <td style="color:#94a3b8;font-size:11px">${d.id?.slice(0,30)||'–'}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="5" style="color:#64748b">Keine Deliveries für diesen Tag</td></tr>';
+
+    document.getElementById('deliveriesSection').innerHTML = `
+        <div class="section">
+            <h2>🚛 Deliveries <span class="badge ${delivHeute.length?'badge-ok':'badge-err'}">${delivHeute.length} gesamt</span></h2>
+            <table>
+                <thead><tr><th>Lieferant</th><th>Source</th><th style="text-align:right">kg</th><th>Export</th><th>ID</th></tr></thead>
+                <tbody>${delivRows}</tbody>
+            </table>
+        </div>`;
+
+    // --- Alle Daten in TagesMengen ---
+    const tmEntries = Object.entries(data.teamTagesMengen||{})
+        .sort((a,b)=>b[0].localeCompare(a[0]))
+        .slice(0,14);
+    const tmRows = tmEntries.map(([d,t])=>`<tr class="${d===datum?'warn-row':''}">
+        <td style="${d===datum?'font-weight:700;color:#fde68a':''}">${d}</td>
+        <td style="text-align:right;font-weight:700">${parseFloat(t.gesamtKg||0).toFixed(0)}</td>
+        <td style="text-align:right;color:#60a5fa">${parseFloat(t.exportKg||0).toFixed(0)}</td>
+        <td style="text-align:right;color:#f97316">${parseFloat(t.unsKg||0).toFixed(0)}</td>
+        <td style="text-align:right;color:#64748b">${t.personalAnzahl||0}</td>
+    </tr>`).join('');
+    document.getElementById('tagesmengenSection').innerHTML = `
+        <div class="section">
+            <h2>📅 TagesMengen (letzte 14 Tage)</h2>
+            <table>
+                <thead><tr><th>Datum</th><th style="text-align:right">Gesamt kg</th><th style="text-align:right">Export</th><th style="text-align:right">Uns</th><th style="text-align:right">Personal</th></tr></thead>
+                <tbody>${tmRows}</tbody>
+            </table>
+        </div>`;
+
+    // --- Raw JSON ---
+    const preview = {
+        teamSortierBuchungen_heute: buchHeute,
+        deliveries_heute: delivHeute,
+        teamTagesMengen_heute: tm,
+        buchungen_gesamt: alleBuch.length,
+        deliveries_gesamt: alleDeliv.length
+    };
+    document.getElementById('rawJson').textContent = JSON.stringify(preview, null, 2);
+}
+</script>
+</body>
+</html>
