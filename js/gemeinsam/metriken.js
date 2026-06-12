@@ -815,6 +815,34 @@ function bucheTeamSortierungBeimDruck(aggregatedDaten) {
         const sessionKey = sortierungSessionKey(item.lief, item.sorte, item.herkunft);
         const aktuellesGewicht = parseFloat(item.netto) || 0;
         let buchung = buchungen.find((b) => b.sessionKey === sessionKey && b.datum === heute);
+
+        // Duplikat-Bereinigung: wenn Artikel-Name durch Sync geändert wurde entsteht ein
+        // verwaister Eintrag mit anderem sessionKey aber gleicher FertigNr+Lief+Herkunft.
+        // Diese alten Buchungen auf 0 setzen bevor die neue gezählt wird.
+        const fertigNr = fertigNrAusSorte(item.sorte, articles);
+        if (fertigNr && articles.length > 0) {
+            buchungen.forEach((b) => {
+                if (b.datum !== heute || b.sessionKey === sessionKey) return;
+                if ((b.lief || '') !== (item.lief || '') || (b.herkunft || '') !== (item.herkunft || '')) return;
+                const altFertigNr = fertigNrAusSorte(b.sorte, articles);
+                if (!altFertigNr || altFertigNr !== fertigNr) return;
+                const altKg = parseFloat(b.gebuchtKg) || 0;
+                if (altKg <= 0) return;
+                // Veraltete Buchung (gleiche FertigNr, andere Sorte-Bezeichnung) → auf 0 setzen
+                const altTyp = artikelMarktTyp(altFertigNr, b.sorte, artikelMarkt);
+                teamTagesMengen[heute].gesamtKg = Math.max(0, (parseFloat(teamTagesMengen[heute].gesamtKg) || 0) - altKg);
+                if (altTyp === 'export') {
+                    teamTagesMengen[heute].exportKg = Math.max(0, (parseFloat(teamTagesMengen[heute].exportKg) || 0) - altKg);
+                } else {
+                    teamTagesMengen[heute].unsKg = Math.max(0, (parseFloat(teamTagesMengen[heute].unsKg) || 0) - altKg);
+                }
+                b.gebuchtKg = 0;
+                b.letztesGewichtKg = 0;
+                b.letzterDruck = jetzt;
+                geaendert = true;
+            });
+        }
+
         const bereitsGebuchtKg = buchung ? (parseFloat(buchung.gebuchtKg) || 0) : 0;
         const delta = aktuellesGewicht - bereitsGebuchtKg;
         if (!delta) {
@@ -827,7 +855,6 @@ function bucheTeamSortierungBeimDruck(aggregatedDaten) {
 
         sortierLoeschenAufheben(lDb, heute, sessionKey);
         teamTagesMengen[heute].gesamtKg = (parseFloat(teamTagesMengen[heute].gesamtKg) || 0) + delta;
-        const fertigNr = fertigNrAusSorte(item.sorte, articles);
         const marktTyp = artikelMarktTyp(fertigNr, item.sorte, artikelMarkt);
         if (marktTyp === 'export') {
             teamTagesMengen[heute].exportKg = (parseFloat(teamTagesMengen[heute].exportKg) || 0) + delta;
