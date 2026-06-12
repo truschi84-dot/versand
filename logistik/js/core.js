@@ -533,6 +533,10 @@ function applyLogistikDocumentScroll() {
         main.style.webkitOverflowScrolling = 'touch';
         main.style.position = 'static';
     }
+    // Scroll-blockierende Klassen immer entfernen — unabh. von offenem bottom-sheet
+    document.body.classList.remove('logistik-menu-open', 'scroll-lock');
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
     resetBlockingUi();
 }
 
