@@ -208,14 +208,18 @@ function toggleMenuApp2(s) {
     const drawer = document.getElementById('drawer2');
     const overlay = document.getElementById('overlay2');
     const open = !!s;
-    if (overlay) { overlay.style.display = open ? 'block' : 'none'; }
+    document.body.classList.toggle('menu-open', open);
+    if (overlay) overlay.style.display = open ? 'block' : 'none';
     if (!drawer) return;
     if (open) {
         drawer.style.display = 'block';
+        drawer.style.removeProperty('pointer-events');
+        drawer.style.removeProperty('visibility');
+        drawer.style.removeProperty('transform');
         requestAnimationFrame(() => drawer.classList.add('open'));
     } else {
         drawer.classList.remove('open');
-        setTimeout(() => { drawer.style.display = 'none'; }, 300);
+        drawer.style.display = 'none';
     }
 }
 function switchTabAndCloseMenu(tabId) {
