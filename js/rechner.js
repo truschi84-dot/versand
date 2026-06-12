@@ -208,25 +208,32 @@ function toggleMenuApp2(s) {
     const drawer = document.getElementById('drawer2');
     const overlay = document.getElementById('overlay2');
     const open = !!s;
-    document.body.classList.toggle('menu-open', open);
-    if (overlay) {
-        overlay.style.display = open ? 'block' : 'none';
-        overlay.style.pointerEvents = open ? 'auto' : 'none';
-        if (open && !overlay._menuListener) {
-            overlay._menuListener = () => toggleMenuApp2(false);
-            overlay.addEventListener('touchend', overlay._menuListener, { passive: true });
-        }
-    }
-    if (!drawer) return;
     if (open) {
-        drawer.style.display = 'block';
-        drawer.style.removeProperty('pointer-events');
-        drawer.style.removeProperty('visibility');
-        drawer.style.removeProperty('transform');
-        requestAnimationFrame(() => drawer.classList.add('open'));
+        document.body.classList.add('menu-open');
+        if (overlay) {
+            overlay.style.display = 'block';
+            overlay.style.pointerEvents = 'auto';
+        }
+        if (drawer) {
+            drawer.style.display = 'block';
+            drawer.style.removeProperty('pointer-events');
+            drawer.style.removeProperty('visibility');
+            drawer.style.removeProperty('transform');
+            requestAnimationFrame(() => drawer.classList.add('open'));
+        }
     } else {
-        drawer.classList.remove('open');
-        drawer.style.display = 'none';
+        const cleanup = () => {
+            document.body.classList.remove('menu-open');
+            if (overlay) { overlay.style.display = 'none'; overlay.style.pointerEvents = 'none'; }
+            if (drawer) { drawer.style.display = 'none'; }
+        };
+        if (drawer) {
+            drawer.classList.remove('open');
+            drawer.addEventListener('transitionend', cleanup, { once: true });
+            setTimeout(cleanup, 400); // Fallback falls transitionend nicht feuert
+        } else {
+            cleanup();
+        }
     }
 }
 function switchTabAndCloseMenu(tabId) {
