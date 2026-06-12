@@ -212,10 +212,7 @@ function toggleMenuApp2(s) {
         document.body.classList.add('menu-open');
         document.documentElement.style.overflow = 'hidden';
         document.documentElement.style.touchAction = 'none';
-        if (overlay) {
-            overlay.style.display = 'block';
-            overlay.style.pointerEvents = 'auto';
-        }
+        if (overlay) { overlay.style.display = 'block'; overlay.style.pointerEvents = 'auto'; }
         if (drawer) {
             drawer.style.display = 'block';
             drawer.style.removeProperty('pointer-events');
@@ -224,19 +221,14 @@ function toggleMenuApp2(s) {
             requestAnimationFrame(() => drawer.classList.add('open'));
         }
     } else {
-        const cleanup = () => {
-            document.body.classList.remove('menu-open');
-            document.documentElement.style.overflow = '';
-            document.documentElement.style.touchAction = '';
-            if (overlay) { overlay.style.display = 'none'; overlay.style.pointerEvents = 'none'; }
-            if (drawer) { drawer.style.display = 'none'; }
-        };
+        // Scroll sofort freigeben — nicht auf Animation warten
+        document.body.classList.remove('menu-open');
+        document.documentElement.style.overflow = '';
+        document.documentElement.style.touchAction = '';
+        if (overlay) { overlay.style.display = 'none'; overlay.style.pointerEvents = 'none'; }
         if (drawer) {
             drawer.classList.remove('open');
-            drawer.addEventListener('transitionend', cleanup, { once: true });
-            setTimeout(cleanup, 400); // Fallback falls transitionend nicht feuert
-        } else {
-            cleanup();
+            setTimeout(() => { drawer.style.display = 'none'; }, 300);
         }
     }
 }
