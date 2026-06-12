@@ -303,6 +303,15 @@ function lieferantenAuswertungFuerDatum(db, datum) {
         });
     }
 
+    // Manuelle LKW-Einträge (ohne Handy) → erscheinen als N/Z pro Lieferant
+    deliveries.filter((d) => normalizeDatumIso(d.date) === normalizeDatumIso(datum) && !isSortierDelivery(d)).forEach((d) => {
+        const kg = parseFloat(d.kg) || 0;
+        if (kg <= 0) return;
+        const row = ensure(String(d.name || '').trim() || 'Unbekannt');
+        row.lkwKg += kg;
+        row.gesamtKg += kg;
+    });
+
     return Object.values(map)
         .filter((r) => r.gesamtKg > 0 || r.exportKg > 0 || r.unsKg > 0)
         .sort((a, b) => b.gesamtKg - a.gesamtKg || a.name.localeCompare(b.name, 'de'));
