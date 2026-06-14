@@ -532,20 +532,24 @@ function renderLieferantenTableMobile(rows, title) {
     }), { sortiertKg: 0, exportKg: 0, unsKg: 0, gesamtKg: 0 });
     return `<div class="card-title">${title || 'Lieferanten'}</div>
         <div class="aus-table-wrap"><table class="aus-table"><thead><tr>
-            <th>Lieferant</th><th>Sort.</th><th>Export</th><th>Uns</th><th>Gesamt</th>
+            <th>Lieferant</th><th>Sort.</th><th>Export</th><th>Uns</th><th style="color:#888;">N/Z</th><th>Gesamt</th>
         </tr></thead><tbody>
-        ${rows.map((r) => `<tr>
+        ${rows.map((r) => {
+            const nz = Math.max(0, (r.gesamtKg||0) - (r.exportKg||0) - (r.unsKg||0));
+            return `<tr>
             <td>${esc(r.name)}</td>
             <td class="col-sort">${fmtKg(r.sortiertKg)}</td>
             <td class="col-ex">${fmtKg(r.exportKg)}</td>
             <td class="col-uns">${fmtKg(r.unsKg)}</td>
+            <td style="color:#888;">${nz > 0 ? fmtKg(nz) : '–'}</td>
             <td class="col-ges">${fmtKg(r.gesamtKg)}</td>
-        </tr>`).join('')}
+        </tr>`;}).join('')}
         <tr class="sum-row">
             <td>Σ Summe</td>
             <td class="col-sort">${fmtKg(sum.sortiertKg)}</td>
             <td class="col-ex">${fmtKg(sum.exportKg)}</td>
             <td class="col-uns">${fmtKg(sum.unsKg)}</td>
+            <td style="color:#888;font-weight:700;">${fmtKg(Math.max(0,(sum.gesamtKg||0)-(sum.exportKg||0)-(sum.unsKg||0)))}</td>
             <td class="col-ges">${fmtKg(sum.gesamtKg)}</td>
         </tr></tbody></table></div>`;
 }
@@ -737,27 +741,44 @@ function renderErfassungList() {
     }
     list.innerHTML = html;
 
-    // Open deliveries
+    // Open deliveries — sortieren direkt aus buchungen (alle Daten), LKW aus db.deliveries
     const openList = ge('erf-open-list'); if (!openList) return;
-    const openDels = (db.deliveries||[]).filter(del => {
-        if (isHandySortierEntry(del) && !(del.workerShares || []).length) return false;
-        const sum = (del.workerShares||[]).reduce((a,v)=>a+v.kg,0);
-        return sum < del.kg && !del.isFullySorted;
-    }).sort((a,b) => new Date(a.date)-new Date(b.date));
+    const sortierenOpen = [];
+    if (typeof sammleAlleErfassungsDaten === 'function' && typeof getHandySortierEntriesFuerDatum === 'function') {
+        sammleAlleErfassungsDaten(db).forEach(d => {
+            getHandySortierEntriesFuerDatum(db, d).forEach(entry => {
+                const sum = (entry.workerShares || []).reduce((a, v) => a + (parseFloat(v.kg) || 0), 0);
+                const kg = parseFloat(entry.kg) || 0;
+                if (!entry.isFullySorted && sum < kg) sortierenOpen.push(entry);
+            });
+        });
+    }
+    const lkwOpen = (db.deliveries || [])
+        .filter(del => !isHandySortierEntry(del))
+        .filter(del => {
+            const sum = (del.workerShares || []).reduce((a, v) => a + (parseFloat(v.kg) || 0), 0);
+            return sum < (parseFloat(del.kg) || 0) && !del.isFullySorted;
+        });
+    const openDels = [...sortierenOpen, ...lkwOpen].sort((a, b) => new Date(a.date) - new Date(b.date));
+
     if (!openDels.length) {
         openList.innerHTML = '<div style="background:#e8f5e9;border-radius:10px;padding:14px;text-align:center;color:var(--success);font-weight:700;">✅ Keine offenen Posten!</div>';
     } else {
         openList.innerHTML = openDels.map(del => {
-            const sum = (del.workerShares||[]).reduce((a,v)=>a+v.kg,0);
-            const rem = del.kg - sum;
+            const sum = (del.workerShares || []).reduce((a, v) => a + (parseFloat(v.kg) || 0), 0);
+            const kg = parseFloat(del.kg) || 0;
+            const rem = kg - sum;
             const dt = new Date(del.date).toLocaleDateString('de-DE');
+            const isSortier = isHandySortierEntry(del);
+            const borderColor = isSortier ? '#2e7d32' : 'var(--warn)';
+            const badge = isSortier ? ' <span style="font-size:10px;background:#e8f5e9;color:#2e7d32;padding:1px 5px;border-radius:4px;">Sortieren</span>' : '';
             const name = del.line ? `${del.name} · ${del.line}` : del.name;
-            return `<div class="del-card" style="border-left-color:var(--warn);" onclick="openDelEdit('${del.id}')">
+            return `<div class="del-card" style="border-left-color:${borderColor};" onclick="openDelEdit('${del.id}')">
                 <div class="del-card-row">
-                    <span class="del-card-name">${esc(name)}</span>
+                    <span class="del-card-name">${esc(name)}${badge}</span>
                     <span style="font-size:11px;color:var(--muted);">${dt}</span>
                 </div>
-                <div class="del-card-status" style="color:var(--warn);">${rem.toFixed(1)} kg offen von ${del.kg} kg</div>
+                <div class="del-card-status" style="color:${isSortier ? '#2e7d32' : 'var(--warn)'};">${rem.toFixed(1)} kg offen von ${kg.toLocaleString('de-DE')} kg</div>
             </div>`;
         }).join('');
     }
@@ -841,132 +862,379 @@ function deleteDeliveryConfirm() {
 
 // ── STATISTIKEN ──────────────────────────────────────────────
 let statMode = 'woche';
-let statOffset = 0;
+let statsWeekOffset = 0;
+let statsMonthOffset = 0;
 
-function switchStatMode(mode) { statMode = mode; statOffset = 0; ['woche','monat','tag'].forEach(m=>ge('stab-'+m)?.classList.toggle('active',m===mode)); renderStats(); }
-function statsNav(dir) { statOffset += dir; renderStats(); }
+function switchStatMode(mode) { statMode = mode; renderStats(); }
+function changeWeek(dir) { statsWeekOffset += dir; renderStats(); }
+function changeMonth(dir) { statsMonthOffset += dir; renderStats(); }
+function statsNav(dir) { if (statMode === 'monat') changeMonth(dir); else changeWeek(dir); }
 
-function getStatRange() {
-    const now = new Date();
-    if (statMode === 'tag') {
-        const d = new Date(now); d.setDate(d.getDate() + statOffset);
-        const iso = d.toISOString().split('T')[0];
-        return { start: iso, end: iso, label: d.toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}) };
-    }
-    if (statMode === 'monat') {
-        const d = new Date(now.getFullYear(), now.getMonth() + statOffset, 1);
-        const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-        const end = new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().split('T')[0];
-        return { start, end, label: d.toLocaleDateString('de-DE',{month:'long',year:'numeric'}) };
-    }
-    // woche
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - (now.getDay()||7) + 1 + statOffset*7);
-    const friday = new Date(monday); friday.setDate(monday.getDate()+4);
-    const start = monday.toISOString().split('T')[0];
-    const end = friday.toISOString().split('T')[0];
-    return { start, end, label: 'KW ' + getKW(monday) + ' · ' + monday.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}) + ' – ' + friday.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}) };
+function trendPfeil(curr, prev) {
+    if (!prev || prev <= 0) return '';
+    const diff = Math.round(((curr - prev) / prev) * 100);
+    if (Math.abs(diff) < 2) return '<span class="trend-flat">→ ±0%</span>';
+    return curr > prev
+        ? `<span class="trend-up">↑ +${diff}%</span>`
+        : `<span class="trend-down">↓ ${diff}%</span>`;
 }
 
-function getKW(date) {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-    return Math.ceil((((d-yearStart)/86400000)+1)/7);
+function renderWochenVergleich() {
+    const currDays = getDatesForWeekOffset(statsWeekOffset);
+    const prevDays = getDatesForWeekOffset(statsWeekOffset - 1);
+    const curr = typeof teamZeitraumMetrikenAusDb === 'function' ? teamZeitraumMetrikenAusDb(db, currDays) : { tage: [], summeExport: 0, summeUns: 0, proKopf: 0 };
+    const prev = typeof teamZeitraumMetrikenAusDb === 'function' ? teamZeitraumMetrikenAusDb(db, prevDays) : { tage: [], summeExport: 0, summeUns: 0, proKopf: 0 };
+    const currSort = curr.tage.reduce((a, t) => a + (t.sortiertKg || t.gesamtKg || 0), 0);
+    const prevSort = prev.tage.reduce((a, t) => a + (t.sortiertKg || t.gesamtKg || 0), 0);
+    const exPctC = currSort > 0 ? Math.round((curr.summeExport / currSort) * 100) : 0;
+    const exPctP = prevSort > 0 ? Math.round((prev.summeExport / prevSort) * 100) : 0;
+    return `<div class="ana-vergleich">
+        <div class="ana-vergleich-title">📊 Wochen-Vergleich — aktuelle Woche vs. Vorwoche</div>
+        <div class="ana-vkpi-row">
+            <div class="ana-vkpi">
+                <div class="ana-vkpi-label">Sortiert gesamt</div>
+                <div class="ana-vkpi-curr">${fmtKg(currSort)} kg</div>
+                <div class="ana-vkpi-prev">Vorwoche: ${fmtKg(prevSort)} kg ${trendPfeil(currSort, prevSort)}</div>
+            </div>
+            <div class="ana-vkpi">
+                <div class="ana-vkpi-label">Export-Quote</div>
+                <div class="ana-vkpi-curr">${exPctC}%</div>
+                <div class="ana-vkpi-prev">Vorwoche: ${exPctP}% ${trendPfeil(exPctC, exPctP)}</div>
+            </div>
+            <div class="ana-vkpi">
+                <div class="ana-vkpi-label">∅ kg / Kopf / Tag</div>
+                <div class="ana-vkpi-curr">${curr.proKopf > 0 ? fmtKg(curr.proKopf) : '–'}</div>
+                <div class="ana-vkpi-prev">Vorwoche: ${prev.proKopf > 0 ? fmtKg(prev.proKopf) : '–'} ${trendPfeil(curr.proKopf, prev.proKopf)}</div>
+            </div>
+        </div>
+    </div>`;
 }
 
-function getStatDates(range) {
-    const dates = [];
-    const start = new Date(range.start + 'T12:00:00');
-    const end = new Date(range.end + 'T12:00:00');
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        dates.push(new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]);
+function getDatesForWeekOffset(offset) {
+    let curr = new Date(); let first = curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1); let monday = new Date(curr.setDate(first + (offset * 7)));
+    let days = []; for (let i = 0; i < 7; i++) { let d = new Date(monday); d.setDate(monday.getDate() + i); days.push(new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]); }
+    return days;
+}
+
+function getISOWeekNumber(d) {
+    let date = new Date(d.getTime()); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7); let week1 = new Date(date.getFullYear(), 0, 4);
+    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+}
+
+function anaDatumLabel(iso) {
+    if (!iso) return '–';
+    return new Date(iso + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function chefPlanungsHinweis(team, referenzProKopf) {
+    const p = team.personalAnzahl; const pk = team.proKopf; const gesamt = team.gesamtKg;
+    if (p > 0 && pk > 0 && gesamt > 0) {
+        const persStr = Number(p) % 1 === 0 ? String(p) : String(p).replace('.', ',');
+        return `Mit <b>${persStr} Personen</b> im Versand → <b>ca. ${pk.toLocaleString('de-DE')} kg pro Kopf</b> (heute ${gesamt.toLocaleString('de-DE')} kg gesamt).`;
     }
-    return dates;
+    if (referenzProKopf > 0) return `Ø der aktuellen Woche: <b>ca. ${referenzProKopf.toLocaleString('de-DE')} kg pro Kopf</b> — Personal pro Tag eintragen.`;
+    return 'Personal im Versand eintragen (z.&nbsp;B. 3,5) — dann siehst du <b>kg pro Kopf</b> für die Planung.';
 }
 
-function saveStatsPersonal() {
-    const range = getStatRange();
-    savePersonalForDatum(range.start, ge('stats-personal')?.value);
+function teamPersonalInputHtml(datum, personalAnzahl, narrow) {
+    const v = personalAnzahl > 0 ? personalAnzahl : '';
+    const w = narrow ? '70px' : '120px';
+    return `<input type="number" step="0.25" min="0" value="${v}" placeholder="–" style="width:${w};text-align:center;" onchange="saveTeamPersonalForDate('${datum}',this.value)">`;
 }
 
-function renderStatsPeriodTable(dates, metriken, title) {
-    const wrap = ge('stats-period-table-wrap'); if (!wrap) return;
-    if (statMode === 'tag') {
-        wrap.innerHTML = '';
-        wrap.style.display = 'none';
-        return;
+function saveTeamPersonalForDate(datum, rawVal) {
+    if (!db.teamTagesMengen || typeof db.teamTagesMengen !== 'object') db.teamTagesMengen = {};
+    if (!db.dailyStaff) db.dailyStaff = {};
+    const d = datum || document.getElementById('stats-datum')?.value || ccTodayISO();
+    const val = parseFloat(rawVal !== undefined ? rawVal : document.getElementById('stats-personal-heute')?.value);
+    if (isNaN(val) || val < 0) return alert('Bitte gültige Dezimalzahl eingeben (z.B. 3.5).');
+    setTeamPersonalAnzahl(db.teamTagesMengen, db.dailyStaff, d, val);
+    syncTeamTagesGesamtKg(db.teamTagesMengen, db.deliveries || [], d);
+    saveDb();
+    renderStats();
+}
+
+function onStatsDatumChange() {
+    const d = document.getElementById('stats-datum')?.value;
+    if (!d) return;
+    const inp = document.getElementById('stats-personal-heute');
+    if (inp && db.teamTagesMengen) {
+        const team = typeof teamTagesAnzeigeAusDb === 'function' ? teamTagesAnzeigeAusDb(db, d) : { personalAnzahl: 0 };
+        inp.value = team.personalAnzahl > 0 ? team.personalAnzahl : '';
     }
-    wrap.style.display = 'block';
+}
+
+function nzKg(gesamt, ex, uns) { return Math.max(0, (parseFloat(gesamt) || 0) - (parseFloat(ex) || 0) - (parseFloat(uns) || 0)); }
+
+function renderAnaKpiRow(team) {
+    const sortKg = team.sortiertKg > 0 ? team.sortiertKg : team.gesamtKg;
+    const nz = Math.max(0, sortKg - (parseFloat(team.exportKg) || 0) - (parseFloat(team.unsKg) || 0));
+    return `
+    <div class="ana-kpi-row">
+        <div class="ana-kpi kpi-gesamt"><div class="val">${fmtKg(sortKg)}</div><div class="unit">kg</div><div class="cap">Sortiert (Handy)</div></div>
+        <div class="ana-kpi kpi-ex"><div class="val">${fmtKg(team.exportKg)}</div><div class="unit">kg</div><div class="cap">Export</div></div>
+        <div class="ana-kpi kpi-uns"><div class="val">${fmtKg(team.unsKg)}</div><div class="unit">kg</div><div class="cap">Uns</div></div>
+        ${nz > 1 ? `<div class="ana-kpi" style="background:#f5f5f5;"><div class="val" style="color:#888;">${fmtKg(nz)}</div><div class="unit">kg</div><div class="cap" style="color:#888;">Nicht zugeordnet</div></div>` : ''}
+        <div class="ana-kpi kpi-kopf"><div class="val">${team.proKopf > 0 ? fmtKg(team.proKopf) : '–'}</div><div class="unit">kg</div><div class="cap">pro Kopf</div></div>
+    </div>`;
+}
+
+function renderExUnsSplitBar(exportKg, unsKg, gesamtKg) {
+    const ex = parseFloat(exportKg) || 0; const uns = parseFloat(unsKg) || 0; const gesamt = parseFloat(gesamtKg) || 0;
+    const nz = Math.max(0, gesamt - ex - uns); const sum = ex + uns + nz;
+    if (sum <= 0) return '<div class="ana-empty" style="padding:16px;">Noch keine Sortier-Daten mit Export/Uns für diesen Zeitraum.</div>';
+    const exPct = Math.round((ex / sum) * 100); const unsPct = Math.round((uns / sum) * 100); const nzPct = 100 - exPct - unsPct;
+    return `
+    <div class="ana-split">
+        <div class="ana-split-head">
+            <span class="ex-lbl">Export ${fmtKg(ex)} kg (${exPct}%)</span>
+            <span class="uns-lbl">Uns ${fmtKg(uns)} kg (${unsPct}%)</span>
+            ${nz > 0 ? `<span style="color:#888;font-size:11px;">N/Z ${fmtKg(nz)} kg (${nzPct}%)</span>` : ''}
+        </div>
+        <div class="ana-split-bar">
+            <div class="ana-split-ex" style="width:${exPct}%;">${ex > 0 ? 'EX' : ''}</div>
+            <div class="ana-split-uns" style="width:${unsPct}%;">${uns > 0 ? 'UNS' : ''}</div>
+            ${nz > 0 ? `<div style="flex:${nzPct};background:#ddd;display:flex;align-items:center;justify-content:center;font-size:10px;color:#888;">N/Z</div>` : ''}
+        </div>
+    </div>`;
+}
+
+function renderLieferantenTabelle(rows) {
+    if (!rows || !rows.length) return '<div class="ana-empty">Keine Lieferanten-Daten für diesen Zeitraum.</div>';
+    const s = rows.reduce((acc, r) => { acc.sortiertKg += r.sortiertKg; acc.exportKg += r.exportKg; acc.unsKg += r.unsKg; acc.gesamtKg += r.gesamtKg; return acc; }, { sortiertKg: 0, exportKg: 0, unsKg: 0, gesamtKg: 0 });
+    let html = `<div class="ana-table-wrap"><table class="ana-table"><thead><tr>
+        <th>Lieferant</th><th>Sortiert</th><th>Export</th><th>Uns</th><th style="color:#888;">N/Z</th><th>Gesamt</th>
+    </tr></thead><tbody>`;
+    rows.forEach((r) => {
+        const nz = nzKg(r.gesamtKg, r.exportKg, r.unsKg);
+        html += `<tr><td>${esc(String(r.name))}</td><td class="col-sort">${fmtKg(r.sortiertKg)}</td><td class="col-ex">${fmtKg(r.exportKg)}</td><td class="col-uns">${fmtKg(r.unsKg)}</td><td style="color:#888;">${nz > 0 ? fmtKg(nz) : '–'}</td><td class="col-gesamt">${fmtKg(r.gesamtKg)}</td></tr>`;
+    });
+    const sNz = nzKg(s.gesamtKg, s.exportKg, s.unsKg);
+    html += `<tr class="ana-sum"><td>Σ Summe</td><td class="col-sort">${fmtKg(s.sortiertKg)}</td><td class="col-ex">${fmtKg(s.exportKg)}</td><td class="col-uns">${fmtKg(s.unsKg)}</td><td style="color:#888;">${sNz > 0 ? fmtKg(sNz) : '–'}</td><td class="col-gesamt">${fmtKg(s.gesamtKg)}</td></tr></tbody></table></div>`;
+    return html;
+}
+
+function renderSortierBuchungenFuerDatum(datum) {
+    const alle = (db.teamSortierBuchungen || []).filter(b => b.datum === datum);
+    const deleted = db.deletedSortierBuchungen || [];
+    const aktiv = alle.filter(b => !deleted.includes(b.sessionKey + '|' + b.datum));
+    if (!aktiv.length) return '<div style="color:#888;font-size:13px;padding:8px 0;">Keine Buchungen für dieses Datum.</div>';
+    return `<div class="ana-table-wrap"><table class="ana-table" style="min-width:unset;"><thead><tr>
+        <th style="text-align:left;">Lieferant</th><th style="text-align:left;">Sorte</th><th>kg</th><th></th>
+    </tr></thead><tbody>${aktiv.map(b => `<tr>
+        <td style="text-align:left;">${esc(b.lief || '–')}</td>
+        <td style="text-align:left;color:#555;">${esc(b.sorte || '–')}</td>
+        <td>${parseFloat(b.gebuchtKg || 0).toLocaleString('de-DE')}</td>
+        <td><button onclick="deleteSortierBuchung('${b.sessionKey}','${b.datum}')" style="background:#e53935;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;">🗑️</button></td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+function deleteSortierBuchung(sessionKey, datum) {
+    if (!confirm('Buchung wirklich löschen? Sie wird auch aus der Cloud entfernt.')) return;
+    if (!Array.isArray(db.deletedSortierBuchungen)) db.deletedSortierBuchungen = [];
+    const key = sessionKey + '|' + datum;
+    if (!db.deletedSortierBuchungen.includes(key)) db.deletedSortierBuchungen.push(key);
+    db.teamSortierBuchungen = (db.teamSortierBuchungen || []).filter(b => !(b.sessionKey === sessionKey && b.datum === datum));
+    saveDb();
+    renderStats();
+    if (typeof pushCloud === 'function') pushCloud();
+}
+
+function filterSortierBuchungen() {
+    const q = (document.getElementById('sortier-buchungen-suche')?.value || '').toLowerCase().trim();
+    const datum = document.getElementById('stats-datum')?.value || ccTodayISO();
+    const alle = (db.teamSortierBuchungen || []).filter(b => b.datum === datum);
+    const deleted = db.deletedSortierBuchungen || [];
+    let aktiv = alle.filter(b => !deleted.includes(b.sessionKey + '|' + b.datum));
+    if (q) aktiv = aktiv.filter(b => (b.lief || '').toLowerCase().includes(q) || (b.sorte || '').toLowerCase().includes(q));
+    const el = document.getElementById('sortier-buchungen-liste');
+    if (!el) return;
+    if (!aktiv.length) { el.innerHTML = '<div style="color:#888;font-size:13px;padding:8px 0;">Keine Buchungen gefunden.</div>'; return; }
+    el.innerHTML = `<div class="ana-table-wrap"><table class="ana-table" style="min-width:unset;"><thead><tr>
+        <th style="text-align:left;">Lieferant</th><th style="text-align:left;">Sorte</th><th>kg</th><th></th>
+    </tr></thead><tbody>${aktiv.map(b => `<tr>
+        <td style="text-align:left;">${esc(b.lief || '–')}</td>
+        <td style="text-align:left;color:#555;">${esc(b.sorte || '–')}</td>
+        <td>${parseFloat(b.gebuchtKg || 0).toLocaleString('de-DE')}</td>
+        <td><button onclick="deleteSortierBuchung('${b.sessionKey}','${b.datum}')" style="background:#e53935;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;">🗑️</button></td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+function renderTeamWeeklyOverview() {
+    const days = getDatesForWeekOffset(statsWeekOffset);
+    const firstDayObj = new Date(days[0]);
+    const weekNum = getISOWeekNumber(firstDayObj);
     const dayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-    let html = `<div class="card-title">${title}</div><div class="aus-table-wrap"><table class="aus-table"><thead><tr>
-        <th>Tag</th><th>Sort.</th><th>Personal</th><th>kg/Kopf</th><th>Export</th><th>Uns</th>
+    const metriken = typeof teamZeitraumMetrikenAusDb === 'function'
+        ? teamZeitraumMetrikenAusDb(db, days)
+        : { tage: [], summeKg: 0, summeExport: 0, summeUns: 0, summePersonal: 0, proKopf: 0 };
+    const summeSort = metriken.tage.reduce((a, t) => a + (t.sortiertKg || t.gesamtKg || 0), 0);
+    const maxKg = Math.max(...metriken.tage.map((t) => t.sortiertKg || t.gesamtKg || 0));
+    let html = `
+    <div class="ana-section-h">
+        <h3>Wochenübersicht</h3>
+        <div class="ana-period-nav">
+            <button class="btn-black" onclick="changeWeek(-1)">◀</button>
+            <strong>KW ${weekNum} · ${firstDayObj.getFullYear()}</strong>
+            <button class="btn-black" onclick="changeWeek(1)">▶</button>
+        </div>
+    </div>
+    ${renderWochenVergleich()}
+    ${renderExUnsSplitBar(metriken.summeExport, metriken.summeUns, metriken.summeKg)}
+    <div class="ana-table-wrap"><table class="ana-table"><thead><tr>
+        <th>Tag</th><th>Sortiert</th><th>Personal</th><th>kg/Kopf</th><th>Export</th><th>Uns</th><th style="color:#888;">N/Z</th>
     </tr></thead><tbody>`;
     metriken.tage.forEach((t, i) => {
-        if (!(t.gesamtKg > 0 || t.personalAnzahl > 0 || t.exportKg > 0)) return;
         const sortKg = t.sortiertKg > 0 ? t.sortiertKg : t.gesamtKg;
-        const label = statMode === 'woche'
-            ? `${dayNames[i] || ''} ${t.datum.split('-')[2]}.${t.datum.split('-')[1]}`
-            : t.datum.split('-').reverse().join('.');
-        html += `<tr>
-            <td>${label}</td>
-            <td class="col-sort">${fmtKg(sortKg)}</td>
-            <td>${t.personalAnzahl > 0 ? t.personalAnzahl : '–'}</td>
-            <td>${t.proKopf > 0 ? fmtKg(t.proKopf) : '–'}</td>
-            <td class="col-ex">${fmtKg(t.exportKg)}</td>
-            <td class="col-uns">${fmtKg(t.unsKg)}</td>
-        </tr>`;
+        const tnz = nzKg(sortKg, t.exportKg, t.unsKg);
+        const isBest = maxKg > 0 && sortKg === maxKg;
+        const bestClass = isBest ? ' class="best-day"' : '';
+        const click = sortKg > 0 ? ` style="cursor:pointer;" onclick="document.getElementById('stats-datum').value='${t.datum}';onStatsDatumChange();renderStats();"` : '';
+        html += `<tr${bestClass}${click}><td>${dayNames[i]} <small style="color:#888;">${t.datum.split('-')[2]}.${t.datum.split('-')[1]}</small></td><td class="col-sort">${fmtKg(sortKg)}</td><td>${teamPersonalInputHtml(t.datum, t.personalAnzahl, true)}</td><td>${t.proKopf > 0 ? fmtKg(t.proKopf) : '–'}</td><td class="col-ex">${fmtKg(t.exportKg)}</td><td class="col-uns">${fmtKg(t.unsKg)}</td><td style="color:#888;">${tnz > 0 ? fmtKg(tnz) : '–'}</td></tr>`;
     });
+    const wNz = nzKg(summeSort, metriken.summeExport, metriken.summeUns);
+    html += `<tr class="ana-sum"><td>Σ Woche</td><td class="col-sort">${fmtKg(summeSort)}</td><td>${metriken.summePersonal || '–'}</td><td>${metriken.proKopf > 0 ? fmtKg(metriken.proKopf) : '–'}</td><td class="col-ex">${fmtKg(metriken.summeExport)}</td><td class="col-uns">${fmtKg(metriken.summeUns)}</td><td style="color:#888;">${wNz > 0 ? fmtKg(wNz) : '–'}</td></tr></tbody></table></div>`;
+    return html;
+}
+
+function renderTeamMonthlyOverview() {
+    let curr = new Date(); curr.setMonth(curr.getMonth() + statsMonthOffset);
+    const monthName = curr.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
+    const targetMonth = curr.getMonth() + 1; const targetYear = curr.getFullYear();
+    const daysInMonth = []; const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+    for (let d = 1; d <= lastDay; d++) { const iso = new Date(targetYear, targetMonth - 1, d); daysInMonth.push(new Date(iso.getTime() - iso.getTimezoneOffset() * 60000).toISOString().split('T')[0]); }
+    const metriken = typeof teamZeitraumMetrikenAusDb === 'function'
+        ? teamZeitraumMetrikenAusDb(db, daysInMonth)
+        : { tage: [], summeKg: 0, summeExport: 0, summeUns: 0, summePersonal: 0, proKopf: 0 };
+    const aktiveTage = metriken.tage.filter((t) => t.gesamtKg > 0 || t.personalAnzahl > 0);
     const summeSort = metriken.tage.reduce((a, t) => a + (t.sortiertKg || t.gesamtKg || 0), 0);
-    html += `<tr class="sum-row">
-        <td>Σ ${statMode === 'woche' ? 'Woche' : 'Monat'}</td>
-        <td class="col-sort">${fmtKg(summeSort)}</td>
-        <td>${metriken.summePersonal > 0 ? metriken.summePersonal : '–'}</td>
-        <td>${metriken.proKopf > 0 ? fmtKg(metriken.proKopf) : '–'}</td>
-        <td class="col-ex">${fmtKg(metriken.summeExport)}</td>
-        <td class="col-uns">${fmtKg(metriken.summeUns)}</td>
-    </tr></tbody></table></div>`;
-    wrap.innerHTML = html;
+    let html = `
+    <div class="ana-section-h">
+        <h3>Monatsübersicht</h3>
+        <div class="ana-period-nav">
+            <button class="btn-black" onclick="changeMonth(-1)">◀</button>
+            <strong>${monthName}</strong>
+            <button class="btn-black" onclick="changeMonth(1)">▶</button>
+        </div>
+    </div>
+    <div class="ana-kpi-row" style="margin-bottom:16px;">
+        <div class="ana-kpi kpi-gesamt"><div class="val">${fmtKg(summeSort)}</div><div class="unit">kg</div><div class="cap">Sortiert (Handy)</div></div>
+        <div class="ana-kpi kpi-ex"><div class="val">${fmtKg(metriken.summeExport)}</div><div class="unit">kg</div><div class="cap">Export</div></div>
+        <div class="ana-kpi kpi-uns"><div class="val">${fmtKg(metriken.summeUns)}</div><div class="unit">kg</div><div class="cap">Uns</div></div>
+        <div class="ana-kpi" style="background:#f5f5f5;"><div class="val" style="color:#888;">${fmtKg(nzKg(summeSort, metriken.summeExport, metriken.summeUns))}</div><div class="unit" style="color:#888;">kg</div><div class="cap" style="color:#888;">N/Z</div></div>
+        <div class="ana-kpi kpi-kopf"><div class="val">${metriken.proKopf > 0 ? fmtKg(metriken.proKopf) : '–'}</div><div class="unit">kg</div><div class="cap">Ø pro Kopf</div></div>
+    </div>
+    ${renderExUnsSplitBar(metriken.summeExport, metriken.summeUns, metriken.summeKg)}
+    <div class="ana-table-wrap"><table class="ana-table"><thead><tr>
+        <th>Datum</th><th>Sortiert</th><th>Personal</th><th>kg/Kopf</th><th>Export</th><th>Uns</th><th style="color:#888;">N/Z</th>
+    </tr></thead><tbody>`;
+    if (!aktiveTage.length) {
+        html += `<tr><td colspan="7" class="ana-empty">Keine Tagesdaten in diesem Monat.</td></tr>`;
+    } else {
+        aktiveTage.forEach((t) => {
+            const sortKg = t.sortiertKg > 0 ? t.sortiertKg : t.gesamtKg;
+            const tnz = nzKg(sortKg, t.exportKg, t.unsKg);
+            html += `<tr style="cursor:pointer;" onclick="document.getElementById('stats-datum').value='${t.datum}';onStatsDatumChange();renderStats();"><td>${new Date(t.datum).toLocaleDateString('de-DE')}</td><td class="col-sort">${fmtKg(sortKg)}</td><td>${teamPersonalInputHtml(t.datum, t.personalAnzahl, true)}</td><td>${t.proKopf > 0 ? fmtKg(t.proKopf) : '–'}</td><td class="col-ex">${fmtKg(t.exportKg)}</td><td class="col-uns">${fmtKg(t.unsKg)}</td><td style="color:#888;">${tnz > 0 ? fmtKg(tnz) : '–'}</td></tr>`;
+        });
+    }
+    const mNz = nzKg(summeSort, metriken.summeExport, metriken.summeUns);
+    html += `<tr class="ana-sum"><td>Gesamt ${monthName}</td><td class="col-sort">${fmtKg(summeSort)}</td><td>${metriken.summePersonal || '–'}</td><td>${metriken.proKopf > 0 ? fmtKg(metriken.proKopf) : '–'}</td><td class="col-ex">${fmtKg(metriken.summeExport)}</td><td class="col-uns">${fmtKg(metriken.summeUns)}</td><td style="color:#888;">${mNz > 0 ? fmtKg(mNz) : '–'}</td></tr></tbody></table></div>`;
+    return html;
 }
 
 function renderStats() {
     if (typeof refreshSortierFromKombi === 'function') refreshSortierFromKombi();
     syncAuswertungDb();
-    const range = getStatRange();
-    ge('stats-period-label').textContent = range.label;
-    const dates = getStatDates(range);
-    const metriken = typeof teamZeitraumMetrikenAusDb === 'function'
-        ? teamZeitraumMetrikenAusDb(db, dates)
-        : { tage: [], summeKg: 0, summeLkw: 0, summeSortiert: 0, summeExport: 0, summeUns: 0, summePersonal: 0, proKopf: 0 };
-    const rows = typeof zeitraumLieferantenAuswertung === 'function' ? zeitraumLieferantenAuswertung(db, dates) : [];
+    const container = ge('stats-container'); if (!container) return;
+    if (!db.deliveries) db.deliveries = [];
+    if (!db.teamTagesMengen || typeof db.teamTagesMengen !== 'object') db.teamTagesMengen = {};
+    if (!db.dailyStaff) db.dailyStaff = {};
+    if (typeof migriereTeamAusDailyStaff === 'function') migriereTeamAusDailyStaff(db.teamTagesMengen, db.dailyStaff);
 
-    const personalWrap = ge('stats-personal-wrap');
-    const personalInp = ge('stats-personal');
-    if (personalWrap) personalWrap.style.display = statMode === 'tag' ? 'block' : 'none';
-    if (statMode === 'tag' && personalInp) {
-        const tagTeam = typeof teamTagesAnzeigeAusDb === 'function' ? teamTagesAnzeigeAusDb(db, range.start) : { personalAnzahl: 0 };
-        personalInp.value = tagTeam.personalAnzahl > 0 ? tagTeam.personalAnzahl : '';
+    const today = ccTodayISO();
+    const selDatum = document.getElementById('stats-datum')?.value || today;
+    const tagTeam = typeof teamTagesAnzeigeAusDb === 'function'
+        ? teamTagesAnzeigeAusDb(db, selDatum)
+        : { personalAnzahl: 0, gesamtKg: 0, sortiertKg: 0, exportKg: 0, unsKg: 0, proKopf: 0 };
+    const personalVal = tagTeam.personalAnzahl > 0 ? tagTeam.personalAnzahl : '';
+    const wochenMetriken = typeof teamZeitraumMetrikenAusDb === 'function'
+        ? teamZeitraumMetrikenAusDb(db, getDatesForWeekOffset(statsWeekOffset)) : { proKopf: 0 };
+    const lieferantenTag = typeof lieferantenAuswertungFuerDatum === 'function'
+        ? lieferantenAuswertungFuerDatum(db, selDatum) : [];
+
+    const modeWoche = statMode === 'woche' ? 'active' : '';
+    const modeMonat = statMode === 'monat' ? 'active' : '';
+    const periodHtml = statMode === 'woche' ? renderTeamWeeklyOverview() : renderTeamMonthlyOverview();
+
+    let periodLieferantenHtml = '';
+    if (statMode === 'woche') {
+        const days = getDatesForWeekOffset(statsWeekOffset);
+        const rows = typeof zeitraumLieferantenAuswertung === 'function' ? zeitraumLieferantenAuswertung(db, days) : [];
+        const first = new Date(days[0]);
+        periodLieferantenHtml = `<div class="card"><div class="ana-section-h"><h3>Lieferanten — gesamte Woche</h3><span>KW ${getISOWeekNumber(first)}</span></div>${renderLieferantenTabelle(rows)}</div>`;
+    } else {
+        let curr = new Date(); curr.setMonth(curr.getMonth() + statsMonthOffset);
+        const tm = curr.getMonth() + 1; const ty = curr.getFullYear();
+        const dim = []; const ld = new Date(ty, tm, 0).getDate();
+        for (let d = 1; d <= ld; d++) { const iso = new Date(ty, tm - 1, d); dim.push(new Date(iso.getTime() - iso.getTimezoneOffset() * 60000).toISOString().split('T')[0]); }
+        const rows = typeof zeitraumLieferantenAuswertung === 'function' ? zeitraumLieferantenAuswertung(db, dim) : [];
+        periodLieferantenHtml = `<div class="card"><div class="ana-section-h"><h3>Lieferanten — gesamter Monat</h3><span>${curr.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}</span></div>${renderLieferantenTabelle(rows)}</div>`;
     }
 
-    const summeSort = metriken.tage.reduce((a, t) => a + (t.sortiertKg || t.gesamtKg || 0), 0);
-    ge('stats-kpis').innerHTML = `
-        <div class="kpi-card c1"><div class="kpi-val">${fmtKg(summeSort, '0')}</div><div class="kpi-lbl">kg Sortiert (Handy)</div></div>
-        <div class="kpi-card c4"><div class="kpi-val">${fmtKg(metriken.summeExport, '0')}</div><div class="kpi-lbl">kg Export</div></div>
-        <div class="kpi-card c5"><div class="kpi-val">${fmtKg(metriken.summeUns, '0')}</div><div class="kpi-lbl">kg Uns</div></div>
-        <div class="kpi-card c6"><div class="kpi-val">${metriken.proKopf > 0 ? fmtKg(metriken.proKopf) : '–'}</div><div class="kpi-lbl">kg / Kopf</div></div>`;
+    container.innerHTML = `
+    <div class="ana-toolbar">
+        <div class="ana-toolbar-group">
+            <div>
+                <label>Tag auswählen</label>
+                <input type="date" id="stats-datum" value="${selDatum}" onchange="onStatsDatumChange();renderStats();" style="min-width:150px;">
+            </div>
+            <div>
+                <label>Personal im Versand</label>
+                <input type="number" id="stats-personal-heute" step="0.25" min="0" value="${personalVal}" placeholder="z.B. 3,5" style="width:100px;">
+            </div>
+            <button class="btn btn-save" onclick="saveTeamPersonalForDate()" style="margin-bottom:1px;">💾 Speichern</button>
+        </div>
+        <div class="ana-mode-tabs">
+            <button type="button" class="ana-mode-tab ${modeWoche}" onclick="switchStatMode('woche')">Woche</button>
+            <button type="button" class="ana-mode-tab ${modeMonat}" onclick="switchStatMode('monat')">Monat</button>
+        </div>
+    </div>
 
-    const exEl = ge('stats-exuns');
-    if (exEl) exEl.innerHTML = `<div class="card" style="padding:12px;margin-bottom:12px;">${renderExUnsBar(metriken.summeExport, metriken.summeUns)}</div>`;
+    <div class="card">
+        <div class="ana-section-h">
+            <h3>Tagesauswertung — ${anaDatumLabel(selDatum)}</h3>
+            <span>Personal: <b>${tagTeam.personalAnzahl || '–'}</b></span>
+        </div>
+        <div class="ana-chef">${chefPlanungsHinweis(tagTeam, wochenMetriken.proKopf || 0)}</div>
+        ${renderAnaKpiRow(tagTeam)}
+        ${renderExUnsSplitBar(tagTeam.exportKg, tagTeam.unsKg, tagTeam.gesamtKg)}
+        <div class="ana-section-h" style="margin-top:8px;">
+            <h3>Wer schickt wie viel?</h3>
+            <span>Sortiert (Handy), Export/Uns aus Wiegescheinen</span>
+        </div>
+        ${renderLieferantenTabelle(lieferantenTag)}
+    </div>
 
-    const periodTitle = statMode === 'woche' ? 'Wochenübersicht (Mo–Fr)' : statMode === 'monat' ? 'Monatsübersicht' : '';
-    renderStatsPeriodTable(dates, metriken, periodTitle);
+    <div class="card">${periodHtml}</div>
+    ${periodLieferantenHtml}
 
-    const tableWrap = ge('stats-table-wrap');
-    if (tableWrap) {
-        tableWrap.innerHTML = renderLieferantenTableMobile(rows, statMode === 'tag' ? 'Lieferanten — Tag' : 'Lieferanten — Zeitraum gesamt');
-    }
+    <div class="card">
+        <div class="ana-section-h">
+            <h3>📱 Sortier-Buchungen — ${anaDatumLabel(selDatum)}</h3>
+            <span style="font-size:12px;color:#888;">Einzelne Buchungen löschen</span>
+        </div>
+        <input type="text" id="sortier-buchungen-suche" placeholder="🔍 Lieferant oder Sorte suchen…" oninput="filterSortierBuchungen()" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;">
+        <div id="sortier-buchungen-liste">${renderSortierBuchungenFuerDatum(selDatum)}</div>
+    </div>
+    <div id="stats-integrity" style="margin-top:8px;"></div>`;
 
-    renderIntegrityBox('stats-integrity', dates);
+    const intDates = statMode === 'woche' ? getDatesForWeekOffset(statsWeekOffset) : (() => {
+        let c = new Date(); c.setMonth(c.getMonth() + statsMonthOffset);
+        const tm = c.getMonth() + 1; const ty = c.getFullYear(); const dim = [];
+        for (let d = 1; d <= new Date(ty, tm, 0).getDate(); d++) { const iso = new Date(ty, tm - 1, d); dim.push(new Date(iso.getTime() - iso.getTimezoneOffset() * 60000).toISOString().split('T')[0]); }
+        return dim;
+    })();
+    renderIntegrityBox('stats-integrity', intDates);
 }
 
 function runStatsSearch() {

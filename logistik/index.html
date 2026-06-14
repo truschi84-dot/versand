@@ -337,6 +337,66 @@
         /* SCROLL */
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+        /* STATISTIK — identisch mit Control Center */
+        .ana-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; padding: 14px 16px; background: linear-gradient(135deg, #f8fafc 0%, #eef3f9 100%); border: 1px solid var(--border); border-radius: var(--radius); }
+        .ana-toolbar-group { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+        .ana-toolbar label { display: block; font-size: 11px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+        .ana-mode-tabs { display: flex; gap: 4px; background: #e8ecf1; padding: 4px; border-radius: 10px; }
+        .ana-mode-tab { padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; background: transparent; color: #555; }
+        .ana-mode-tab.active { background: white; color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .ana-kpi-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+        @media (min-width: 600px) { .ana-kpi-row { grid-template-columns: repeat(3, 1fr); } }
+        .ana-kpi { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 12px; position: relative; overflow: hidden; }
+        .ana-kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--primary); }
+        .ana-kpi.kpi-gesamt::before { background: var(--success); }
+        .ana-kpi.kpi-ex::before { background: #1565c0; }
+        .ana-kpi.kpi-uns::before { background: #e65100; }
+        .ana-kpi.kpi-kopf::before { background: var(--accent); }
+        .ana-kpi .val { font-size: 22px; font-weight: 800; line-height: 1.1; color: #1a1a2e; }
+        .ana-kpi .unit { font-size: 12px; font-weight: 600; color: var(--muted); }
+        .ana-kpi .cap { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-top: 4px; }
+        .ana-chef { display: flex; align-items: flex-start; gap: 8px; background: #e8f5e9; border-left: 4px solid #43a047; border-radius: var(--radius); padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: #1b5e20; line-height: 1.5; }
+        /* Wochen-Vergleich */
+        .ana-vergleich { background: linear-gradient(135deg, #f0f4ff 0%, #fef9ff 100%); border: 1px solid #c5cae9; border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; }
+        .ana-vergleich-title { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #5c6bc0; letter-spacing: 0.06em; margin-bottom: 10px; }
+        .ana-vkpi-row { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        @media (min-width: 500px) { .ana-vkpi-row { grid-template-columns: repeat(3, 1fr); } }
+        .ana-vkpi { background: white; border-radius: 8px; padding: 10px 12px; border: 1px solid #e8eaf6; }
+        .ana-vkpi-label { font-size: 10px; color: #888; font-weight: 600; margin-bottom: 3px; }
+        .ana-vkpi-curr { font-size: 17px; font-weight: 800; color: #1a1a2e; }
+        .ana-vkpi-prev { font-size: 11px; color: #999; margin-top: 3px; }
+        .trend-up { color: #2e7d32; font-weight: 700; }
+        .trend-down { color: #c62828; font-weight: 700; }
+        .trend-flat { color: #888; }
+        /* Best day */
+        .ana-table tr.best-day td { background: #f1f8e9 !important; }
+        .ana-table tr.best-day td:first-child::after { content: ' 🏆'; font-size: 10px; }
+        .ana-split { margin-bottom: 18px; }
+        .ana-split-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+        .ana-split-head .ex-lbl { color: #1565c0; }
+        .ana-split-head .uns-lbl { color: #e65100; }
+        .ana-split-bar { display: flex; height: 24px; border-radius: 8px; overflow: hidden; background: #eceff1; }
+        .ana-split-ex { background: linear-gradient(90deg, #1976d2, #42a5f5); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: white; min-width: 0; }
+        .ana-split-uns { background: linear-gradient(90deg, #ef6c00, #ff9800); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: white; flex: 1; min-width: 0; }
+        .ana-section-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .ana-section-h h3 { margin: 0; font-size: 14px; font-weight: 800; color: var(--primary); }
+        .ana-section-h span { font-size: 11px; color: var(--muted); }
+        .ana-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: white; }
+        .ana-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 500px; }
+        .ana-table th { background: #f4f6f9; padding: 10px 10px; text-align: right; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: #555; border-bottom: 2px solid var(--border); white-space: nowrap; }
+        .ana-table th:first-child { text-align: left; }
+        .ana-table td { padding: 9px 10px; text-align: right; border-bottom: 1px solid #f0f2f5; }
+        .ana-table td:first-child { text-align: left; font-weight: 700; color: #1a1a2e; }
+        .ana-table tr.ana-sum td { background: #e8f0fa; font-weight: 800; border-bottom: none; }
+        .ana-table .col-ex { color: #1565c0; }
+        .ana-table .col-uns { color: #e65100; }
+        .ana-table .col-gesamt { color: var(--success); font-weight: 700; }
+        .ana-table .col-sort { color: #00897b; }
+        .ana-empty { text-align: center; padding: 24px 12px; color: var(--muted); font-size: 13px; }
+        .ana-period-nav { display: flex; align-items: center; gap: 8px; }
+        .ana-period-nav strong { font-size: 13px; min-width: 120px; text-align: center; }
+        .btn-black { background: #374151; color: white; border: 1px solid #4b5563; border-radius: var(--radius); padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -509,30 +569,7 @@
     <!-- === STATISTIKEN === -->
     <div id="page-stats" class="page">
         <div class="page-inner">
-            <div class="tab-bar">
-                <button class="tab-bar-btn active" id="stab-woche" onclick="switchStatMode('woche')">Woche</button>
-                <button class="tab-bar-btn" id="stab-monat" onclick="switchStatMode('monat')">Monat</button>
-                <button class="tab-bar-btn" id="stab-tag" onclick="switchStatMode('tag')">Tag</button>
-            </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; background:white; border-radius:10px; padding:10px 14px; border:1px solid var(--border);">
-                <button class="btn btn-sm btn-gray" onclick="statsNav(-1)">◀</button>
-                <span id="stats-period-label" style="font-size:15px; font-weight:700;"></span>
-                <button class="btn btn-sm btn-gray" onclick="statsNav(1)">▶</button>
-            </div>
-            <div id="stats-integrity"></div>
-            <div class="card" id="stats-personal-wrap" style="display:none;">
-                <div class="input-row">
-                    <div class="form-group" style="flex:1;margin:0;">
-                        <label class="form-label">Personal im Versand (Tag)</label>
-                        <input type="number" id="stats-personal" step="0.25" min="0" placeholder="z.B. 3,5">
-                    </div>
-                    <button class="btn btn-primary shrink" style="align-self:flex-end;" onclick="saveStatsPersonal()">💾</button>
-                </div>
-            </div>
-            <div class="kpi-grid" id="stats-kpis"></div>
-            <div id="stats-exuns"></div>
-            <div class="card" id="stats-period-table-wrap"></div>
-            <div class="card" id="stats-table-wrap"></div>
+            <div id="stats-container"></div>
             <div class="card" style="margin-top:12px;">
                 <div class="card-title">Datenbank suchen</div>
                 <input type="text" id="stats-search" placeholder="🔍 Artikel, Lieferant suchen…" oninput="runStatsSearch()">
@@ -829,8 +866,8 @@
     else bootTouch();
 })();
 </script>
-<script src="js/metriken.js?v=14"></script>
+<script src="js/metriken.js?v=15"></script>
 <script src="js/core.js?v=10"></script>
-<script src="js/app.js?v=10"></script>
+<script src="js/app.js?v=13"></script>
 </body>
 </html>

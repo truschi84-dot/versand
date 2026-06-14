@@ -346,6 +346,47 @@ function renderAnaKpiRow(team) {
     </div>`;
 }
 
+function trendPfeil(curr, prev) {
+    if (!prev || prev <= 0) return '';
+    const diff = Math.round(((curr - prev) / prev) * 100);
+    if (Math.abs(diff) < 2) return '<span class="trend-flat">→ ±0%</span>';
+    return curr > prev
+        ? `<span class="trend-up">↑ +${diff}%</span>`
+        : `<span class="trend-down">↓ ${diff}%</span>`;
+}
+
+function renderWochenVergleich() {
+    const currDays = getDatesForWeekOffset(statsWeekOffset);
+    const prevDays = getDatesForWeekOffset(statsWeekOffset - 1);
+    const curr = typeof teamZeitraumMetrikenAusDb === 'function' ? teamZeitraumMetrikenAusDb(db, currDays) : { tage: [], summeExport: 0, proKopf: 0 };
+    const prev = typeof teamZeitraumMetrikenAusDb === 'function' ? teamZeitraumMetrikenAusDb(db, prevDays) : { tage: [], summeExport: 0, proKopf: 0 };
+    const currSort = curr.tage.reduce((a, t) => a + (t.sortiertKg || t.gesamtKg || 0), 0);
+    const prevSort = prev.tage.reduce((a, t) => a + (t.sortiertKg || t.gesamtKg || 0), 0);
+    const exPctC = currSort > 0 ? Math.round((curr.summeExport / currSort) * 100) : 0;
+    const exPctP = prevSort > 0 ? Math.round((prev.summeExport / prevSort) * 100) : 0;
+    return `
+    <div class="ana-vergleich">
+        <div class="ana-vergleich-title">📊 Wochen-Vergleich — aktuelle Woche vs. Vorwoche</div>
+        <div class="ana-vkpi-row">
+            <div class="ana-vkpi">
+                <div class="ana-vkpi-label">Sortiert gesamt</div>
+                <div class="ana-vkpi-curr">${anaFmtKg(currSort)} kg</div>
+                <div class="ana-vkpi-prev">Vorwoche: ${anaFmtKg(prevSort)} kg ${trendPfeil(currSort, prevSort)}</div>
+            </div>
+            <div class="ana-vkpi">
+                <div class="ana-vkpi-label">Export-Quote</div>
+                <div class="ana-vkpi-curr">${exPctC}%</div>
+                <div class="ana-vkpi-prev">Vorwoche: ${exPctP}% ${trendPfeil(exPctC, exPctP)}</div>
+            </div>
+            <div class="ana-vkpi">
+                <div class="ana-vkpi-label">∅ kg / Kopf / Tag</div>
+                <div class="ana-vkpi-curr">${curr.proKopf > 0 ? anaFmtKg(curr.proKopf) : '–'}</div>
+                <div class="ana-vkpi-prev">Vorwoche: ${prev.proKopf > 0 ? anaFmtKg(prev.proKopf) : '–'} ${curr.proKopf > 0 && prev.proKopf > 0 ? trendPfeil(curr.proKopf, prev.proKopf) : ''}</div>
+            </div>
+        </div>
+    </div>`;
+}
+
 function getDatesForWeekOffset(offset) {
     let curr = new Date(); let first = curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1); let monday = new Date(curr.setDate(first + (offset * 7)));
     let days = []; for(let i=0; i<7; i++) { let d = new Date(monday); d.setDate(monday.getDate() + i); days.push(new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]); }
@@ -448,16 +489,17 @@ function renderTeamDashboard() {
         ${renderLieferantenTabelle(lieferantenTag)}
     </div>
 
+    <div class="card">${periodHtml}</div>
+    ${periodLieferantenHtml}
+
     <div class="card no-print">
         <div class="ana-section-h">
             <h3>📱 Sortier-Buchungen — ${anaDatumLabel(selDatum)}</h3>
             <span style="font-size:12px;color:#888;">Einzelne Buchungen löschen</span>
         </div>
+        <input type="text" id="sortier-buchungen-suche" placeholder="🔍 Lieferant oder Sorte suchen…" oninput="filterSortierBuchungen()" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;">
         <div id="sortier-buchungen-liste">${renderSortierBuchungenFuerDatum(selDatum)}</div>
-    </div>
-
-    <div class="card">${periodHtml}</div>
-    ${periodLieferantenHtml}`;
+    </div>`;
 }
 
 function renderTeamWeeklyOverview() {
@@ -470,6 +512,8 @@ function renderTeamWeeklyOverview() {
         : teamZeitraumMetriken(db.teamTagesMengen, db.dailyStaff, db.deliveries, days);
     const summeSort = metriken.tage.reduce((a, t) => a + (t.sortiertKg || t.gesamtKg || 0), 0);
 
+    const maxKg = Math.max(...metriken.tage.map(t => t.sortiertKg || t.gesamtKg || 0));
+
     let html = `
     <div class="ana-section-h">
         <h3>Wochenübersicht</h3>
@@ -479,6 +523,7 @@ function renderTeamWeeklyOverview() {
             <button class="btn btn-black" onclick="changeWeek(1)">▶</button>
         </div>
     </div>
+    ${renderWochenVergleich()}
     ${renderExUnsSplitBar(metriken.summeExport, metriken.summeUns, metriken.summeKg)}
     <div class="ana-table-wrap"><table class="ana-table"><thead><tr>
         <th>Tag</th><th>Sortiert</th><th>Personal</th><th>kg/Kopf</th><th>Export</th><th>Uns</th><th style="color:#888;">N/Z</th>
@@ -487,8 +532,9 @@ function renderTeamWeeklyOverview() {
     metriken.tage.forEach((t, i) => {
         const sortKg = t.sortiertKg > 0 ? t.sortiertKg : t.gesamtKg;
         const tnz = nzKg(sortKg, t.exportKg, t.unsKg);
-        const clickable = sortKg > 0 ? ` style="cursor:pointer;" onclick="document.getElementById('team-personal-datum').value='${t.datum}'; onTeamPersonalDatumChange(); renderWorkerStats();"` : '';
-        html += `<tr${clickable}>
+        const isBest = sortKg > 0 && sortKg === maxKg;
+        const click = sortKg > 0 ? ` onclick="document.getElementById('team-personal-datum').value='${t.datum}'; onTeamPersonalDatumChange(); renderWorkerStats();"` : '';
+        html += `<tr class="${isBest ? 'best-day' : ''}" style="cursor:${sortKg > 0 ? 'pointer' : 'default'};"${click}>
             <td>${dayNames[i]} <small style="color:#888;">${t.datum.split('-')[2]}.${t.datum.split('-')[1]}</small></td>
             <td class="col-sort">${anaFmtKg(sortKg)}</td>
             <td>${teamPersonalInputHtml(t.datum, t.personalAnzahl, true)}</td>
@@ -544,6 +590,7 @@ function renderTeamMonthlyOverview() {
         <div class="ana-kpi kpi-gesamt"><div class="val">${anaFmtKg(summeSort)}</div><div class="unit">kg</div><div class="cap">Sortiert (Handy)</div></div>
         <div class="ana-kpi kpi-ex"><div class="val">${anaFmtKg(metriken.summeExport)}</div><div class="unit">kg</div><div class="cap">Export</div></div>
         <div class="ana-kpi kpi-uns"><div class="val">${anaFmtKg(metriken.summeUns)}</div><div class="unit">kg</div><div class="cap">Uns</div></div>
+        <div class="ana-kpi" style="background:#f5f5f5;"><div class="val" style="color:#888;">${anaFmtKg(nzKg(summeSort, metriken.summeExport, metriken.summeUns))}</div><div class="unit" style="color:#888;">kg</div><div class="cap" style="color:#888;">N/Z</div></div>
         <div class="ana-kpi kpi-kopf"><div class="val">${metriken.proKopf > 0 ? anaFmtKg(metriken.proKopf) : '–'}</div><div class="unit">kg</div><div class="cap">Ø pro Kopf</div></div>
     </div>
     ${renderExUnsSplitBar(metriken.summeExport, metriken.summeUns, metriken.summeKg)}
@@ -703,7 +750,7 @@ function renderMonthlyOverview() {
 function renderSortierBuchungenFuerDatum(datum) {
     const alle = (db.teamSortierBuchungen || []).filter(b => b.datum === datum);
     const deleted = db.deletedSortierBuchungen || [];
-    const aktiv = alle.filter(b => !deleted.includes(b.sessionKey + '\0' + b.datum));
+    const aktiv = alle.filter(b => !deleted.includes(b.sessionKey + '|' + b.datum));
     if (!aktiv.length) return '<div style="color:#888;font-size:13px;padding:8px 0;">Keine Buchungen für dieses Datum.</div>';
     return `<table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead><tr style="background:#f5f5f5;">
@@ -726,7 +773,7 @@ function renderSortierBuchungenFuerDatum(datum) {
 function deleteSortierBuchung(sessionKey, datum) {
     if (!confirm('Buchung wirklich löschen? Sie wird auch aus der Cloud entfernt.')) return;
     if (!Array.isArray(db.deletedSortierBuchungen)) db.deletedSortierBuchungen = [];
-    const key = sessionKey + '\0' + datum;
+    const key = sessionKey + '|' + datum;
     if (!db.deletedSortierBuchungen.includes(key)) db.deletedSortierBuchungen.push(key);
     db.teamSortierBuchungen = (db.teamSortierBuchungen || []).filter(b => !(b.sessionKey === sessionKey && b.datum === datum));
     localStorage.setItem('logistik_offline_db', JSON.stringify(db));
@@ -737,4 +784,32 @@ function deleteSortierBuchung(sessionKey, datum) {
 function renderBuchungenVerwaltung(datum) {
     const el = document.getElementById('sortier-buchungen-liste');
     if (el) el.innerHTML = renderSortierBuchungenFuerDatum(datum);
+}
+
+function filterSortierBuchungen() {
+    const q = (document.getElementById('sortier-buchungen-suche')?.value || '').toLowerCase().trim();
+    const datum = anaSelectedDatum();
+    const alle = (db.teamSortierBuchungen || []).filter(b => b.datum === datum);
+    const deleted = db.deletedSortierBuchungen || [];
+    let aktiv = alle.filter(b => !deleted.includes(b.sessionKey + '|' + b.datum));
+    if (q) aktiv = aktiv.filter(b => (b.lief || '').toLowerCase().includes(q) || (b.sorte || '').toLowerCase().includes(q));
+    const el = document.getElementById('sortier-buchungen-liste');
+    if (!el) return;
+    if (!aktiv.length) { el.innerHTML = '<div style="color:#888;font-size:13px;padding:8px 0;">Keine Buchungen gefunden.</div>'; return; }
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:#f5f5f5;">
+            <th style="padding:6px 8px;text-align:left;">Lieferant</th>
+            <th style="padding:6px 8px;text-align:left;">Sorte</th>
+            <th style="padding:6px 8px;text-align:right;">kg</th>
+            <th style="padding:6px 8px;"></th>
+        </tr></thead>
+        <tbody>${aktiv.map(b => `<tr style="border-bottom:1px solid #eee;">
+            <td style="padding:6px 8px;">${b.lief || '–'}</td>
+            <td style="padding:6px 8px;color:#555;">${b.sorte || '–'}</td>
+            <td style="padding:6px 8px;text-align:right;font-weight:bold;">${parseFloat(b.gebuchtKg || 0).toLocaleString('de-DE')}</td>
+            <td style="padding:6px 8px;text-align:right;">
+                <button onclick="deleteSortierBuchung('${b.sessionKey}','${b.datum}')" style="background:#e53935;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;">🗑️ Löschen</button>
+            </td>
+        </tr>`).join('')}</tbody>
+    </table>`;
 }

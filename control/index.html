@@ -53,21 +53,34 @@
         .ana-mode-tabs { display: flex; gap: 4px; background: #e8ecf1; padding: 4px; border-radius: 10px; }
         .ana-mode-tab { padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; background: transparent; color: #555; transition: all 0.15s; }
         .ana-mode-tab.active { background: white; color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .ana-kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 20px; }
-        @media (max-width: 1200px) { .ana-kpi-row { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 700px) { .ana-kpi-row { grid-template-columns: repeat(2, 1fr); } }
-        .ana-kpi { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 14px; position: relative; overflow: hidden; }
-        .ana-kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--primary); opacity: 0.85; }
+        .ana-kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; max-width: 900px; }
+        .ana-kpi { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 16px; position: relative; overflow: hidden; }
+        .ana-kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--primary); }
         .ana-kpi.kpi-gesamt::before { background: var(--success); }
         .ana-kpi.kpi-lkw::before { background: #5c6bc0; }
         .ana-kpi.kpi-sortiert::before { background: #00897b; }
         .ana-kpi.kpi-ex::before { background: #1565c0; }
         .ana-kpi.kpi-uns::before { background: #e65100; }
         .ana-kpi.kpi-kopf::before { background: var(--accent); }
-        .ana-kpi .val { font-size: 26px; font-weight: 800; line-height: 1.1; color: #1a1a2e; font-variant-numeric: tabular-nums; }
-        .ana-kpi .unit { font-size: 14px; font-weight: 600; color: var(--text-muted); }
+        .ana-kpi .val { font-size: 28px; font-weight: 800; line-height: 1.1; color: #1a1a2e; font-variant-numeric: tabular-nums; }
+        .ana-kpi .unit { font-size: 13px; font-weight: 600; color: var(--text-muted); }
         .ana-kpi .cap { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-top: 6px; }
-        .ana-chef { background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); border: 1px solid #90caf9; border-radius: var(--radius); padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #0d47a1; line-height: 1.5; }
+        .ana-chef { display: flex; align-items: center; gap: 10px; background: #e8f5e9; border-left: 4px solid #43a047; border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #1b5e20; line-height: 1.5; }
+        /* Wochen-Vergleich */
+        .ana-vergleich { background: linear-gradient(135deg, #f0f4ff 0%, #fef9ff 100%); border: 1px solid #c5cae9; border-radius: var(--radius); padding: 14px 18px; margin-bottom: 16px; }
+        .ana-vergleich-title { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #5c6bc0; letter-spacing: 0.06em; margin-bottom: 12px; }
+        .ana-vkpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        @media (max-width: 700px) { .ana-vkpi-row { grid-template-columns: 1fr; gap: 8px; } }
+        .ana-vkpi { background: white; border-radius: 8px; padding: 12px 14px; border: 1px solid #e8eaf6; }
+        .ana-vkpi-label { font-size: 11px; color: #888; font-weight: 600; margin-bottom: 4px; }
+        .ana-vkpi-curr { font-size: 20px; font-weight: 800; color: #1a1a2e; }
+        .ana-vkpi-prev { font-size: 12px; color: #999; margin-top: 4px; }
+        .trend-up { color: #2e7d32; font-weight: 700; }
+        .trend-down { color: #c62828; font-weight: 700; }
+        .trend-flat { color: #888; }
+        /* Best day */
+        .ana-table tr.best-day td { background: #f1f8e9 !important; }
+        .ana-table tr.best-day td:first-child::after { content: ' 🏆'; font-size: 11px; }
         .ana-split { margin-bottom: 22px; }
         .ana-split-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 8px; }
         .ana-split-head .ex-lbl { color: #1565c0; }
@@ -290,8 +303,8 @@
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="../js/druck_utils.js?v=1"></script>
-    <script src="../js/supabase_sync.js?v=115"></script>
-    <script src="../js/cloud_auth.js?v=1"></script>
+    <script src="../js/supabase_sync.js?v=129"></script>
+    <script src="../js/cloud_auth.js?v=129"></script>
     <script src="../js/gemeinsam/datenbank.js?v=8"></script>
     <script src="../js/gemeinsam/metriken.js?v=25"></script>
 </head>
@@ -417,7 +430,6 @@
         <div class="nav-item" id="nav-system" onclick="showTab('system', this)">🔧 System & PINs</div>
         <div class="nav-item" id="nav-handy-update" onclick="showTab('handy-update', this)">🚀 Updates & Deploy</div>
         <div class="nav-item" onclick="showTab('raw', this)">📝 JSON Editor</div>
-        <div class="nav-item" onclick="showTab('cloud', this)">💾 Cloud & Backup</div>
         </div>
     </div>
 
@@ -1014,7 +1026,7 @@
                     </div>
                 </div>
 
-                <!-- GitHub + Firebase Grid -->
+                <!-- GitHub + FTP Grid -->
                 <div class="deploy-grid">
                     <!-- GitHub -->
                     <div class="deploy-card">
@@ -1030,19 +1042,6 @@
                             <button class="dbtn dbtn-github dbtn-full" id="btn-deploy-github" onclick="startGithubPublish()">📤 Version +1 und auf GitHub veröffentlichen</button>
                             <button class="dbtn dbtn-ghost dbtn-full" id="btn-deploy-github-local" onclick="startGithubLocalBump()">🔢 Nur Version lokal +1 (kein Push)</button>
                             <p style="font-size:11px; color:#94a3b8; margin:4px 0 0;">Git muss eingeloggt sein · <a href="https://truschi84-dot.github.io/versand/app-update.json" target="_blank" rel="noopener" style="color:#60a5fa;">app-update.json prüfen</a></p>
-                        </div>
-                    </div>
-                    <!-- Firebase OTA -->
-                    <div class="deploy-card">
-                        <div class="deploy-card-header">
-                            <div class="deploy-card-icon blue">☁️</div>
-                            <div class="deploy-card-body">
-                                <h3>Firebase OTA</h3>
-                                <p>Alternative zu GitHub — nur wenn Firebase CLI installiert ist (<code>firebase login</code>)</p>
-                            </div>
-                        </div>
-                        <div class="deploy-card-actions">
-                            <button class="dbtn dbtn-primary dbtn-full" id="btn-deploy-ota" onclick="startOtaFirebase()">☁️ Firebase Hosting deploy</button>
                         </div>
                     </div>
                 </div>
@@ -1091,6 +1090,7 @@
                         </div>
                     </div>
                 </div>
+
 
             </div>
         </div>
@@ -1199,7 +1199,7 @@
             </div>
         </div>
     </div>
-    <script src="js/control-center-core.js?v=14"></script>
+    <script src="js/control-center-core.js?v=15"></script>
     <script src="js/control-center-lieferanten.js?v=7"></script>
     <script src="js/control-center-mitarbeiter.js?v=1"></script>
     <script src="js/control-center-artikel.js?v=1"></script>

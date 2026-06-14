@@ -64,7 +64,7 @@ function isLkwManuellDelivery(d) {
     return d && !isSortierDelivery(d);
 }
 
-/** Nur Handy-Sortier-Einträge gehören in die Cloud — LKW bleibt lokal am PC. */
+/** Nur Handy-Sortier-Einträge gehören in die Cloud — LKW bleibt IMMER lokal am PC, niemals sync. */
 function deliveriesFuerCloudSync(list) {
     return (list || []).filter(isSortierDelivery);
 }
@@ -161,8 +161,12 @@ function persistHandyEntriesToDeliveries(db, datum) {
     datum = normalizeDatumIso(datum);
     if (!db.deliveries) db.deliveries = [];
     if (Array.isArray(window._lastCloudBuchungen) && window._lastCloudBuchungen.length
-        && typeof applyCloudSortierBuchungen === 'function') {
-        applyCloudSortierBuchungen(db, window._lastCloudBuchungen);
+        && typeof mergeTeamSortierBuchungen === 'function') {
+        db.teamSortierBuchungen = mergeTeamSortierBuchungen(
+            db.teamSortierBuchungen || [],
+            window._lastCloudBuchungen,
+            db.deletedSortierBuchungen
+        );
     }
     const handy = typeof getHandySortierEntriesFuerDatum === 'function'
         ? getHandySortierEntriesFuerDatum(db, datum)
@@ -453,7 +457,7 @@ function mergeTeamSortierBuchungen(lokal, cloud, deletedKeys) {
 
 function sortierBuchungMergeKey(b) {
     const datum = normalizeDatumIso(b?.datum) || String(b?.datum || '');
-    return (b.sessionKey || '') + '\0' + datum;
+    return (b.sessionKey || '') + '|' + datum;
 }
 
 function entferneDeletedKeysFuerBuchung(db, b) {
@@ -463,7 +467,7 @@ function entferneDeletedKeysFuerBuchung(db, b) {
     const dIso = normalizeDatumIso(b.datum);
     db.deletedSortierBuchungen = db.deletedSortierBuchungen.filter((x) => {
         if (x === k) return false;
-        const idx = String(x).indexOf('\0');
+        const idx = String(x).indexOf('|');
         if (idx < 0) return true;
         const xSk = x.slice(0, idx);
         const xDat = normalizeDatumIso(x.slice(idx + 1));
@@ -1097,6 +1101,7 @@ function ensureDatenKonsistenz(db) {
     migriereTeamAusDailyStaff(db.teamTagesMengen, db.dailyStaff);
     if (typeof ensureSortierenDeliveries === 'function') ensureSortierenDeliveries(db);
     sammleAlleErfassungsDaten(db).forEach((datum) => {
+        const prevKg = (db.teamTagesMengen[datum] || {}).gesamtKg || 0;
         rebuildTeamTagesMengenFuerDatum(db, datum);
         const sort = sortierenSummeFuerDatum(
             db.teamSortierBuchungen, db.teamTagesMengen, datum,
@@ -1106,6 +1111,9 @@ function ensureDatenKonsistenz(db) {
         if (kg > 0) {
             if (!db.teamTagesMengen[datum]) db.teamTagesMengen[datum] = leererTeamTagesEintrag();
             db.teamTagesMengen[datum].gesamtKg = kg;
+        } else if (prevKg > 0 && db.teamTagesMengen[datum]) {
+            // Cloud-Wert bewahren wenn keine Buchungen/Deliveries vorhanden (manuell erfasst)
+            db.teamTagesMengen[datum].gesamtKg = prevKg;
         }
     });
     if (typeof syncDailyStaffAusTeam === 'function') syncDailyStaffAusTeam(db.teamTagesMengen, db.dailyStaff);
