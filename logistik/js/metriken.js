@@ -1013,7 +1013,8 @@ function teamTagesAnzeigeAusDb(db, datum) {
     );
     let sortiertKg = sortSum.gesamtKg;
     if (sortiertKg <= 0) sortiertKg = sortiertKgAusDeliveries(db.deliveries || [], datum);
-    const gesamtKg = sortiertKg;
+    const lkwNzKg = gesamtKgFuerDatum(db.deliveries || [], datum);
+    const gesamtKg = sortiertKg + lkwNzKg;
     return {
         personalAnzahl,
         gesamtKg,

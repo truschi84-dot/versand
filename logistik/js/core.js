@@ -2,9 +2,7 @@
 // TRESCH LOGISTIK — CORE  (eigenständig, kein shared code)
 // ============================================================
 
-const FIREBASE_URL = "https://tresch-versand-default-rtdb.firebaseio.com/backup";
 let _secrets = null;
-let _idToken = null;
 
 // ── SUPABASE ──────────────────────────────────────────────────
 const _SB_URL = 'https://qoaqpzmclvacaorginor.supabase.co';
@@ -35,15 +33,13 @@ async function sbPatch(rowKey, partial) {
     if (!res.ok) throw new Error('Supabase Schreibfehler: ' + res.status);
 }
 
-// ── SECRETS ──────────────────────────────────────────────────
-// Normalisiert beide Formate: {apiKey/authEmail/authPassword} und {firebaseApiKey/firebaseAuthEmail/firebaseAuthPassword}
+// ── SECRETS (nur noch für loadSecretsFile-UI, nicht mehr für Cloud-Auth) ──
 function normalizeSecrets(cfg) {
     if (!cfg) return null;
     return {
-        apiKey:       cfg.apiKey       || cfg.firebaseApiKey       || '',
-        authEmail:    cfg.authEmail    || cfg.firebaseAuthEmail    || '',
-        authPassword: cfg.authPassword || cfg.firebaseAuthPassword || '',
-        databaseURL:  cfg.databaseURL  || cfg.firebaseDatabaseURL  || ''
+        apiKey:       cfg.apiKey       || '',
+        authEmail:    cfg.authEmail    || '',
+        authPassword: cfg.authPassword || ''
     };
 }
 function loadSecretsFromStorage() {
@@ -53,14 +49,6 @@ function secretsOk() { return _secrets && _secrets.apiKey && _secrets.authEmail 
 
 async function tryAutoLoadSecrets() {
     if (secretsOk()) return;
-    if (typeof window !== 'undefined' && window.__FIREBASE_SECRETS__) {
-        const cfg = normalizeSecrets(window.__FIREBASE_SECRETS__);
-        if (cfg && cfg.apiKey && cfg.authEmail && cfg.authPassword) {
-            _secrets = cfg;
-            localStorage.setItem('app_secrets', JSON.stringify(cfg));
-            return;
-        }
-    }
     const paths = ['app-secrets.json', './app-secrets.json', '../app-secrets.json', '/app-secrets.json'];
     for (const p of paths) {
         try {
@@ -91,20 +79,6 @@ function loadSecretsFile(input) {
         input.value = '';
     };
     reader.readAsText(file);
-}
-
-async function getIdToken() {
-    if (!secretsOk()) throw new Error('Keine Cloud-Zugangsdaten. Bitte app-secrets.json laden.');
-    const apiKey = _secrets.apiKey;
-    const resp = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: _secrets.authEmail, password: _secrets.authPassword, returnSecureToken: true }) }
-    );
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error?.message || 'Auth-Fehler');
-    _idToken = data.idToken;
-    return _idToken;
 }
 
 function cloudLog(msg) {
@@ -170,10 +144,14 @@ async function pullCloud() {
                 'artikelMarkt','teamTagesMengen','dailyAttendance','dailyStaff','savedProdukteRaw','sonderTemplates',
                 'noelkeItems','teamDayBrief','checklistMorningTemplate'];
             keys.forEach(k => { if (data[k] !== undefined) db[k] = data[k]; });
-            if (Array.isArray(data.deletedSortierBuchungen) && typeof mergeDeletedSortierKeys === 'function') {
-                db.deletedSortierBuchungen = mergeDeletedSortierKeys(db.deletedSortierBuchungen || [], data.deletedSortierBuchungen);
-            } else if (Array.isArray(data.deletedSortierBuchungen)) {
-                db.deletedSortierBuchungen = data.deletedSortierBuchungen;
+            if (Array.isArray(data.deletedSortierBuchungen)) {
+                // Migration: \0 null-byte separator → |
+                data.deletedSortierBuchungen = data.deletedSortierBuchungen.map(k => k.replace('\0', '|'));
+                if (typeof mergeDeletedSortierKeys === 'function') {
+                    db.deletedSortierBuchungen = mergeDeletedSortierKeys(db.deletedSortierBuchungen || [], data.deletedSortierBuchungen);
+                } else {
+                    db.deletedSortierBuchungen = data.deletedSortierBuchungen;
+                }
             }
             const cloudBuch = typeof asSortierBuchungenArray === 'function'
                 ? asSortierBuchungenArray(data.teamSortierBuchungen)
@@ -233,6 +211,12 @@ async function pushCloud() {
             }
         } catch (e) { /* nur lokaler Stand */ }
         const patchPayload = buildLogistikCloudPatch(uploadDb);
+        // Safety: strip null bytes before Supabase upload (jsonb rejects \0)
+        if (Array.isArray(patchPayload.deletedSortierBuchungen)) {
+            patchPayload.deletedSortierBuchungen = [...new Set(
+                patchPayload.deletedSortierBuchungen.map(k => String(k).replace('\0', '|'))
+            )];
+        }
         await sbPatch('main', patchPayload);
         saveDb();
         cloudLog('✅ In Cloud gespeichert [OK]');
@@ -290,9 +274,7 @@ function mirrorToKombiLogistik() {
         } else if (Array.isArray(db.teamSortierBuchungen)) {
             ld.teamSortierBuchungen = db.teamSortierBuchungen;
         }
-        if (db.deliveries != null && typeof mergeLieferungen === 'function') {
-            ld.deliveries = mergeLieferungen(ld.deliveries || [], db.deliveries);
-        } else if (db.deliveries != null) {
+        if (db.deliveries != null) {
             ld.deliveries = db.deliveries;
         }
         localStorage.setItem('kombi_logistik_db', JSON.stringify(ld));
@@ -352,7 +334,14 @@ function mergeFromKombiLogistik(ld) {
 function loadDb() {
     try {
         const s = localStorage.getItem('logistik_offline_db');
-        if (s) db = { ...db, ...JSON.parse(s) };
+        if (s) {
+            const parsed = JSON.parse(s);
+            // Migration: \0 null-byte separator → | (PostgreSQL jsonb rejects null bytes)
+            if (Array.isArray(parsed.deletedSortierBuchungen)) {
+                parsed.deletedSortierBuchungen = parsed.deletedSortierBuchungen.map(k => k.replace('\0', '|'));
+            }
+            db = { ...db, ...parsed };
+        }
     } catch(e) {}
     try {
         const l = localStorage.getItem('kombi_logistik_db');

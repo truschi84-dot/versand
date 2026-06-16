@@ -1,9 +1,8 @@
 // =========================================================================
 // ZENTRALE KONFIGURATION (CLOUD)
 // =========================================================================
-const FIREBASE_CLOUD_BACKUP = "https://tresch-versand-default-rtdb.firebaseio.com/backup";
 const APP_CONFIG = {
-    CLOUD_URL: localStorage.getItem('custom_cloud_url') || FIREBASE_CLOUD_BACKUP,
+    CLOUD_URL: 'supabase',
     LOGISTIK_PIN: "3132",
     ADMIN_PIN: "110784",
     NOTIFICATION_URL: "https://formspree.io/f/xrejnkgq"
@@ -11,7 +10,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 130;
+const WEB_BUILD_VERSION = 131;
 /** Fallback nur wenn app-update.json nicht geladen werden kann — echte URL kommt aus Config. */
 const OFFICE_LAN_URL = '';
 let pendingOtaUpdate = null;
@@ -251,17 +250,11 @@ function ensureAppVisible() {
 }
 
 async function fetchSettingsForPinCheck() {
-    const base = FIREBASE_CLOUD_BACKUP.replace(/\/backup\/?$/, '');
-    const cloudUrl = base + '/backup/settings.json?t=' + Date.now();
-
     try {
-        if (typeof CloudAuth !== 'undefined' && CloudAuth.isReady && CloudAuth.isReady()) {
-            await CloudAuth.ensureAuth();
-            const res = await cloudFetch(cloudUrl);
-            if (res.ok) return await res.json();
-        }
+        const res = await cloudFetch('/cloud/backup/settings.json?t=' + Date.now());
+        if (res.ok) return await res.json();
     } catch (e) {
-        console.warn('Cloud-PIN (auth):', e.message || e);
+        console.warn('Cloud-PIN:', e.message || e);
     }
 
     try {
@@ -277,19 +270,6 @@ async function fetchSettingsForPinCheck() {
         console.warn('Cloud-PIN (public file):', e.message || e);
     }
 
-    try {
-        await CloudAuth.ensureAuth();
-        const res = await cloudFetch(cloudUrl);
-        if (res.ok) return await res.json();
-    } catch (e) {
-        console.warn('Cloud-PIN (auth retry):', e.message || e);
-    }
-    try {
-        const res = await fetch(cloudUrl, { cache: 'no-store' });
-        if (res.ok) return await res.json();
-    } catch (e) {
-        console.warn('Cloud-PIN (oeffentlich):', e.message || e);
-    }
     return null;
 }
 
@@ -545,13 +525,12 @@ function resetInactivityTimer() {
 /** Firmendaten lokal entfernen (z. B. nach PIN-Entzug / Kündigung – ohne Zugriff aufs Handy). */
 function wipeLocalFirmData() {
     const keys = [
-        'kombi_logistik_db', 'kombi_rechner_db', 'firebase_auth_secrets', 'app_pin_version',
+        'kombi_logistik_db', 'kombi_rechner_db', 'app_pin_version',
         'logistik_cloud_logs', 'logistik_last_backup_day', 'logistik_offline_db',
         'checklist_init_done', 'logistik_pin_fails', 'logistik_current_puk'
     ];
     keys.forEach((k) => AppStorage.remove(k));
     setAuswertungAuthenticated(false);
-    if (typeof CloudAuth !== 'undefined') CloudAuth.clearSession();
     _appInitialized = false;
 }
 
@@ -574,9 +553,7 @@ function revokeSessionIfPinChanged(settings) {
 async function checkAndWipeIfPinRevoked() {
     if (!AppStorage.getRaw('app_pin_version')) return;
     try {
-        await CloudAuth.ensureAuth();
-        const base = FIREBASE_CLOUD_BACKUP.replace(/\/backup\/?$/, '');
-        const res = await cloudFetch(base + '/backup/settings.json?t=' + Date.now());
+        const res = await cloudFetch('/cloud/backup/settings.json?t=' + Date.now());
         if (!res.ok) return;
         const settings = await res.json();
         if (isPinVersionRevoked(settings)) {
@@ -589,9 +566,7 @@ async function checkAndWipeIfPinRevoked() {
 async function verifySessionStillValid() {
     if (!isAppAuthenticated()) return false;
     try {
-        await CloudAuth.ensureAuth();
-        const base = FIREBASE_CLOUD_BACKUP.replace(/\/backup\/?$/, '');
-        const res = await cloudFetch(base + '/backup/settings.json?t=' + Date.now());
+        const res = await cloudFetch('/cloud/backup/settings.json?t=' + Date.now());
         if (!res.ok) return true;
         const settings = await res.json();
         return !revokeSessionIfPinChanged(settings);
@@ -625,7 +600,6 @@ function logoutLogistik(auto = false, message) {
     setAppAuthenticated(false);
     setAuswertungAuthenticated(false);
     if (typeof updateAdminOnlyDrawerItems === 'function') updateAdminOnlyDrawerItems();
-    if (typeof CloudAuth !== 'undefined') CloudAuth.clearSession();
     if (typeof toggleMenuApp1 === 'function') toggleMenuApp1(false);
     if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
     hideAppUntilUnlocked();
@@ -1820,7 +1794,7 @@ function triggerAutoSync(mode) {
 
 function safeLogistikCloudPatchPayload(raw) {
     const payload = { ...(raw || {}) };
-    // Leeres Array würde bei Firebase-PATCH alle Druck-Buchungen in der Cloud löschen
+    // Leeres Array würde bei Cloud-PATCH alle Druck-Buchungen in der Cloud löschen
     if (!Array.isArray(payload.teamSortierBuchungen) || payload.teamSortierBuchungen.length === 0) {
         delete payload.teamSortierBuchungen;
     }
@@ -1836,9 +1810,6 @@ function safeLogistikCloudPatchPayload(raw) {
 /** Hintergrund-Upload nach Sortieren→Drucken — ohne Toast für Mitarbeiter. */
 async function pushSortierNachDruckSilent() {
     if (!navigator.onLine) return;
-    try {
-        await CloudAuth.ensureAuth();
-    } catch (_) { return; }
     const lData = AppStorage.get('kombi_logistik_db', {});
     const localBuch = typeof asSortierBuchungenArray === 'function'
         ? asSortierBuchungenArray(lData.teamSortierBuchungen)

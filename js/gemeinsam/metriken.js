@@ -15,10 +15,6 @@ function mengeProKopf(gesamtKg, personalAnzahl) {
     return Math.round(kg / p);
 }
 
-function leererTeamTagesEintrag() {
-    return { personalAnzahl: 0, gesamtKg: 0, exportKg: 0, unsKg: 0 };
-}
-
 function teamTagAusMengen(teamTagesMengen, datum) {
     if (!teamTagesMengen || datum == null) return null;
     const t = teamTagesMengen[datum];
@@ -148,7 +144,7 @@ function getHandySortierEntriesFuerDatum(db, datum) {
         }
     });
     if (byName.size === 0 && Array.isArray(window._lastCloudBuchungen) && window._lastCloudBuchungen.length) {
-        sortierenLieferantenFuerDatum(window._lastCloudBuchungen, datum, []).forEach(({ name, kg }) => {
+        sortierenLieferantenFuerDatum(window._lastCloudBuchungen, datum, db.deletedSortierBuchungen || []).forEach(({ name, kg }) => {
             const n = String(name || '').trim() || 'Unbekannt';
             const id = sortierenLieferantDeliveryId(datum, n);
             byName.set(n, { id, date: datum, name: n, kg, source: 'sortieren', workerShares: [], _ausCloud: true });
@@ -456,18 +452,25 @@ function mergeTeamSortierBuchungen(lokal, cloud, deletedKeys) {
         const b = normalizeSortierBuchungRecord(raw);
         if (!b) return;
         if (istSortierBuchungGeloescht(b, delSet)) return;
-        const k = b.sessionKey + '\0' + b.datum;
+        const k = b.sessionKey + '|' + b.datum;
         const prev = byKey.get(k);
-        const tNew = b.letzterDruck ? Date.parse(b.letzterDruck) : 0;
-        const tPrev = prev?.letzterDruck ? Date.parse(prev.letzterDruck) : 0;
-        if (!prev || tNew >= tPrev) byKey.set(k, { ...b });
+        if (!prev) { byKey.set(k, { ...b }); return; }
+        const bKg   = parseFloat(b.gebuchtKg)    || 0;
+        const prevKg = parseFloat(prev.gebuchtKg) || 0;
+        // 0 kg darf niemals ein echtes Gewicht überschreiben
+        if (bKg === 0 && prevKg > 0) return;
+        if (prevKg === 0 && bKg > 0) { byKey.set(k, { ...b }); return; }
+        // Beide haben Gewicht (oder beide 0) → neuerer Druck-Zeitstempel gewinnt (Korrektur)
+        const tNew  = b.letzterDruck    ? Date.parse(b.letzterDruck)    : 0;
+        const tPrev = prev.letzterDruck ? Date.parse(prev.letzterDruck) : 0;
+        if (tNew >= tPrev) byKey.set(k, { ...b });
     });
     return Array.from(byKey.values());
 }
 
 function sortierBuchungMergeKey(b) {
     const datum = normalizeDatumIso(b?.datum) || String(b?.datum || '');
-    return (b.sessionKey || '') + '\0' + datum;
+    return (b.sessionKey || '') + '|' + datum;
 }
 
 /** Lösch-Markierungen für eine Cloud-/Handy-Buchung entfernen (auch bei abweichendem Datumsformat). */
@@ -789,7 +792,7 @@ function fertigNrAusSorte(sorte, articles) {
     return hit ? (hit.fertigNr || hit.nr || null) : null;
 }
 
-function bucheTeamSortierungBeimDruck(aggregatedDaten, sitzungId) {
+async function bucheTeamSortierungBeimDruck(aggregatedDaten, sitzungId) {
     if (!Array.isArray(aggregatedDaten) || aggregatedDaten.length === 0) return false;
     const heute = typeof getLocalISO === 'function' ? getLocalISO() : new Date().toISOString().split('T')[0];
     const jetzt = new Date().toISOString();
@@ -812,16 +815,51 @@ function bucheTeamSortierungBeimDruck(aggregatedDaten, sitzungId) {
     );
     let geaendert = false;
 
-    aggregatedDaten.forEach((item) => {
+    // Verwenden von Promise.all, um alle Supabase-Einfügungen parallel zu verarbeiten
+    // und sicherzustellen, dass die Funktion asynchron ist.
+    const supabasePromises = aggregatedDaten.map(async (item) => {
         const sessionKey = sortierungSessionKey(item.lief, item.sorte, item.herkunft);
         const aktuellesGewicht = parseFloat(item.netto) || 0;
         // Buchung nur innerhalb derselben Sitzung suchen → verschiedene Lieferungen am selben Tag bleiben getrennt
         let buchung = buchungen.find((b) => b.sessionKey === sessionKey && b.datum === heute && (b.sitzungId || 'default') === aktSitzung);
 
+        // --- NEU: Daten in Supabase speichern ---
+        if (window.supabase && aktuellesGewicht > 0) {
+            const fertigNr = fertigNrAusSorte(item.sorte, articles);
+            const marktTyp = artikelMarktTyp(fertigNr, item.sorte, artikelMarkt);
+            
+            const supabaseEvent = {
+                source: 'rechner-sortierung',
+                created_at: new Date().toISOString(),
+                supplier_id: item.lief || 'Unbekannt',
+                article_id: item.sorte || 'Unbekannt', // Oder eine spezifischere Artikel-ID
+                kisten: null, // Falls Kisten nicht aus 'item' verfügbar sind
+                gewicht: aktuellesGewicht,
+                markt_typ: marktTyp === 'export' ? 'export' : (marktTyp === 'inland' ? 'inland' : 'nv'),
+                comment: `Sortierung vom Rechner, Session: ${sessionKey}`
+            };
+
+            try {
+                const { error } = await window.supabase
+                    .from('statistic_events')
+                    .insert([supabaseEvent]);
+                if (error) {
+                    console.error('Fehler beim Speichern des Statistik-Events in Supabase:', error);
+                } else {
+                    // console.log('Statistik-Event erfolgreich in Supabase gespeichert:', supabaseEvent);
+                }
+            } catch (e) {
+                console.error('Ausnahme beim Speichern des Statistik-Events in Supabase:', e);
+            }
+        }
+        // --- ENDE NEU ---
+
         // Duplikat-Bereinigung: wenn Artikel-Name durch Sync geändert wurde entsteht ein
         // verwaister Eintrag mit anderem sessionKey aber gleicher FertigNr+Lief+Herkunft (nur in derselben Sitzung).
         const fertigNr = fertigNrAusSorte(item.sorte, articles);
-        if (fertigNr && articles.length > 0) {
+        // Cleanup nur wenn das aktuelle Item selbst ein echtes Gewicht hat —
+        // sonst würden 0-kg-Items bestehende Buchungen fälschlich nullen
+        if (fertigNr && articles.length > 0 && aktuellesGewicht > 0) {
             buchungen.forEach((b) => {
                 if (b.datum !== heute || b.sessionKey === sessionKey) return;
                 if ((b.sitzungId || 'default') !== aktSitzung) return; // andere Sitzung → nicht anfassen
@@ -884,7 +922,10 @@ function bucheTeamSortierungBeimDruck(aggregatedDaten, sitzungId) {
         geaendert = true;
     });
 
-    if (!geaendert) {
+    // Warten, bis alle Supabase-Operationen abgeschlossen sind
+    await Promise.all(supabasePromises);
+
+    if (!geaendert && supabasePromises.length === 0) { // Nur wenn wirklich nichts geändert wurde und keine Supabase-Events
         if (typeof pushSortierNachDruckSilent === 'function') pushSortierNachDruckSilent();
         return false;
     }
@@ -937,45 +978,6 @@ function syncDailyStaffAusTeam(teamTagesMengen, dailyStaff) {
         if (p != null && p !== '') dailyStaff[datum] = parseFloat(p) || 0;
     });
     return dailyStaff;
-}
-
-function mergeTeamTagesEintrag(lokal, cloud) {
-    const l = { ...leererTeamTagesEintrag(), ...(lokal || {}) };
-    const c = { ...leererTeamTagesEintrag(), ...(cloud || {}) };
-    const lp = parseFloat(l.personalAnzahl);
-    const cp = parseFloat(c.personalAnzahl);
-    let personalAnzahl = 0;
-    if (!isNaN(lp) && lp > 0) personalAnzahl = lp;
-    else if (!isNaN(cp) && cp > 0) personalAnzahl = cp;
-    else if (!isNaN(lp)) personalAnzahl = lp;
-    else if (!isNaN(cp)) personalAnzahl = cp;
-
-    const lSort = (parseFloat(l.exportKg) || 0) + (parseFloat(l.unsKg) || 0);
-    const cSort = (parseFloat(c.exportKg) || 0) + (parseFloat(c.unsKg) || 0);
-    if (lSort > 0 || cSort > 0) {
-        const src = cSort > lSort ? c : l;
-        return {
-            personalAnzahl,
-            gesamtKg: parseFloat(src.gesamtKg) || 0,
-            exportKg: parseFloat(src.exportKg) || 0,
-            unsKg: parseFloat(src.unsKg) || 0
-        };
-    }
-    return {
-        personalAnzahl,
-        gesamtKg: Math.max(parseFloat(l.gesamtKg) || 0, parseFloat(c.gesamtKg) || 0),
-        exportKg: Math.max(parseFloat(l.exportKg) || 0, parseFloat(c.exportKg) || 0),
-        unsKg: Math.max(parseFloat(l.unsKg) || 0, parseFloat(c.unsKg) || 0)
-    };
-}
-
-function mergeTeamTagesMengen(lokal, cloud) {
-    const keys = new Set([...Object.keys(lokal || {}), ...Object.keys(cloud || {})]);
-    const out = {};
-    keys.forEach((datum) => {
-        out[datum] = mergeTeamTagesEintrag(lokal?.[datum], cloud?.[datum]);
-    });
-    return out;
 }
 
 /** Alle erfassten kg eines Tages (LKW + Wiegeschein). */

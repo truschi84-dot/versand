@@ -1,6 +1,6 @@
 # Cloude Code ToolBox — MCP & Skills awareness
 
-_Generated: 2026-06-10T16:13:55.737Z_
+_Generated: 2026-06-15T07:47:08.193Z_
 
 ## How to use this report
 
@@ -13,15 +13,15 @@ _Generated: 2026-06-10T16:13:55.737Z_
 
 ## MCP — workspace
 
-Workspace `mcp.json` _(folder: assets)_
+Workspace `mcp.json` _(folder: Tresch-Apps)_
 
-- **c:\Users\Trusc\Desktop\assets\.mcp.json** — _File missing_
+- **c:\Users\Trusc\Desktop\Tresch-Apps\.mcp.json** — _File missing_
 
 _No active workspace servers in mcp.json._
 
 ## MCP — user profile
 
-- **C:\Users\Trusc\.claude.json** — _File missing_
+- **C:\Users\Trusc\.claude.json** — _File exists — no servers defined_
 
 _No active user-scoped servers in mcp.json._
 
@@ -29,7 +29,32 @@ _No active user-scoped servers in mcp.json._
 
 ### Project-scoped
 
-_None found (or no workspace open)._
+- **adb-install** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\adb-install`
+  - Installs an APK on a connected Android device via ADB.
+
+- **adb-logs** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\adb-logs`
+  - Liest ADB Logcat vom verbundenen Android-Gerät — zeigt App-Fehler, JavaScript-Exceptions und WebView-Crashes.
+
+- **apk-full** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\apk-full`
+  - Kompletter APK-Zyklus: Assets sync → Gradle Build → ADB Install — ein Befehl für alles.
+
+- **build-apk** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\build-apk`
+  - Builds the Android APK for Logistik or Rechner (Versand) app using Gradle.
+
+- **bump-version** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\bump-version`
+  - Wenn der Nutzer "version erhöhen", "neue version", "build nummer", "/bump-version" sagt.
+
+- **deploy** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\deploy`
+  - Wenn der Nutzer "deployen", "pushen", "veröffentlichen", "auf GitHub laden" oder "/deploy" sagt.
+
+- **security-check** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\security-check`
+  - Wenn der Nutzer "sicherheit prüfen", "secrets prüfen", "safe to push", "/security-check" sagt,
+
+- **sync-assets** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\sync-assets`
+  - Synchronisiert Web-Dateien aus Tresch-Apps nach Android assets/ — für USB-APK-Deploy.
+
+- **test-apps** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\test-apps`
+  - Wenn der Nutzer "testen", "prüfen ob alles läuft", "app testen", "/test-apps" sagt.
 
 ### User-scoped
 

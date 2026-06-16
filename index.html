@@ -18,7 +18,7 @@
 
     <script src="lib/xlsx.full.min.js?v=111"></script>
     <script src="lib/html5-qrcode.min.js?v=111"></script>
-    <link rel="stylesheet" href="css/style.css?v=130">
+    <link rel="stylesheet" href="css/style.css?v=131">
     <style>
         /* Burger Menu Icon design */
         .burger { font-size: 22px !important; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(255,255,255,0.18); color: white; border: 1px solid rgba(255,255,255,0.35); box-shadow: 0 4px 10px rgba(0,0,0,0.12); transition: transform 0.2s ease, background 0.2s ease; cursor: pointer; user-select: none; }
@@ -734,8 +734,8 @@
 <div id="cloud-url-modal" class="modal" style="z-index: 10001;">
     <div class="modal-content" style="max-width: 400px;">
         <h3 style="margin-top:0; color:var(--primary);">⚙️ Server-Adresse ändern</h3>
-        <p style="font-size:13px; color:#666; margin-bottom:15px;">Gib hier die URL deiner Firebase Realtime Database ein. Leer lassen, um den Standard-Server zu verwenden.</p>
-        <input type="text" id="cloud-url-input" placeholder="https://....firebaseio.com" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:15px; box-sizing:border-box;">
+        <p style="font-size:13px; color:#666; margin-bottom:15px;">Server-Adresse (nur ändern wenn nötig). Leer lassen für Standard (Supabase).</p>
+        <input type="text" id="cloud-url-input" placeholder="Leer lassen für Supabase-Standard" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:15px; box-sizing:border-box;">
         <div style="display:flex; gap:10px;">
             <button style="flex:1; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="document.getElementById('cloud-url-modal').style.display='none'">Abbrechen</button>
             <button style="flex:1; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="saveCustomCloudUrl()">💾 Speichern</button>
@@ -743,20 +743,19 @@
     </div>
 </div>
 
-<script src="js/druck_utils.js?v=111"></script>
-<script src="js/cloud_secrets.embed.js?v=111"></script>
-<script src="js/supabase_sync.js?v=130"></script>
-<script src="js/cloud_auth.js?v=130"></script>
-<script src="js/gemeinsam/datenbank.js?v=111"></script>
-<script src="js/gemeinsam/metriken.js?v=115"></script>
-<script src="js/script.js?v=130"></script>
-<script src="js/team_brief.js?v=111"></script>
-<script src="js/rechner.js?v=130"></script>
-<script src="js/rechner_scanner.js?v=130"></script>
-<script src="js/rechner_druck.js?v=130"></script>
-<script src="js/rechner_reklamation.js?v=130"></script>
-<script src="js/rechner_leergut.js?v=130"></script>
-<script src="js/logistik.js?v=111"></script>
+<script src="js/druck_utils.js?v=131"></script>
+<script src="js/supabase_sync.js?v=131"></script>
+<script src="js/cloud_auth.js?v=131"></script>
+<script src="js/gemeinsam/datenbank.js?v=133"></script>
+<script src="js/gemeinsam/metriken.js?v=133"></script>
+<script src="js/script.js?v=131"></script>
+<script src="js/team_brief.js?v=131"></script>
+<script src="js/rechner.js?v=131"></script>
+<script src="js/rechner_scanner.js?v=131"></script>
+<script src="js/rechner_druck.js?v=131"></script>
+<script src="js/rechner_reklamation.js?v=131"></script>
+<script src="js/rechner_leergut.js?v=131"></script>
+<script src="js/logistik.js?v=131"></script>
 
 </body>
 </html>

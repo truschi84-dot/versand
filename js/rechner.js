@@ -521,7 +521,11 @@ function saveSonderTplFromModal() {
     showToast("Vorlage gespeichert!", "success");
 }
 
-function resetSorteSelection() { selectedSorte = ""; document.getElementById('selected-sorte-display').innerText = "Bitte Sorte wählen..."; document.getElementById('selected-sorte-display').style.background = "#fff"; }
+function resetSorteSelection() {
+    selectedSorte = "";
+    const disp = document.getElementById('selected-sorte-display');
+    if (disp) { disp.innerText = "Bitte Sorte wählen..."; disp.style.background = "#fff"; }
+}
 function toggleSonderMode() { isSonderMode = !isSonderMode; document.getElementById('sonder-box').style.display = isSonderMode ? 'block' : 'none'; }
 function toggleSonderModeSort() { 
     isSonderModeSort = !isSonderModeSort; 

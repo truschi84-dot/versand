@@ -32,6 +32,7 @@ start "Tresch Server - bitte offen lassen" cmd /k "cd /d %~dp0 && node server.js
 
 
 
+
 echo  Warte kurz auf Server...
 
 ping -n 5 127.0.0.1 >nul

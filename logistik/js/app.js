@@ -677,11 +677,13 @@ function saveDelivery() {
     const line = (lineWrap && lineWrap.style.display!=='none' && ge('erf-line')?.value) ? ge('erf-line').value : '';
     if (!d || !s || !k) return alert('Bitte Datum, Lieferant und Gewicht eingeben.');
     if (!db.deliveries) db.deliveries = [];
-    const entry = { id: Date.now().toString(), date: d, name: s, kg: k, workerShares: [], source: 'lkw' };
+    const entry = { id: Date.now().toString(), date: d, name: s, kg: k, workerShares: [], source: 'manuell' };
     if (line) entry.line = line;
     db.deliveries.push(entry);
     ge('erf-kg').value = '';
-    renderAll();
+    saveDb();
+    renderErfassungSummary(d);
+    renderErfassungList();
 }
 
 function getHandyEntriesForDate(datum) {
@@ -701,7 +703,7 @@ function renderErfassungList() {
     if (typeof persistHandyEntriesToDeliveries === 'function') persistHandyEntriesToDeliveries(db, datum);
 
     const handyEntries = getHandyEntriesForDate(datum);
-    const lkwEntries = (db.deliveries || [])
+    const manuelleEntries = (db.deliveries || [])
         .filter((x) => x.date === datum && !isHandySortierEntry(x))
         .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'de') || (parseFloat(b.kg) - parseFloat(a.kg)));
 
@@ -724,10 +726,10 @@ function renderErfassungList() {
     }
 
     html += '<div style="font-size:12px;font-weight:700;color:var(--primary);margin:16px 0 8px;">📝 Manuelle Eingabe (nur PC)</div>';
-    if (!lkwEntries.length) {
+    if (!manuelleEntries.length) {
         html += '<div style="padding:12px;color:var(--muted);font-size:13px;">Keine manuellen Eingänge für dieses Datum.</div>';
     } else {
-        html += lkwEntries.map((del) => {
+        html += manuelleEntries.map((del) => {
             const st = deliveryErfassungStatus(del);
             const shareCount = (del.workerShares || []).length;
             return `<div class="del-card" style="border-left-color:${st.color};" onclick="openDelEdit('${del.id}')">
@@ -753,13 +755,13 @@ function renderErfassungList() {
             });
         });
     }
-    const lkwOpen = (db.deliveries || [])
+    const manuelleOpen = (db.deliveries || [])
         .filter(del => !isHandySortierEntry(del))
         .filter(del => {
             const sum = (del.workerShares || []).reduce((a, v) => a + (parseFloat(v.kg) || 0), 0);
             return sum < (parseFloat(del.kg) || 0) && !del.isFullySorted;
         });
-    const openDels = [...sortierenOpen, ...lkwOpen].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const openDels = [...sortierenOpen, ...manuelleOpen].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     if (!openDels.length) {
         openList.innerHTML = '<div style="background:#e8f5e9;border-radius:10px;padding:14px;text-align:center;color:var(--success);font-weight:700;">✅ Keine offenen Posten!</div>';
@@ -853,8 +855,20 @@ function saveDeliveryEdit() {
     renderAll();
 }
 
+let _delConfirmPending = false;
 function deleteDeliveryConfirm() {
-    if (!confirm('Eintrag wirklich löschen?')) return;
+    const btn = document.getElementById('btn-del-confirm');
+    if (!_delConfirmPending) {
+        _delConfirmPending = true;
+        if (btn) { btn.textContent = 'Sicher?'; btn.style.background = '#b71c1c'; }
+        setTimeout(() => {
+            _delConfirmPending = false;
+            if (btn) { btn.textContent = '🗑️'; btn.style.background = ''; }
+        }, 3000);
+        return;
+    }
+    _delConfirmPending = false;
+    if (btn) { btn.textContent = '🗑️'; btn.style.background = ''; }
     db.deliveries = (db.deliveries||[]).filter(x=>x.id!==editingDelId);
     closeOv('ov-del');
     renderAll();
@@ -968,7 +982,7 @@ function nzKg(gesamt, ex, uns) { return Math.max(0, (parseFloat(gesamt) || 0) - 
 
 function renderAnaKpiRow(team) {
     const sortKg = team.sortiertKg > 0 ? team.sortiertKg : team.gesamtKg;
-    const nz = Math.max(0, sortKg - (parseFloat(team.exportKg) || 0) - (parseFloat(team.unsKg) || 0));
+    const nz = Math.max(0, team.gesamtKg - (parseFloat(team.exportKg) || 0) - (parseFloat(team.unsKg) || 0));
     return `
     <div class="ana-kpi-row">
         <div class="ana-kpi kpi-gesamt"><div class="val">${fmtKg(sortKg)}</div><div class="unit">kg</div><div class="cap">Sortiert (Handy)</div></div>
@@ -1086,13 +1100,13 @@ function renderTeamWeeklyOverview() {
     </tr></thead><tbody>`;
     metriken.tage.forEach((t, i) => {
         const sortKg = t.sortiertKg > 0 ? t.sortiertKg : t.gesamtKg;
-        const tnz = nzKg(sortKg, t.exportKg, t.unsKg);
+        const tnz = nzKg(t.gesamtKg, t.exportKg, t.unsKg);
         const isBest = maxKg > 0 && sortKg === maxKg;
         const bestClass = isBest ? ' class="best-day"' : '';
         const click = sortKg > 0 ? ` style="cursor:pointer;" onclick="document.getElementById('stats-datum').value='${t.datum}';onStatsDatumChange();renderStats();"` : '';
         html += `<tr${bestClass}${click}><td>${dayNames[i]} <small style="color:#888;">${t.datum.split('-')[2]}.${t.datum.split('-')[1]}</small></td><td class="col-sort">${fmtKg(sortKg)}</td><td>${teamPersonalInputHtml(t.datum, t.personalAnzahl, true)}</td><td>${t.proKopf > 0 ? fmtKg(t.proKopf) : '–'}</td><td class="col-ex">${fmtKg(t.exportKg)}</td><td class="col-uns">${fmtKg(t.unsKg)}</td><td style="color:#888;">${tnz > 0 ? fmtKg(tnz) : '–'}</td></tr>`;
     });
-    const wNz = nzKg(summeSort, metriken.summeExport, metriken.summeUns);
+    const wNz = nzKg(metriken.summeKg, metriken.summeExport, metriken.summeUns);
     html += `<tr class="ana-sum"><td>Σ Woche</td><td class="col-sort">${fmtKg(summeSort)}</td><td>${metriken.summePersonal || '–'}</td><td>${metriken.proKopf > 0 ? fmtKg(metriken.proKopf) : '–'}</td><td class="col-ex">${fmtKg(metriken.summeExport)}</td><td class="col-uns">${fmtKg(metriken.summeUns)}</td><td style="color:#888;">${wNz > 0 ? fmtKg(wNz) : '–'}</td></tr></tbody></table></div>`;
     return html;
 }
@@ -1121,7 +1135,7 @@ function renderTeamMonthlyOverview() {
         <div class="ana-kpi kpi-gesamt"><div class="val">${fmtKg(summeSort)}</div><div class="unit">kg</div><div class="cap">Sortiert (Handy)</div></div>
         <div class="ana-kpi kpi-ex"><div class="val">${fmtKg(metriken.summeExport)}</div><div class="unit">kg</div><div class="cap">Export</div></div>
         <div class="ana-kpi kpi-uns"><div class="val">${fmtKg(metriken.summeUns)}</div><div class="unit">kg</div><div class="cap">Uns</div></div>
-        <div class="ana-kpi" style="background:#f5f5f5;"><div class="val" style="color:#888;">${fmtKg(nzKg(summeSort, metriken.summeExport, metriken.summeUns))}</div><div class="unit" style="color:#888;">kg</div><div class="cap" style="color:#888;">N/Z</div></div>
+        <div class="ana-kpi" style="background:#f5f5f5;"><div class="val" style="color:#888;">${fmtKg(nzKg(metriken.summeKg, metriken.summeExport, metriken.summeUns))}</div><div class="unit" style="color:#888;">kg</div><div class="cap" style="color:#888;">N/Z</div></div>
         <div class="ana-kpi kpi-kopf"><div class="val">${metriken.proKopf > 0 ? fmtKg(metriken.proKopf) : '–'}</div><div class="unit">kg</div><div class="cap">Ø pro Kopf</div></div>
     </div>
     ${renderExUnsSplitBar(metriken.summeExport, metriken.summeUns, metriken.summeKg)}
@@ -1133,11 +1147,11 @@ function renderTeamMonthlyOverview() {
     } else {
         aktiveTage.forEach((t) => {
             const sortKg = t.sortiertKg > 0 ? t.sortiertKg : t.gesamtKg;
-            const tnz = nzKg(sortKg, t.exportKg, t.unsKg);
+            const tnz = nzKg(t.gesamtKg, t.exportKg, t.unsKg);
             html += `<tr style="cursor:pointer;" onclick="document.getElementById('stats-datum').value='${t.datum}';onStatsDatumChange();renderStats();"><td>${new Date(t.datum).toLocaleDateString('de-DE')}</td><td class="col-sort">${fmtKg(sortKg)}</td><td>${teamPersonalInputHtml(t.datum, t.personalAnzahl, true)}</td><td>${t.proKopf > 0 ? fmtKg(t.proKopf) : '–'}</td><td class="col-ex">${fmtKg(t.exportKg)}</td><td class="col-uns">${fmtKg(t.unsKg)}</td><td style="color:#888;">${tnz > 0 ? fmtKg(tnz) : '–'}</td></tr>`;
         });
     }
-    const mNz = nzKg(summeSort, metriken.summeExport, metriken.summeUns);
+    const mNz = nzKg(metriken.summeKg, metriken.summeExport, metriken.summeUns);
     html += `<tr class="ana-sum"><td>Gesamt ${monthName}</td><td class="col-sort">${fmtKg(summeSort)}</td><td>${metriken.summePersonal || '–'}</td><td>${metriken.proKopf > 0 ? fmtKg(metriken.proKopf) : '–'}</td><td class="col-ex">${fmtKg(metriken.summeExport)}</td><td class="col-uns">${fmtKg(metriken.summeUns)}</td><td style="color:#888;">${mNz > 0 ? fmtKg(mNz) : '–'}</td></tr></tbody></table></div>`;
     return html;
 }

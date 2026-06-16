@@ -93,7 +93,7 @@ function getStatsExportData() {
         const headers = ['Tag', 'Datum', 'Personal', 'Sortiert (kg)', 'kg/Kopf', 'Export (kg)', 'Uns (kg)', 'N/Z (kg)'];
         const rows = metriken.tage.map((t, i) => {
             const sortKg = t.sortiertKg > 0 ? t.sortiertKg : t.gesamtKg;
-            const tnz = nzKg(sortKg, t.exportKg, t.unsKg);
+            const tnz = nzKg(t.gesamtKg, t.exportKg, t.unsKg);
             return [dayNames[i], t.datum.split('-').reverse().join('.'), t.personalAnzahl || '-',
                 sortKg > 0 ? sortKg.toLocaleString('de-DE') : '-',
                 t.proKopf > 0 ? t.proKopf.toLocaleString('de-DE') : '-',
@@ -102,7 +102,7 @@ function getStatsExportData() {
                 tnz > 0 ? tnz.toLocaleString('de-DE') : '-'];
         });
         const summeSort = metriken.tage.reduce((a, t) => a + (t.sortiertKg || t.gesamtKg || 0), 0);
-        const wNz = nzKg(summeSort, metriken.summeExport, metriken.summeUns);
+        const wNz = nzKg(metriken.summeKg, metriken.summeExport, metriken.summeUns);
         rows.push(['Σ KW', '', metriken.summePersonal, summeSort || '-', metriken.proKopf, metriken.summeExport || '-', metriken.summeUns || '-', wNz || '-']);
         return { title: 'Team-Effizienz KW ' + weekNum + ' (' + firstDayObj.getFullYear() + ')', headers, rows, landscape: true, fileKey: 'Team_KW' + weekNum };
     }
@@ -126,7 +126,7 @@ function getStatsExportData() {
         .filter((t) => t.gesamtKg > 0 || t.personalAnzahl > 0)
         .map((t) => {
             const sortKg = t.sortiertKg > 0 ? t.sortiertKg : t.gesamtKg;
-            const tnz = nzKg(sortKg, t.exportKg, t.unsKg);
+            const tnz = nzKg(t.gesamtKg, t.exportKg, t.unsKg);
             return [new Date(t.datum).toLocaleDateString('de-DE'), t.personalAnzahl || '-',
                 sortKg.toLocaleString('de-DE'),
                 t.proKopf > 0 ? t.proKopf.toLocaleString('de-DE') : '-',
@@ -135,7 +135,7 @@ function getStatsExportData() {
                 tnz > 0 ? tnz.toLocaleString('de-DE') : '-'];
         });
     const summeSort = metriken.tage.reduce((a, t) => a + (t.sortiertKg || t.gesamtKg || 0), 0);
-    const mNz2 = nzKg(summeSort, metriken.summeExport, metriken.summeUns);
+    const mNz2 = nzKg(metriken.summeKg, metriken.summeExport, metriken.summeUns);
     rows.push(['Gesamt ' + monthName, metriken.summePersonal, summeSort || '-', metriken.proKopf, metriken.summeExport || '-', metriken.summeUns || '-', mNz2 || '-']);
     return { title: 'Team-Effizienz ' + monthName, headers, rows, landscape: false, fileKey: 'Team_' + monthName.replace(/\s+/g, '_') };
 }
@@ -335,7 +335,7 @@ function renderLieferantenTabelle(rows, summe) {
 
 function renderAnaKpiRow(team) {
     const sortKg = team.sortiertKg > 0 ? team.sortiertKg : team.gesamtKg;
-    const nz = Math.max(0, sortKg - (parseFloat(team.exportKg) || 0) - (parseFloat(team.unsKg) || 0));
+    const nz = Math.max(0, team.gesamtKg - (parseFloat(team.exportKg) || 0) - (parseFloat(team.unsKg) || 0));
     return `
     <div class="ana-kpi-row">
         <div class="ana-kpi kpi-gesamt"><div class="val">${anaFmtKg(sortKg)}</div><div class="unit">kg</div><div class="cap">Sortiert (Handy)</div></div>
@@ -531,7 +531,7 @@ function renderTeamWeeklyOverview() {
 
     metriken.tage.forEach((t, i) => {
         const sortKg = t.sortiertKg > 0 ? t.sortiertKg : t.gesamtKg;
-        const tnz = nzKg(sortKg, t.exportKg, t.unsKg);
+        const tnz = nzKg(t.gesamtKg, t.exportKg, t.unsKg);
         const isBest = sortKg > 0 && sortKg === maxKg;
         const click = sortKg > 0 ? ` onclick="document.getElementById('team-personal-datum').value='${t.datum}'; onTeamPersonalDatumChange(); renderWorkerStats();"` : '';
         html += `<tr class="${isBest ? 'best-day' : ''}" style="cursor:${sortKg > 0 ? 'pointer' : 'default'};"${click}>
@@ -545,7 +545,7 @@ function renderTeamWeeklyOverview() {
         </tr>`;
     });
 
-    const wNz = nzKg(summeSort, metriken.summeExport, metriken.summeUns);
+    const wNz = nzKg(metriken.summeKg, metriken.summeExport, metriken.summeUns);
     html += `<tr class="ana-sum">
         <td>Σ Woche</td>
         <td class="col-sort">${anaFmtKg(summeSort)}</td>
@@ -590,7 +590,7 @@ function renderTeamMonthlyOverview() {
         <div class="ana-kpi kpi-gesamt"><div class="val">${anaFmtKg(summeSort)}</div><div class="unit">kg</div><div class="cap">Sortiert (Handy)</div></div>
         <div class="ana-kpi kpi-ex"><div class="val">${anaFmtKg(metriken.summeExport)}</div><div class="unit">kg</div><div class="cap">Export</div></div>
         <div class="ana-kpi kpi-uns"><div class="val">${anaFmtKg(metriken.summeUns)}</div><div class="unit">kg</div><div class="cap">Uns</div></div>
-        <div class="ana-kpi" style="background:#f5f5f5;"><div class="val" style="color:#888;">${anaFmtKg(nzKg(summeSort, metriken.summeExport, metriken.summeUns))}</div><div class="unit" style="color:#888;">kg</div><div class="cap" style="color:#888;">N/Z</div></div>
+        <div class="ana-kpi" style="background:#f5f5f5;"><div class="val" style="color:#888;">${anaFmtKg(nzKg(metriken.summeKg, metriken.summeExport, metriken.summeUns))}</div><div class="unit" style="color:#888;">kg</div><div class="cap" style="color:#888;">N/Z</div></div>
         <div class="ana-kpi kpi-kopf"><div class="val">${metriken.proKopf > 0 ? anaFmtKg(metriken.proKopf) : '–'}</div><div class="unit">kg</div><div class="cap">Ø pro Kopf</div></div>
     </div>
     ${renderExUnsSplitBar(metriken.summeExport, metriken.summeUns, metriken.summeKg)}
@@ -603,7 +603,7 @@ function renderTeamMonthlyOverview() {
     } else {
         aktiveTage.forEach((t) => {
             const sortKg = t.sortiertKg > 0 ? t.sortiertKg : t.gesamtKg;
-            const tnz = nzKg(sortKg, t.exportKg, t.unsKg);
+            const tnz = nzKg(t.gesamtKg, t.exportKg, t.unsKg);
             html += `<tr style="cursor:pointer;" onclick="document.getElementById('team-personal-datum').value='${t.datum}'; onTeamPersonalDatumChange(); renderWorkerStats();">
                 <td>${new Date(t.datum).toLocaleDateString('de-DE')}</td>
                 <td class="col-sort">${anaFmtKg(sortKg)}</td>
@@ -616,7 +616,7 @@ function renderTeamMonthlyOverview() {
         });
     }
 
-    const mNz = nzKg(summeSort, metriken.summeExport, metriken.summeUns);
+    const mNz = nzKg(metriken.summeKg, metriken.summeExport, metriken.summeUns);
     html += `<tr class="ana-sum">
         <td>Gesamt ${monthName}</td>
         <td class="col-sort">${anaFmtKg(summeSort)}</td>

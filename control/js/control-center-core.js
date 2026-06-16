@@ -5,17 +5,15 @@ let assignMode = 'sup';
 let assignSelectedTarget = null;
 let adminEditingDeliveryId = null;
 let qmData = [];
-const FIREBASE_CLOUD_BACKUP = "https://tresch-versand-default-rtdb.firebaseio.com/backup";
 function sanitizeCloudUrl(url) {
     const u = (url || '').trim();
-    if (!u || /deine-datenbank/i.test(u)) return '';
+    if (!u || /deine-datenbank/i.test(u) || /supabase-standard/i.test(u)) return '';
     return u;
 }
 function getEffectiveCloudUrl() {
-    const custom = sanitizeCloudUrl(localStorage.getItem('custom_cloud_url') || '');
-    return custom || FIREBASE_CLOUD_BACKUP;
+    return sanitizeCloudUrl(localStorage.getItem('custom_cloud_url') || '');
 }
-let CLOUD_URL = getEffectiveCloudUrl(); 
+let CLOUD_URL = getEffectiveCloudUrl();
 
 const rawData = [
     {id:"20100", name:"Katenschinken ger. Verschn."}, {id:"20101", name:"Kräuterlachsschinken Verschn."}, {id:"20102", name:"Lachsschinken Natur Verschn."}, {id:"20103", name:"Lachsschinken Grav Art Verschn"}, {id:"20104", name:"Serrano Ver mit Interliver"}, {id:"20105", name:"Schwarzwälder Schinken Verschn"}, {id:"20106", name:"Südtiroler Alpenspeck Verschn."}, {id:"20107", name:"Serrano Schinken Kappen"}, {id:"20108", name:"Serrano Schinken Wickelpack90g"}, {id:"20109", name:"Bel. Rohschinken luft Versch"},
@@ -130,8 +128,13 @@ function mirrorToKombiStorage() {
 function syncSortierDatenFuerErfassung() {
     if (typeof mergeLokaleSortierDatenAusStorage === 'function') mergeLokaleSortierDatenAusStorage();
     if (Array.isArray(window._lastCloudBuchungen) && window._lastCloudBuchungen.length
-        && typeof applyCloudSortierBuchungen === 'function') {
-        applyCloudSortierBuchungen(db, window._lastCloudBuchungen);
+        && typeof mergeTeamSortierBuchungen === 'function') {
+        // Merge respects local deletions — applyCloudSortierBuchungen would clear them
+        db.teamSortierBuchungen = mergeTeamSortierBuchungen(
+            db.teamSortierBuchungen || [],
+            window._lastCloudBuchungen,
+            db.deletedSortierBuchungen
+        );
     }
     if (typeof hydrateSortierBuchungenInDb === 'function') hydrateSortierBuchungenInDb(db);
     if (typeof ensureDatenKonsistenz === 'function') ensureDatenKonsistenz(db);
@@ -154,6 +157,8 @@ function mergeLokaleSortierDatenAusStorage() {
     try {
         const stored = JSON.parse(localStorage.getItem('logistik_offline_db') || '{}');
         if (Array.isArray(stored.deletedSortierBuchungen)) {
+            // Migration: \0 null-byte separator → | (PostgreSQL jsonb rejects null bytes)
+            stored.deletedSortierBuchungen = stored.deletedSortierBuchungen.map(k => k.replace('\0', '|'));
             db.deletedSortierBuchungen = mergeDeletedSortierKeys(db.deletedSortierBuchungen, stored.deletedSortierBuchungen);
         }
         if (Array.isArray(stored.teamSortierBuchungen)) {
@@ -210,49 +215,29 @@ function hydrateFromKombiIfNeeded() {
     } catch (e) { console.warn('Kombi-Hydration', e); }
 }
 
-async function updateCloudSecretsStatus() {
+function updateCloudSecretsStatus() {
     const el = document.getElementById('cloud-secrets-status');
     if (!el) return;
-    try {
-        await CloudAuth.loadSecrets();
-        if (CloudAuth._secretsComplete(CloudAuth._config)) {
-            el.innerHTML = '✅ Cloud-Zugang konfiguriert (' + CloudAuth._config.firebaseAuthEmail + ')';
-            el.style.color = 'var(--success)';
-        } else if (location.protocol === 'file:') {
-            el.innerHTML = '⚠️ Per Doppelklick geöffnet – <b>node server.js</b> starten oder <b>app-secrets.json laden</b>.';
-            el.style.color = '#d32f2f';
-        } else {
-            el.innerHTML = '⚠️ app-secrets.json nicht gefunden – Datei-Button nutzen.';
-            el.style.color = '#d32f2f';
-        }
-    } catch (e) {
-        el.textContent = '❌ ' + (e.message || 'Fehler');
-        el.style.color = '#d32f2f';
-    }
+    el.innerHTML = '✅ Cloud-Zugang aktiv (Supabase)';
+    el.style.color = 'var(--success)';
 }
 
 function importAppSecretsFile(input) {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-        try {
-            const cfg = JSON.parse(reader.result);
-            if (!CloudAuth.importSecretsFromJson(cfg)) throw new Error('Datei unvollständig');
-            alert('✅ Cloud-Zugang geladen! Jetzt „Aus Cloud laden“ testen.');
-            updateCloudSecretsStatus();
-        } catch (e) {
-            alert('❌ ' + (e.message || 'Ungültige Datei'));
-        }
-        input.value = '';
-    };
-    reader.readAsText(file);
+    if (input) input.value = '';
+    alert('ℹ️ Zugangsdaten werden nicht mehr benötigt – Cloud läuft über Supabase.');
 }
 
 window.onload = () => {
     updateCloudSecretsStatus();
     const localData = localStorage.getItem('logistik_offline_db');
-    if(localData) { try { db = { ...db, ...JSON.parse(localData) }; } catch(e){} }
+    if(localData) { try {
+        const parsed = JSON.parse(localData);
+        // Migration: \0 null-byte separator → | (PostgreSQL jsonb rejects null bytes)
+        if (Array.isArray(parsed.deletedSortierBuchungen)) {
+            parsed.deletedSortierBuchungen = parsed.deletedSortierBuchungen.map(k => k.replace('\0', '|'));
+        }
+        db = { ...db, ...parsed };
+    } catch(e){} }
     hydrateFromKombiIfNeeded();
     if (typeof hydrateSortierBuchungenInDb === 'function') hydrateSortierBuchungenInDb(db);
     
@@ -838,7 +823,7 @@ function renderCloudLogs() {
 }
 
 async function pushSettingsToCloud() {
-    const res = await cloudFetch(FIREBASE_CLOUD_BACKUP + "/settings.json", {
+    const res = await cloudFetch(CLOUD_URL + "/settings.json", {
         method: 'PUT',
         body: JSON.stringify(db.settings),
         headers: { 'Content-Type': 'application/json' }
@@ -969,6 +954,8 @@ async function refreshErfassungFromCloud(silent) {
             : [];
         if (cloudDb) {
             if (Array.isArray(cloudDb.deletedSortierBuchungen)) {
+                // Migration: \0 null-byte separator → |
+                cloudDb.deletedSortierBuchungen = cloudDb.deletedSortierBuchungen.map(k => k.replace('\0', '|'));
                 db.deletedSortierBuchungen = mergeDeletedSortierKeys(db.deletedSortierBuchungen, cloudDb.deletedSortierBuchungen);
             }
             if (cloudBuchungen.length) {
@@ -1088,27 +1075,47 @@ function renderAdminDeliveries() {
     initAdminDeliveryListClicks();
 
     if (openList) {
-        const openDeliveries = (db.deliveries || []).filter(del => {
-            if (isHandySortierEntry(del) && !(del.workerShares || []).length) return false;
-            const sum = (del.workerShares || []).reduce((acc, v) => acc + v.kg, 0);
-            return sum < del.kg && !del.isFullySorted;
-        }).sort((a,b) => new Date(a.date) - new Date(b.date));
+        // Sortieren: direkt aus buchungen berechnen (alle Daten) — gleiche Quelle wie Erfassung-Anzeige
+        const sortierenOpen = [];
+        if (typeof sammleAlleErfassungsDaten === 'function' && typeof getHandySortierEntriesFuerDatum === 'function') {
+            sammleAlleErfassungsDaten(db).forEach(d => {
+                getHandySortierEntriesFuerDatum(db, d).forEach(entry => {
+                    const sum = (entry.workerShares || []).reduce((acc, v) => acc + (parseFloat(v.kg) || 0), 0);
+                    const kg = parseFloat(entry.kg) || 0;
+                    if (!entry.isFullySorted && sum < kg) sortierenOpen.push(entry);
+                });
+            });
+        }
+        // Manuelle LKW-Einträge: aus db.deliveries (PC-lokal)
+        const lkwOpen = (db.deliveries || [])
+            .filter(del => typeof isHandySortierEntry === 'function' ? !isHandySortierEntry(del) : true)
+            .filter(del => {
+                const sum = (del.workerShares || []).reduce((acc, v) => acc + (parseFloat(v.kg) || 0), 0);
+                return sum < (parseFloat(del.kg) || 0) && !del.isFullySorted;
+            });
+
+        const openDeliveries = [...sortierenOpen, ...lkwOpen]
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
 
         if (openDeliveries.length === 0) {
             openList.innerHTML = '<div style="grid-column: 1 / -1; padding: 15px; background: #e8f5e9; border-radius: 8px; color: #137333; font-weight: bold; text-align: center;">✅ Alles erledigt! Keine offenen Posten mehr.</div>';
         } else {
             openList.innerHTML = openDeliveries.map(del => {
-                const sum = (del.workerShares || []).reduce((acc, v) => acc + v.kg, 0);
-                const remaining = del.kg - sum;
+                const sum = (del.workerShares || []).reduce((acc, v) => acc + (parseFloat(v.kg) || 0), 0);
+                const kg = parseFloat(del.kg) || 0;
+                const remaining = kg - sum;
                 const formattedDate = new Date(del.date).toLocaleDateString('de-DE');
-                return `<div style="background: #fff; border: 1px solid #ddd; border-left: 4px solid var(--accent); border-radius: 8px; padding: 15px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.05);" onclick="openAdminEditDelivery(${JSON.stringify(del.id)})">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                        <strong style="font-size: 15px; color: var(--primary);">${deliveryDisplayName(del)}</strong>
-                        <span style="font-size: 12px; color: #666; background: #eee; padding: 2px 6px; border-radius: 4px;">📅 ${formattedDate}</span>
+                const isSortier = typeof isHandySortierEntry === 'function' && isHandySortierEntry(del);
+                const borderColor = isSortier ? '#2e7d32' : 'var(--accent)';
+                const badge = isSortier ? '<span style="font-size:10px;background:#e8f5e9;color:#2e7d32;padding:2px 6px;border-radius:4px;margin-left:6px;">Sortieren</span>' : '';
+                return `<div style="background:#fff;border:1px solid #ddd;border-left:4px solid ${borderColor};border-radius:8px;padding:15px;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,0.05);" data-delivery-id="${String(del.id).replace(/"/g, '&quot;')}" onclick="openAdminEditDelivery(this.dataset.deliveryId)">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;flex-wrap:wrap;gap:4px;">
+                        <strong style="font-size:15px;color:var(--primary);">${deliveryDisplayName(del)}${badge}</strong>
+                        <span style="font-size:12px;color:#666;background:#eee;padding:2px 6px;border-radius:4px;">📅 ${formattedDate}</span>
                     </div>
-                    <div style="display:flex; justify-content:space-between; align-items:flex-end;">
-                        <div style="font-size: 12px; color: #555;">Gesamt: ${del.kg} kg<br>Verteilt: ${sum.toFixed(2)} kg</div>
-                        <div style="text-align: right; color: var(--accent); font-weight: bold; font-size: 16px;">${remaining.toFixed(2)} kg offen</div>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+                        <div style="font-size:12px;color:#555;">Gesamt: ${kg.toLocaleString('de-DE')} kg<br>Verteilt: ${sum.toFixed(2)} kg</div>
+                        <div style="text-align:right;color:var(--accent);font-weight:bold;font-size:16px;">${remaining.toFixed(2)} kg offen</div>
                     </div>
                 </div>`;
             }).join('');
@@ -1758,8 +1765,9 @@ async function pushToCloud(skipConfirm) {
                 cloudFetch(snapshotUrl + ".json", { method: 'PUT', body: JSON.stringify(payload), headers: { 'Content-Type': 'application/json' } });
             } catch(e) {}
         })
-        .catch(e => { 
-            alert("❌ FEHLER: " + e.message); document.getElementById('db-status').innerText = "Fehler."; 
-            addCloudLog("FEHLER: Upload fehlgeschlagen - " + e.message); 
+        .catch(e => {
+            alert("❌ FEHLER: " + e.message); document.getElementById('db-status').innerText = "Fehler.";
+            addCloudLog("FEHLER: Upload fehlgeschlagen - " + e.message);
         });
 }
+

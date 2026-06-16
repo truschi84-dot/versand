@@ -102,30 +102,64 @@ Gilt für alle Edit/Write-Operationen an Quellcode. Ausnahme: reine Leseoperatio
 
 ADB: `C:/Users/Trusc/AppData/Local/Android/Sdk/platform-tools/adb.exe`
 
+## Deployment-Regel (PFLICHT)
+**Kein `git push` ohne explizite Absprache.**
+- Ablauf: Änderung → APK bauen → auf Handy testen → Nutzer bestätigt "läuft gut" → erst dann pushen
+- Niemals automatisch pushen nur weil der Build erfolgreich war
+- Niemals pushen während ein Bug noch ungeklärt ist
+
+
+
+
 <!-- cloude-code-toolbox:mcp-skills-awareness-begin -->
 
 ### MCP & Skills awareness (Cloude Code ToolBox)
 
-_Last synced: 2026-06-10T16:13:55.744Z._
+_Last synced: 2026-06-15T07:47:08.222Z._
 
 - **Full report:** `.claude/cloude-code-toolbox-mcp-skills-awareness.md` in this workspace (auto-overwritten on each scan). Use it as ground truth for configured servers and skill folders.
 - **MCP:** For **live tools** in Claude Code, enable the matching server via `/mcp`. Servers are configured in `~/.claude.json` (user) and `.mcp.json` (project).
-- **When the user's task matches a server** (e.g. Confluence work and a **Confluence** / **Atlassian** MCP is listed), **prefer that server id** and plan on tool use—not only file search.
+- **When the user’s task matches a server** (e.g. Confluence work and a **Confluence** / **Atlassian** MCP is listed), **prefer that server id** and plan on tool use—not only file search.
 - **Skills:** Folders below contain `SKILL.md`; attach or cite paths in chat when relevant.
 
 #### Workspace MCP
+
+- `c:\Users\Trusc\Desktop\Tresch-Apps\.mcp.json` _(workspace: Tresch-Apps)_ — _file missing_
+
 _No active workspace servers in mcp.json._
 
 #### User MCP
+
+- `C:\Users\Trusc\.claude.json` — _no servers defined_
+
 _No active user-scoped servers in mcp.json._
 
 #### Project skills
-- `.claude/skills/deploy/SKILL.md` — Deploy auf GitHub Pages
-- `.claude/skills/test-apps/SKILL.md` — Beide Apps testen
-- `.claude/skills/security-check/SKILL.md` — Secrets prüfen
-- `.claude/skills/bump-version/SKILL.md` — Versionsnummern erhöhen
+
+- **adb-install** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\adb-install` — Installs an APK on a connected Android device via ADB.
+
+- **adb-logs** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\adb-logs` — Liest ADB Logcat vom verbundenen Android-Gerät — zeigt App-Fehler, JavaScript-Exceptions und WebView-Crashes.
+
+- **apk-full** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\apk-full` — Kompletter APK-Zyklus: Assets sync → Gradle Build → ADB Install — ein Befehl für alles.
+
+- **build-apk** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\build-apk` — Builds the Android APK for Logistik or Rechner (Versand) app using Gradle.
+
+- **bump-version** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\bump-version` — Wenn der Nutzer "version erhöhen", "neue version", "build nummer", "/bump-version" sagt.
+
+- **deploy** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\deploy` — Wenn der Nutzer "deployen", "pushen", "veröffentlichen", "auf GitHub laden" oder "/deploy" sagt.
+
+- **security-check** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\security-check` — Wenn der Nutzer "sicherheit prüfen", "secrets prüfen", "safe to push", "/security-check" sagt,
+
+- **sync-assets** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\sync-assets` — Synchronisiert Web-Dateien aus Tresch-Apps nach Android assets/ — für USB-APK-Deploy.
+
+- **test-apps** — `c:\Users\Trusc\Desktop\Tresch-Apps\.claude\skills\test-apps` — Wenn der Nutzer "testen", "prüfen ob alles läuft", "app testen", "/test-apps" sagt.
+
+#### User skills
+
+_None found._
 
 <!-- cloude-code-toolbox:mcp-skills-awareness-end -->
+
 
 <!-- cloude-code-toolbox:token-optimization-begin -->
 

@@ -117,15 +117,17 @@ function patchOfflineDb(patch) {
     return db;
 }
 
-/** Firebase RTDB verbietet . # $ / [ ] in Objekt-Schlüsseln */
-const FIREBASE_INVALID_KEY = /[.#$\/\[\]]/;
+/** Zeichen die in Cloud-Schlüsseln nicht erlaubt sind: . # $ / [ ] */
+const CLOUD_KEY_INVALID_CHARS = /[.#$\/\[\]]/;
 
-function firebaseSafeKey(key) {
+function cloudSafeKey(key) {
     const s = String(key ?? '');
-    if (!FIREBASE_INVALID_KEY.test(s)) return s;
-    // encodeURIComponent lässt '.' stehen — für Firebase nachträglich escapen
+    if (!CLOUD_KEY_INVALID_CHARS.test(s)) return s;
     return encodeURIComponent(s).replace(/\./g, '%2E');
 }
+
+/** Alias für Rückwärtskompatibilität mit bestehendem Code */
+const firebaseSafeKey = cloudSafeKey;
 
 function normalizeSupplierName(name) {
     return String(name ?? '').trim().replace(/\s+/g, ' ');
@@ -172,7 +174,7 @@ function migrateSupplierLinesClearedRename(store, oldName, newName) {
 }
 
 function purgeClearedSupplierLines(supplierLines, clearedKeys) {
-    const out = normalizeSupplierLinesForFirebase(supplierLines || {});
+    const out = normalizeSupplierLinesForCloud(supplierLines || {});
     if (!Array.isArray(clearedKeys) || !clearedKeys.length) return out;
     Object.keys(out).forEach((k) => {
         if (isSupplierLinesCleared(clearedKeys, supplierNameFromLinesKey(k))) delete out[k];
@@ -199,8 +201,8 @@ function supplierNameFromLinesKey(rawKey) {
     }
 }
 
-/** Warenlinien-Map: Lieferantennamen als Firebase-sichere Schlüssel speichern */
-function normalizeSupplierLinesForFirebase(supplierLines) {
+/** Warenlinien-Map: Lieferantennamen als cloud-sichere Schlüssel speichern */
+function normalizeSupplierLinesForCloud(supplierLines) {
     if (!supplierLines || typeof supplierLines !== 'object' || Array.isArray(supplierLines)) return {};
     const out = {};
     Object.keys(supplierLines).forEach((rawKey) => {
@@ -254,23 +256,26 @@ function rekeyObjectShallow(obj) {
     return out;
 }
 
-function findInvalidFirebaseKeys(obj, path) {
+function findInvalidCloudKeys(obj, path) {
     const hits = [];
     const prefix = path || '';
     if (obj === null || typeof obj !== 'object') return hits;
     if (Array.isArray(obj)) {
         obj.forEach((v, i) => {
-            hits.push(...findInvalidFirebaseKeys(v, prefix + '[' + i + ']'));
+            hits.push(...findInvalidCloudKeys(v, prefix + '[' + i + ']'));
         });
         return hits;
     }
     Object.keys(obj).forEach((k) => {
         const next = prefix ? prefix + '.' + k : k;
-        if (FIREBASE_INVALID_KEY.test(k)) hits.push(next);
-        hits.push(...findInvalidFirebaseKeys(obj[k], next));
+        if (CLOUD_KEY_INVALID_CHARS.test(k)) hits.push(next);
+        hits.push(...findInvalidCloudKeys(obj[k], next));
     });
     return hits;
 }
+
+/** Alias für Rückwärtskompatibilität */
+const findInvalidFirebaseKeys = findInvalidCloudKeys;
 
 /** Klont db für Cloud-PUT und korrigiert ungültige Schlüssel (v. a. supplierLines). */
 function prepareDbForCloudUpload(db) {
@@ -308,9 +313,15 @@ function prepareDbForCloudUpload(db) {
     if (Array.isArray(payload.deliveries) && typeof deliveriesFuerCloudSync === 'function') {
         payload.deliveries = deliveriesFuerCloudSync(payload.deliveries);
     }
-    const bad = findInvalidFirebaseKeys(payload);
+    // Safety: strip null bytes from deletedSortierBuchungen before sending to Supabase (jsonb rejects \0)
+    if (Array.isArray(payload.deletedSortierBuchungen)) {
+        payload.deletedSortierBuchungen = [...new Set(
+            payload.deletedSortierBuchungen.map(k => String(k).replace('\0', '|'))
+        )];
+    }
+    const bad = findInvalidCloudKeys(payload);
     if (bad.length) {
-        throw new Error('Ungültige Firebase-Schlüssel in: ' + bad.slice(0, 4).join(', ') + (bad.length > 4 ? ' …' : ''));
+        throw new Error('Ungültige Cloud-Schlüssel in: ' + bad.slice(0, 4).join(', ') + (bad.length > 4 ? ' …' : ''));
     }
     return payload;
 }
@@ -342,3 +353,45 @@ function finalizeCloudPutPayload(localPayload, cloudSnapshot) {
     return payload;
 }
 
+function leererTeamTagesEintrag() {
+    return { personalAnzahl: 0, gesamtKg: 0, exportKg: 0, unsKg: 0 };
+}
+
+function mergeTeamTagesEintrag(lokal, cloud) {
+    const l = { ...leererTeamTagesEintrag(), ...(lokal || {}) };
+    const c = { ...leererTeamTagesEintrag(), ...(cloud || {}) };
+    const lp = parseFloat(l.personalAnzahl);
+    const cp = parseFloat(c.personalAnzahl);
+    let personalAnzahl = 0;
+    if (!isNaN(lp) && lp > 0) personalAnzahl = lp;
+    else if (!isNaN(cp) && cp > 0) personalAnzahl = cp;
+    else if (!isNaN(lp)) personalAnzahl = lp;
+    else if (!isNaN(cp)) personalAnzahl = cp;
+
+    const lSort = (parseFloat(l.exportKg) || 0) + (parseFloat(l.unsKg) || 0);
+    const cSort = (parseFloat(c.exportKg) || 0) + (parseFloat(c.unsKg) || 0);
+    if (lSort > 0 || cSort > 0) {
+        const src = cSort > lSort ? c : l;
+        return {
+            personalAnzahl,
+            gesamtKg: parseFloat(src.gesamtKg) || 0,
+            exportKg: parseFloat(src.exportKg) || 0,
+            unsKg: parseFloat(src.unsKg) || 0
+        };
+    }
+    return {
+        personalAnzahl,
+        gesamtKg: Math.max(parseFloat(l.gesamtKg) || 0, parseFloat(c.gesamtKg) || 0),
+        exportKg: Math.max(parseFloat(l.exportKg) || 0, parseFloat(c.exportKg) || 0),
+        unsKg: Math.max(parseFloat(l.unsKg) || 0, parseFloat(c.unsKg) || 0)
+    };
+}
+
+function mergeTeamTagesMengen(lokal, cloud) {
+    const keys = new Set([...Object.keys(lokal || {}), ...Object.keys(cloud || {})]);
+    const out = {};
+    keys.forEach((datum) => {
+        out[datum] = mergeTeamTagesEintrag(lokal?.[datum], cloud?.[datum]);
+    });
+    return out;
+}

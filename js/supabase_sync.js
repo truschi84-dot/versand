@@ -45,15 +45,17 @@ async function supabaseCloudFetch(url, options) {
     const method = (options && options.method) || 'GET';
 
     let rowKey = 'main';
-    if (/shared_lkw/i.test(url)) rowKey = 'shared_lkw';
-    else if (/reklamation/i.test(url)) rowKey = 'reklamationen';
+    if (/shared_lkw/i.test(url))    rowKey = 'shared_lkw';
+    else if (/\/archive/i.test(url)) rowKey = 'archive';
+    else if (/\/snapshot/i.test(url))rowKey = 'snapshot';
+    else if (/reklamation/i.test(url))rowKey = 'reklamationen';
 
     // /reklamationen/KEY.json → Sub-Key
     const rekSub = url.match(/reklamation(?:en)?\/([^/?]+)\.json/);
     const isSettings = /\/settings\.json/.test(url);
 
-    const ok  = (d) => ({ ok: true,  status: 200, json: () => Promise.resolve(d) });
-    const err = (s) => ({ ok: false, status: s,   json: () => Promise.resolve(null) });
+    const ok  = (d) => ({ ok: true,  status: 200, json: () => Promise.resolve(d),        text: () => Promise.resolve(JSON.stringify(d)) });
+    const err = (s) => ({ ok: false, status: s,   json: () => Promise.resolve(null),     text: () => Promise.resolve('') });
 
     if (method === 'GET') {
         const data = await SupabaseSync.get(rowKey);
@@ -64,12 +66,31 @@ async function supabaseCloudFetch(url, options) {
 
     const body = (options && options.body) ? JSON.parse(options.body) : {};
 
+    // POST = neue Reklamation mit auto-generiertem Key (Firebase-kompatibel)
+    if (method === 'POST') {
+        const newKey = 'rek_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        const current = await SupabaseSync.get(rowKey) || {};
+        current[newKey] = body;
+        const res = await SupabaseSync.upsert(rowKey, current);
+        return res.ok ? ok({ name: newKey }) : err(res.status);
+    }
+
     if (method === 'PATCH') {
+        // Settings-PATCH: nur settings-Unterkey aktualisieren, nicht ganzen Row überschreiben
+        if (isSettings) {
+            const res = await SupabaseSync.patch(rowKey, { settings: body });
+            return res.ok ? ok({}) : err(res.status);
+        }
         const res = await SupabaseSync.patch(rowKey, body);
         return res.ok ? ok({}) : err(res.status);
     }
 
     if (method === 'PUT') {
+        // Settings-PUT: nur settings-Unterkey schreiben, nicht ganzen Row überschreiben
+        if (isSettings) {
+            const res = await SupabaseSync.patch(rowKey, { settings: body });
+            return res.ok ? ok({}) : err(res.status);
+        }
         if (rekSub) {
             const current = await SupabaseSync.get(rowKey) || {};
             current[rekSub[1]] = body;
