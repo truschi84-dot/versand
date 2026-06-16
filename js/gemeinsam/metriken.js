@@ -506,12 +506,6 @@ function aktivSortierDeliveryIds(db) {
             .filter((b) => (parseFloat(b.gebuchtKg) || 0) > 0 && b.datum)
             .forEach((b) => ids.add(sortierenLieferantDeliveryId(normalizeDatumIso(b.datum), b.lief)));
     });
-    (window._lastCloudBuchungen || []).forEach((raw) => {
-        const b = normalizeSortierBuchungRecord(raw);
-        if (b && (parseFloat(b.gebuchtKg) || 0) > 0 && b.datum) {
-            ids.add(sortierenLieferantDeliveryId(b.datum, b.lief));
-        }
-    });
     (db?.deliveries || []).forEach((d) => {
         if (d.source === 'sortieren' && d.id && (d.workerShares || []).length) ids.add(d.id);
     });
@@ -749,10 +743,13 @@ function entferneSortierenAusDb(db, del) {
             db.teamSortierBuchungen.forEach((b) => {
                 if (b.datum === datum && b.sessionKey) sortierLoeschenMarkieren(db, b.datum, b.sessionKey);
             });
+            /* FEHLERBEHEBUNG: Das verfrühte Filtern hat dazu geführt, dass gelöschte Einträge nach einem Cloud-Sync wieder erschienen sind. */
+            /*
             db.teamSortierBuchungen = filterDeletedSortierBuchungen(
                 db.teamSortierBuchungen,
                 db.deletedSortierBuchungen
             );
+            */
         }
         if (datum) rebuildTeamTagesMengenFuerDatum(db, datum);
         bereinigeGeloeschteSortierDeliveries(db);
@@ -769,10 +766,13 @@ function entferneSortierenAusDb(db, del) {
             if (String(b.lief || '').trim() !== liefName) return;
             if (b.sessionKey) sortierLoeschenMarkieren(db, b.datum, b.sessionKey);
         });
+        /* FEHLERBEHEBUNG: Siehe oben. Das Filtern erfolgt jetzt nur noch bei der Anzeige/im Merge, nicht mehr direkt in der Datenquelle. */
+        /*
         db.teamSortierBuchungen = filterDeletedSortierBuchungen(
             db.teamSortierBuchungen,
             db.deletedSortierBuchungen
         );
+        */
     }
     bereinigeGeloeschteSortierDeliveries(db);
     if (datum) rebuildTeamTagesMengenFuerDatum(db, datum);

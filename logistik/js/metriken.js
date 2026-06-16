@@ -490,12 +490,6 @@ function aktivSortierDeliveryIds(db) {
             .filter((b) => (parseFloat(b.gebuchtKg) || 0) > 0 && b.datum)
             .forEach((b) => ids.add(sortierenLieferantDeliveryId(normalizeDatumIso(b.datum), b.lief)));
     });
-    (window._lastCloudBuchungen || []).forEach((raw) => {
-        const b = normalizeSortierBuchungRecord(raw);
-        if (b && (parseFloat(b.gebuchtKg) || 0) > 0 && b.datum) {
-            ids.add(sortierenLieferantDeliveryId(b.datum, b.lief));
-        }
-    });
     (db?.deliveries || []).forEach((d) => {
         if (d.source === 'sortieren' && d.id && (d.workerShares || []).length) ids.add(d.id);
     });
