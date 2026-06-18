@@ -116,11 +116,11 @@ function berechneSortierExportNachTierart(datum) {
 }
 
 function fertigNrAusSorteBuchung(sorte, articles) {
+    // metriken.js ist geladen → originale Funktion nutzen
+    if (typeof fertigNrAusSorte === 'function') return fertigNrAusSorte(sorte, articles);
     if (!sorte || !articles || !articles.length) return null;
     const q = sorte.toLowerCase().trim();
-    // Exakter Treffer zuerst
     let hit = articles.find(a => (a.name || '').toLowerCase() === q);
-    // Dann: Buchungsname enthält Artikelname oder umgekehrt
     if (!hit) hit = articles.find(a => {
         const n = (a.name || '').toLowerCase();
         return n.length > 4 && (q.includes(n) || n.includes(q));
@@ -130,20 +130,31 @@ function fertigNrAusSorteBuchung(sorte, articles) {
 
 function debugTagesexport() {
     const datum = document.getElementById('te-datum').value;
-    const buchungen = (db.teamSortierBuchungen || []);
-    const heute = buchungen.filter(b => {
+    const articles = db.articles || [];
+    const tz = db.tierartZuordnung || {};
+    const heute = (db.teamSortierBuchungen || []).filter(b => {
         if (!b || !b.datum) return false;
         const bDatum = b.datum.includes('.') ? b.datum.split('.').reverse().join('-') : b.datum;
         return bDatum === datum;
     });
-    const tz = db.tierartZuordnung || {};
-    console.log('Tagesexport Debug:');
-    console.log('Datum:', datum);
-    console.log('teamSortierBuchungen gesamt:', buchungen.length);
-    console.log('Buchungen für Datum:', heute.length, heute);
-    console.log('tierartZuordnung:', tz);
-    console.log('articles count:', (db.articles||[]).length);
-    alert(`Debug: ${heute.length} Buchungen für ${datum}\ntierartZuordnung: ${Object.keys(tz).length} Einträge\nDetails in Browser-Konsole (F12)`);
+
+    const matches = heute.map(b => {
+        const fnr = b.fertigNr || fertigNrAusSorteBuchung(b.sorte, articles);
+        const tierart = fnr ? tz[String(fnr)] : null;
+        return { sorte: b.sorte, kg: b.kg, fertigNr: fnr, tierart };
+    });
+    const ohneMatch = matches.filter(m => !m.fertigNr);
+    const ohneTierart = matches.filter(m => m.fertigNr && !m.tierart);
+    const mitTierart = matches.filter(m => m.tierart);
+
+    console.log('=== Tagesexport Debug ===');
+    console.log('Buchungen heute:', heute.length);
+    console.log('Mit Tierart-Match:', mitTierart);
+    console.log('fertigNr gefunden aber keine Tierart:', ohneTierart);
+    console.log('Kein Artikel-Match:', ohneMatch);
+    console.log('tierartZuordnung Keys:', Object.keys(tz));
+
+    alert(`Debug ${datum}:\n✅ Mit Tierart: ${mitTierart.length} Buchungen\n⚠️ Kein Tierart-Match: ${ohneTierart.length}\n❌ Kein Artikel-Match: ${ohneMatch.length}\n\nBeispiel ohne Match: ${ohneMatch.slice(0,3).map(m=>m.sorte).join(', ')}\nDetails → F12 Konsole`);
 }
 
 function getTagesexportDaten() {
