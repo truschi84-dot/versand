@@ -781,6 +781,9 @@ function entferneSortierenAusDb(db, del) {
 function fertigNrAusSorte(sorte, articles) {
     const s = (sorte || '').trim();
     if (!s) return null;
+    // Klammer-ID am Ende hat Vorrang: "70714 - Hähnchenbrust Classic Pon Ex (80080)" → 80080
+    const endMatch = s.match(/\((\d+)\)\s*$/);
+    if (endMatch) return endMatch[1];
     const nrMatch = s.match(/^(\d+)\s*-\s*/);
     if (nrMatch) return nrMatch[1];
     const clean = s.replace(/\s*\(UNS\)\s*/gi, '').replace(/\s*\(EX\)\s*/gi, '').trim();
@@ -856,15 +859,26 @@ async function bucheTeamSortierungBeimDruck(aggregatedDaten, sitzungId) {
 
         // Duplikat-Bereinigung: wenn Artikel-Name durch Sync geändert wurde entsteht ein
         // verwaister Eintrag mit anderem sessionKey aber gleicher FertigNr+Lief+Herkunft (nur in derselben Sitzung).
-        const fertigNr = fertigNrAusSorte(item.sorte, articles);
-        // Cleanup nur wenn das aktuelle Item selbst ein echtes Gewicht hat —
-        // sonst würden 0-kg-Items bestehende Buchungen fälschlich nullen
+        // Nur über Katalog-Lookup — kein Regex-Fallback, damit Artikel mit gleicher Lieferantennummer
+        // (z.B. mehrere 70730-Artikel) sich nicht gegenseitig nullen.
+        const katalogHit = articles.find((a) => {
+            const disp = ((a.nr || '') + ' - ' + (a.name || '')).trim();
+            const clean = (item.sorte || '').replace(/\s*\(UNS\)\s*/gi, '').replace(/\s*\(EX\)\s*/gi, '').trim();
+            return disp === item.sorte || (a.name && (a.name === clean || a.name === item.sorte));
+        });
+        const fertigNr = katalogHit ? (katalogHit.fertigNr || katalogHit.nr || null) : null;
+        // Cleanup nur wenn Artikel eindeutig im Katalog und echtes Gewicht vorhanden
         if (fertigNr && articles.length > 0 && aktuellesGewicht > 0) {
             buchungen.forEach((b) => {
                 if (b.datum !== heute || b.sessionKey === sessionKey) return;
                 if ((b.sitzungId || 'default') !== aktSitzung) return; // andere Sitzung → nicht anfassen
                 if ((b.lief || '') !== (item.lief || '') || (b.herkunft || '') !== (item.herkunft || '')) return;
-                const altFertigNr = fertigNrAusSorte(b.sorte, articles);
+                const altHit = articles.find((a) => {
+                    const disp = ((a.nr || '') + ' - ' + (a.name || '')).trim();
+                    const clean = (b.sorte || '').replace(/\s*\(UNS\)\s*/gi, '').replace(/\s*\(EX\)\s*/gi, '').trim();
+                    return disp === b.sorte || (a.name && (a.name === clean || a.name === b.sorte));
+                });
+                const altFertigNr = altHit ? (altHit.fertigNr || altHit.nr || null) : null;
                 if (!altFertigNr || altFertigNr !== fertigNr) return;
                 const altKg = parseFloat(b.gebuchtKg) || 0;
                 if (altKg <= 0) return;

@@ -10,7 +10,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 132;
+const WEB_BUILD_VERSION = 133;
 /** Fallback nur wenn app-update.json nicht geladen werden kann — echte URL kommt aus Config. */
 const OFFICE_LAN_URL = '';
 let pendingOtaUpdate = null;
@@ -1601,6 +1601,7 @@ function getLogistikFullCloudPayload() {
         deletedSuppliers: lData.deletedSuppliers || [],
         supplierLines: lData.supplierLines || {},
         supplierLinesCleared: lData.supplierLinesCleared || [],
+        supplierNumbers: lData.supplierNumbers || {},
         artikelMarkt: lData.artikelMarkt || {},
         teamTagesMengen: lData.teamTagesMengen || {},
         teamSortierBuchungen: lData.teamSortierBuchungen || [],
@@ -1620,6 +1621,7 @@ function getRechnerStammdatenCloudPayload() {
         suppliers: lData.suppliers || [],
         supplierLines: lData.supplierLines || {},
         supplierLinesCleared: lData.supplierLinesCleared || [],
+        supplierNumbers: lData.supplierNumbers || {},
         deletedSuppliers: lData.deletedSuppliers || [],
         articles: lData.articles || [],
         savedProdukteRaw: rData.savedProdukteRaw || [],
@@ -1699,6 +1701,11 @@ function applyLogistikFullFromCloud(data) {
             : { ...(lDb.supplierLines || {}), ...data.supplierLines };
         if (JSON.stringify(lDb.supplierLines) !== before) changed = true;
     }
+    if (data.supplierNumbers && typeof data.supplierNumbers === 'object') {
+        const before = JSON.stringify(lDb.supplierNumbers || {});
+        lDb.supplierNumbers = { ...(lDb.supplierNumbers || {}), ...data.supplierNumbers };
+        if (JSON.stringify(lDb.supplierNumbers) !== before) changed = true;
+    }
     if (typeof reconcileSupplierLinesCleared === 'function') reconcileSupplierLinesCleared(lDb);
     const deleted = new Set((lDb.deletedSuppliers || []).map(s => String(s).trim()).filter(Boolean));
     if (deleted.size && Array.isArray(lDb.suppliers)) {
@@ -1756,6 +1763,11 @@ function applyRechnerStammdatenFromCloud(data) {
             ? mergeSupplierLinesForSync(lDb.supplierLines, data.supplierLines, lDb.supplierLinesCleared)
             : { ...(lDb.supplierLines || {}), ...data.supplierLines };
         if (JSON.stringify(lDb.supplierLines) !== before) changed = true;
+    }
+    if (data.supplierNumbers && typeof data.supplierNumbers === 'object') {
+        const before = JSON.stringify(lDb.supplierNumbers || {});
+        lDb.supplierNumbers = { ...(lDb.supplierNumbers || {}), ...data.supplierNumbers };
+        if (JSON.stringify(lDb.supplierNumbers) !== before) changed = true;
     }
     if (typeof reconcileSupplierLinesCleared === 'function') reconcileSupplierLinesCleared(lDb);
     const deleted = new Set((lDb.deletedSuppliers || []).map(s => String(s).trim()).filter(Boolean));
@@ -1828,15 +1840,21 @@ async function pushSortierNachDruckSilent() {
         if (res.ok) {
             const cloud = await res.json();
             if (cloud) {
-                if (typeof mergeDeletedSortierKeys === 'function') {
-                    mergedDel = mergeDeletedSortierKeys(mergedDel, cloud.deletedSortierBuchungen);
-                }
                 if (typeof mergeTeamSortierBuchungen === 'function') {
+                    // Lokale deletedKeys zuerst verwenden — sortierLoeschenAufheben wurde bereits angewendet.
+                    // Frischer Druck soll Cloud-Löschung überschreiben.
+                    const lokalDel = lData.deletedSortierBuchungen || [];
                     mergedBuch = mergeTeamSortierBuchungen(
                         localBuch,
                         typeof asSortierBuchungenArray === 'function' ? asSortierBuchungenArray(cloud.teamSortierBuchungen) : cloud.teamSortierBuchungen,
-                        mergedDel
+                        lokalDel
                     );
+                    // Deleted-Keys: Union aus lokal + Cloud, aber aktive Buchungen ausnehmen
+                    if (typeof mergeDeletedSortierKeys === 'function') {
+                        const aktivKeys = new Set(mergedBuch.map(b => (b.sessionKey || '') + '|' + (b.datum || '')));
+                        mergedDel = mergeDeletedSortierKeys(lokalDel, cloud.deletedSortierBuchungen)
+                            .filter(k => !aktivKeys.has(k));
+                    }
                 }
                 if (typeof mergeTeamTagesMengen === 'function' && cloud.teamTagesMengen) {
                     mergedMengen = mergeTeamTagesMengen(mergedMengen, cloud.teamTagesMengen);
