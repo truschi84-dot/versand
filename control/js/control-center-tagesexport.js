@@ -101,7 +101,7 @@ function berechneSortierExportNachTierart(datum) {
     });
 
     buchungen.forEach(b => {
-        const kg = parseFloat(b.kg) || 0;
+        const kg = parseFloat(b.gebuchtKg || b.kg) || 0;
         if (kg <= 0) return;
 
         // fertigNr direkt aus Buchung oder per Artikel-Matching
