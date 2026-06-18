@@ -175,6 +175,7 @@
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="../../js/druck_utils.js?v=1"></script>
+    <script src="../../control/js/control-center-tagesexport.js?v=1"></script>
     <script src="../../js/supabase_sync.js?v=115"></script>
     <script src="../../js/cloud_auth.js?v=1"></script>
 </head>
@@ -304,6 +305,7 @@
         <div class="nav-item" onclick="showTab('noelke', this)">📝 Nölke-Katalog</div>
         <div class="nav-item" onclick="showTab('sonderposten', this)">📦 Sonderposten</div>
         <div class="nav-item" onclick="showTab('qm', this)">🛡️ Reklamationen</div>
+        <div class="nav-item" onclick="showTab('tagesexport', this); initTagesexportTab();">📊 Tagesexport</div>
         </div>
         <div class="sidebar-nav-admin">
         <div class="nav-section admin-section">Admin</div>
@@ -720,6 +722,31 @@
             </div>
         </div>
 
+        <div id="tab-tagesexport" class="tab-content">
+            <div class="page-header">
+                <h1>📊 Tagesexport</h1>
+                <p>Exportmengen pro Tag — aus Sortierung + manuelle Zusatzmengen</p>
+            </div>
+            <div class="card" style="max-width:750px;">
+                <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
+                    <div>
+                        <label style="font-size:12px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Datum</label>
+                        <input type="date" id="te-datum" style="padding:10px 14px; border-radius:8px; border:1px solid #ccc; font-size:16px; font-weight:700;" onchange="renderTagesexport()">
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:18px;">
+                        <button class="btn btn-success" onclick="exportTagesexportExcel()" style="padding:10px 18px; font-size:14px;">📊 Excel</button>
+                        <button class="btn" onclick="shareTagesexportWhatsapp()" style="padding:10px 18px; font-size:14px; background:#25D366; color:white;">📤 WhatsApp</button>
+                    </div>
+                </div>
+                <div id="te-eingaben"></div>
+                <div style="margin-top:16px; background:#1a1a2e; color:white; border-radius:10px; padding:16px 20px; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:16px; font-weight:700;">BM Gesamt</span>
+                    <span id="te-gesamt" style="font-size:26px; font-weight:800;">0 kg</span>
+                </div>
+                <p style="font-size:11px; color:#999; margin-top:10px;">Tierart-Zuordnung der Artikel: Tab "Artikel-Zuordnung" → Reiter "Fertig" → Spalte "Tierart"</p>
+            </div>
+        </div>
+
         <div id="tab-company" class="tab-content">
             <div class="page-header">
                 <h1>App-Einstellungen</h1>
@@ -1081,7 +1108,9 @@
                 modules: { lkw: true, sort: true, noelke: true },
                     leergut: "E2:2.0, Herta:2.5, H1:18.0, Euro:21.0"
             },
-            v41_initialized: false
+            v41_initialized: false,
+            artikelMarkt: {},
+            tierartZuordnung: {}
         };
         
         let activeV10Tab = 'todo';
@@ -1134,7 +1163,7 @@
                 const l = localStorage.getItem('kombi_logistik_db');
                 if (l) {
                     const lDb = JSON.parse(l);
-                    ['suppliers', 'customers', 'articles', 'todo', 'lose', 'later', 'hidden', 'workers', 'deliveries', 'dailyStaff', 'dailyAttendance', 'workerColors', 'settings', 'company', 'deletedSuppliers', 'supplierLines', 'supplierNumbers'].forEach(k => {
+                    ['suppliers', 'customers', 'articles', 'todo', 'lose', 'later', 'hidden', 'workers', 'deliveries', 'dailyStaff', 'dailyAttendance', 'workerColors', 'settings', 'company', 'deletedSuppliers', 'supplierLines', 'supplierNumbers', 'artikelMarkt', 'tierartZuordnung'].forEach(k => {
                         if (lDb[k] !== undefined && lDb[k] !== null) db[k] = lDb[k];
                     });
                 }
@@ -2751,6 +2780,26 @@
             downloadExcelSheet(objRows, 'Statistik', 'Statistik_' + d.fileKey + '_' + new Date().toISOString().split('T')[0] + '.xlsx');
         }
 
+        const TIERART_OPTIONS = ['Schwein', 'Geflügel', 'Rind', 'TK Geflügel', 'TK Schwein'];
+        function getTierart(fertigNr) {
+            if (fertigNr == null || fertigNr === '') return '';
+            return (db.tierartZuordnung || {})[String(fertigNr)] || '';
+        }
+        function setTierart(fertigNr, value) {
+            if (fertigNr == null || fertigNr === '') return;
+            if (!db.tierartZuordnung) db.tierartZuordnung = {};
+            const key = String(fertigNr);
+            if (TIERART_OPTIONS.includes(value)) db.tierartZuordnung[key] = value;
+            else delete db.tierartZuordnung[key];
+            renderV10Table();
+        }
+        function tierartSelectHtml(fertigNr) {
+            const cur = getTierart(fertigNr);
+            const esc = String(fertigNr).replace(/'/g, "\\'");
+            const opts = TIERART_OPTIONS.map(o => `<option value="${o}" ${cur === o ? 'selected' : ''}>${o}</option>`).join('');
+            return `<select onchange="setTierart('${esc}', this.value)" style="padding:5px 6px; border-radius:6px; border:1px solid #ccc; font-size:12px; min-width:110px;"><option value="" ${cur === '' ? 'selected' : ''}>—</option>${opts}</select>`;
+        }
+
         function renderV10Table() {
             const thead = document.getElementById('v10-tableHead'); const tbody = document.getElementById('v10-tableBody'); const s = document.getElementById('searchInput').value.toUpperCase();
             thead.innerHTML = ''; tbody.innerHTML = '';
@@ -2790,11 +2839,12 @@
                 });
             } else if (activeV10Tab === 'done') {
                 document.getElementById('print-header-text').innerHTML = "Artikelliste (Fertig) - Tresch & Sohn";
-                thead.innerHTML = `<tr><th>Lose-Nr.</th><th>Name für App (inkl. Fertig-Nr.)</th><th style="width:130px;">Aktion</th></tr>`;
+                thead.innerHTML = `<tr><th>Lose-Nr.</th><th>Name für App (inkl. Fertig-Nr.)</th><th style="width:125px;">Tierart</th><th style="width:130px;">Aktion</th></tr>`;
                 db.articles.forEach((art, i) => {
                     if ((art.nr || '').includes(s) || (art.name || '').toUpperCase().includes(s) || (art.fertigNr || '').includes(s)) {
                         const tr = document.createElement('tr'); const origName = art.originalName ? `<br><small style="color:#888;">(Original: ${art.originalName})</small>` : '';
                         tr.innerHTML = `<td><strong style="color:var(--success);">${art.nr || ''}</strong></td><td>${art.name}${origName}</td>
+                            <td>${tierartSelectHtml(art.fertigNr)}</td>
                             <td style="display:flex; gap:5px;">
                                 <button class="btn-action" style="background:#17a2b8; margin:0; padding:6px;" onclick="openEditFertigModal(${i})">✏️</button>
                                 <button class="btn-undo-action" style="margin:0; padding:6px;" onclick="unassign(${i})">Löschen</button>
@@ -3267,7 +3317,9 @@
                     }
                     db.settings = cloudDb.settings || db.settings;
                     db.company = cloudDb.company || db.company;
-                    
+                    if (cloudDb.artikelMarkt && typeof cloudDb.artikelMarkt === 'object') db.artikelMarkt = { ...(db.artikelMarkt || {}), ...cloudDb.artikelMarkt };
+                    if (cloudDb.tierartZuordnung && typeof cloudDb.tierartZuordnung === 'object') db.tierartZuordnung = { ...(db.tierartZuordnung || {}), ...cloudDb.tierartZuordnung };
+
                     db.suppliers = db.suppliers.map(s => s.trim()).filter(s => s !== "");
                     db.articles.forEach(a => { if(a.suppliers) a.suppliers = a.suppliers.map(s => s.trim()); });
 
@@ -3525,6 +3577,8 @@
                         
                         // 3. Anwesenheiten (Tablets)
                         if(cloudDb.dailyStaff) db.dailyStaff = { ...cloudDb.dailyStaff, ...(db.dailyStaff || {}) };
+                        if(cloudDb.artikelMarkt && typeof cloudDb.artikelMarkt === 'object') db.artikelMarkt = { ...(cloudDb.artikelMarkt), ...(db.artikelMarkt || {}) };
+                        if(cloudDb.tierartZuordnung && typeof cloudDb.tierartZuordnung === 'object') db.tierartZuordnung = { ...(cloudDb.tierartZuordnung), ...(db.tierartZuordnung || {}) };
                         if(cloudDb.dailyAttendance) db.dailyAttendance = { ...cloudDb.dailyAttendance, ...(db.dailyAttendance || {}) };
                         
                         // 4. Kataloge mergen

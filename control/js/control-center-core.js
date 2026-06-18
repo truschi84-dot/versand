@@ -108,6 +108,7 @@ let db = {
     },
     v41_initialized: false,
     artikelMarkt: {},
+    tierartZuordnung: {},
     teamTagesMengen: {},
     deletedSortierBuchungen: []
 };
@@ -202,7 +203,7 @@ function hydrateFromKombiIfNeeded() {
         const l = localStorage.getItem('kombi_logistik_db');
         if (l) {
             const lDb = JSON.parse(l);
-            ['suppliers', 'customers', 'articles', 'todo', 'lose', 'later', 'hidden', 'workers', 'deliveries', 'dailyStaff', 'dailyAttendance', 'workerColors', 'settings', 'company', 'deletedSuppliers', 'supplierLines', 'supplierLinesCleared', 'artikelMarkt', 'teamTagesMengen', 'teamSortierBuchungen', 'deletedSortierBuchungen'].forEach(k => {
+            ['suppliers', 'customers', 'articles', 'todo', 'lose', 'later', 'hidden', 'workers', 'deliveries', 'dailyStaff', 'dailyAttendance', 'workerColors', 'settings', 'company', 'deletedSuppliers', 'supplierLines', 'supplierLinesCleared', 'artikelMarkt', 'tierartZuordnung', 'teamTagesMengen', 'teamSortierBuchungen', 'deletedSortierBuchungen'].forEach(k => {
                 if (lDb[k] !== undefined && lDb[k] !== null) db[k] = lDb[k];
             });
         }
@@ -1401,6 +1402,9 @@ async function pullFromCloud() {
             db.company = cloudDb.company || db.company;
             if (cloudDb.artikelMarkt && typeof cloudDb.artikelMarkt === 'object') {
                 db.artikelMarkt = { ...(db.artikelMarkt || {}), ...cloudDb.artikelMarkt };
+            }
+            if (cloudDb.tierartZuordnung && typeof cloudDb.tierartZuordnung === 'object') {
+                db.tierartZuordnung = { ...(db.tierartZuordnung || {}), ...cloudDb.tierartZuordnung };
             }
             
             db.suppliers = db.suppliers.map(s => s.trim()).filter(s => s !== "");

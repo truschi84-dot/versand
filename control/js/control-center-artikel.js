@@ -43,6 +43,32 @@ function getArtikelMarktValue(fertigNr) {
     return v === 'export' || v === 'uns' ? v : '';
 }
 
+const TIERART_OPTIONS = ['Schwein', 'Geflügel', 'Rind', 'TK Geflügel', 'TK Schwein'];
+
+function getTierart(fertigNr) {
+    if (fertigNr == null || fertigNr === '') return '';
+    return (db.tierartZuordnung || {})[String(fertigNr)] || '';
+}
+
+function setTierart(fertigNr, value) {
+    if (fertigNr == null || fertigNr === '') return;
+    if (!db.tierartZuordnung) db.tierartZuordnung = {};
+    const key = String(fertigNr);
+    if (TIERART_OPTIONS.includes(value)) db.tierartZuordnung[key] = value;
+    else delete db.tierartZuordnung[key];
+    renderAll();
+    renderV10Table();
+}
+
+function tierartSelectHtml(fertigNr) {
+    const cur = getTierart(fertigNr);
+    const esc = String(fertigNr).replace(/'/g, "\\'");
+    const opts = TIERART_OPTIONS.map(o => `<option value="${o}" ${cur === o ? 'selected' : ''}>${o}</option>`).join('');
+    return `<select onchange="setTierart('${esc}', this.value)" style="padding:5px 6px; border-radius:6px; border:1px solid #ccc; font-size:12px; min-width:110px;">
+        <option value="" ${cur === '' ? 'selected' : ''}>—</option>${opts}
+    </select>`;
+}
+
 function setArtikelMarkt(fertigNr, value) {
     if (fertigNr == null || fertigNr === '') return;
     if (!db.artikelMarkt) db.artikelMarkt = {};
@@ -223,7 +249,7 @@ function renderV10Table() {
         });
     } else if (activeV10Tab === 'done') {
         document.getElementById('print-header-text').innerHTML = "Artikelliste (Fertig) - Tresch & Sohn";
-        thead.innerHTML = `<tr><th style="width:75px;">Lose</th><th style="width:75px;">Fertig</th><th style="width:95px;">Markt</th><th>Name</th><th style="width:120px;">Aktion</th></tr>`;
+        thead.innerHTML = `<tr><th style="width:75px;">Lose</th><th style="width:75px;">Fertig</th><th style="width:95px;">Markt</th><th style="width:120px;">Tierart</th><th>Name</th><th style="width:120px;">Aktion</th></tr>`;
         db.articles.forEach((art, i) => {
             if (!matchesMarktFilter(art.fertigNr)) return;
             if ((art.nr || '').includes(s) || (art.name || '').toUpperCase().includes(s) || (art.fertigNr || '').includes(s)) {
@@ -233,7 +259,7 @@ function renderV10Table() {
                     { v: 'edit', l: '✏️ Bearbeiten' },
                     { v: 'delete', l: '🗑️ Zuordnung lösen' }
                 ], { id: art.fertigNr || '', tab: 'done', idx: i });
-                tr.innerHTML = `<td><strong style="color:var(--success);">${art.nr || ''}</strong></td><td>${art.fertigNr || ''}</td><td>${marktSelectHtml(art.fertigNr)}</td><td class="v10-name-cell"${origHint}>${art.name}</td><td>${actions}</td>`;
+                tr.innerHTML = `<td><strong style="color:var(--success);">${art.nr || ''}</strong></td><td>${art.fertigNr || ''}</td><td>${marktSelectHtml(art.fertigNr)}</td><td>${tierartSelectHtml(art.fertigNr)}</td><td class="v10-name-cell"${origHint}>${art.name}</td><td>${actions}</td>`;
                 tbody.appendChild(tr);
             }
         });
