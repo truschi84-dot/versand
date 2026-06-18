@@ -423,6 +423,7 @@
         <div class="nav-item" onclick="showTab('noelke', this)">📝 Nölke-Katalog</div>
         <div class="nav-item" onclick="showTab('sonderposten', this)">📦 Sonderposten</div>
         <div class="nav-item" onclick="showTab('qm', this)">🛡️ Reklamationen</div>
+        <div class="nav-item" onclick="showTab('tagesexport', this); initTagesexportTab();">📊 Tagesexport</div>
         <div class="nav-section" style="margin-top:8px;">Einstellungen</div>
         <div class="nav-item" onclick="showTab('erfassung', this)">📅 Tages-Erfassung</div>
         <div class="nav-item" onclick="showTab('stats', this)">📊 Statistiken</div>
@@ -841,6 +842,31 @@
             </div>
         </div>
 
+        <div id="tab-tagesexport" class="tab-content">
+            <div class="page-header">
+                <h1>📊 Tagesexport</h1>
+                <p>Exportmengen pro Tag — aus Sortierung + manuelle Zusatzmengen</p>
+            </div>
+            <div class="card" style="max-width:750px;">
+                <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
+                    <div>
+                        <label style="font-size:12px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Datum</label>
+                        <input type="date" id="te-datum" style="padding:10px 14px; border-radius:8px; border:1px solid #ccc; font-size:16px; font-weight:700;" onchange="renderTagesexport()">
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:18px;">
+                        <button class="btn btn-success" onclick="exportTagesexportExcel()" style="padding:10px 18px; font-size:14px;">📊 Excel</button>
+                        <button class="btn" onclick="shareTagesexportWhatsapp()" style="padding:10px 18px; font-size:14px; background:#25D366; color:white;">📤 WhatsApp</button>
+                    </div>
+                </div>
+                <div id="te-eingaben"></div>
+                <div style="margin-top:16px; background:#1a1a2e; color:white; border-radius:10px; padding:16px 20px; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:16px; font-weight:700;">BM Gesamt</span>
+                    <span id="te-gesamt" style="font-size:26px; font-weight:800;">0 kg</span>
+                </div>
+                <p style="font-size:11px; color:#999; margin-top:10px;">Tierart-Zuordnung: Tab "Artikel-Zuordnung" → Reiter "Fertig" → Spalte "Tierart"</p>
+            </div>
+        </div>
+
         <div id="tab-company" class="tab-content">
             <div class="page-header">
                 <h1>App-Einstellungen</h1>
@@ -1197,6 +1223,7 @@
             </div>
         </div>
     </div>
+    <script src="js/control-center-tagesexport.js?v=136"></script>
     <script src="js/control-center-core.js?v=136"></script>
     <script src="js/control-center-lieferanten.js?v=136"></script>
     <script src="js/control-center-mitarbeiter.js?v=135"></script>
