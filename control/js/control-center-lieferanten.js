@@ -1,7 +1,56 @@
+const LIEFERANTEN_NUMMERN_EXCEL = {"Abbelen GmbH":"71153","adler willebadessen":"70178","Aldente GmbH":"70176","Allgäu Fresh Foods":"70190","Appel Feinkost":"70145","Arla Foods":"71159","Bananen Fred":"70149","BARD Frische Küche GmbH":"70181","Bartels":"71138","Basedahl Schinkenmanufaktur":"70130","Berliner KS Fleisch- und Wurst":"70144","Bille GmbH & Co.KG":"70189","Bingo Germany GmbH":"70127","Börner":"70122","Buss Fertiggerichte GmbH":"70152","CEDUB":"70186","CMM GmbH":"70180","Dachser":"70000","Dermaris":"71151","Dohle":"71137","Döllinghareico":"71148","Dr. Oetker":"70132","Dreistern":"70100","Ebbe Sönnichsen GmbH":"70159","Eberswalder":"70157","Eggelbusch":"70102","Faden":"70179","Frischpack":"70129","Frostkrone Tiefkühlkost GmbH":"70153","Frostland Senefelder, Paderborn":"71150","Ganda":"71135","Gastropreisbund Hohenwestedt":"70143","Getränke Tiede GmbH":"70166","Giacobbe Pasta GmbH":"70146","GlaWi":"71136","Goldback GmbH":"70172","Golßen und mago":"70160","Gustoland":"70103","H&T Feinkost GmbH":"70138","HANDL Tyrol":"71156","Hein, Hasbergen":"71141","Heipex":"70184","Heißenberg, Lage":"70125","Henkelmann":"71161","Herta GmbH":"70162","Houdek":"70118","ICEWIND":"70148","informa music&media GmbH":"70174","Jacob´s - Die Babymoden-Manu":"70126","Jonas":"70105","Josef Albus":"70150","Jung & Hinze":"71139","Kaas Frischdienst":"70183","Kalnik Vertriebs - GmbH":"70139","Kamarko":"70136","Kemper":"70106","Kleinemas":"70108","Klümper, Schüttorf":"71149","Kremers":"70116","Kupfer":"70107","Loer Handelsag.":"71158","Lutz":"70109","Marcher Unternehmensgruppe":"70185","MarKo":"71140","Marten":"71142","MCV":"71162","Meister feines Fleisch":"70168","Mestemacher GmbH":"70182","Metten":"70110","Niederschlesische Wurstmanuf.":"70141","Nölke":"70119","Nölke RG Adresse":"10287","Otto Stedtfeld GmbH":"70140","Perwenitz Fleisch-&Wurstwaren":"70164","Phina Classic":"70111","Plukon Döbeln GmbH":"70158","Ponnath (Schlüters Echte)":"70128","PReisgewitter":"71152","Puttkammer Fleischwaren":"70165","Quellenhof Gastronomie":"70131","Querbeet GmbH":"70147","Rasting, Essen":"71147","Recla":"70123","Rehm Fleischwaren":"70134","Reinert":"71154","Ribo s.r.o":"70171","RM Produktions GmbH":"70137","Rümke":"71155","saturn petcare GmbH":"70188","Sauder":"71143","Sauels":"70120","SAVENCIA":"70167","Schepers":"70124","Schinken Einhaus":"70133","Schmalkalden GmbH Thüringen":"70173","Schwarz Cranz":"71146","Specht":"70101","Spiekermann GmbH":"70156","Spilker GmbH":"71144","Thorwart Fleischwaren":"70142","Tillman's":"70115","Top Geflügel":"70104","Triex":"70151","UNIQFOOD":"70175","Viehandel & Schlachtbetrieb":"70170","Wein":"70117","Werz GmbH":"70155","Wilhelm Brandenburger":"70161","Wilms":"70114","Windau":"71160","WKS":"70112","Wolf":"70113","Wurst-Spezi, Zeitz OT Theißen":"71145","Zakłady Miesner Nove Sp z o.o.":"70154","Ziegler Käsespezialitäten":"70163","Zimbo / zur Mühlen ApS & Co.KG":"71157","ZMG Suhl":"70169","Zorn GmbH":"70177","Zur Mühlen":"70121","BERSCHNEIDER":"150","SCHULTE DISSEN":"153"};
+
+function initSupplierNumbersFromExcel() {
+    if (!db.supplierNumbers || typeof db.supplierNumbers !== 'object') db.supplierNumbers = {};
+    if (Object.keys(db.supplierNumbers).length > 0) return;
+    db.supplierNumbers = { ...LIEFERANTEN_NUMMERN_EXCEL };
+    localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+    if (typeof mirrorToKombiStorage === 'function') mirrorToKombiStorage();
+}
+
+function editSupplierNr(name) {
+    const key = supDomKey(name);
+    const badge = document.getElementById('sup-nr-badge-' + key);
+    const input = document.getElementById('sup-nr-' + key);
+    if (!badge || !input) return;
+    badge.style.display = 'none';
+    input.style.visibility = 'visible';
+    input.style.position = 'relative';
+    input.focus();
+    input.select();
+}
+
+function saveSupplierNumber(name, nr) {
+    if (!db.supplierNumbers || typeof db.supplierNumbers !== 'object') db.supplierNumbers = {};
+    const trimmed = nr.trim();
+    if (trimmed) db.supplierNumbers[name] = trimmed;
+    else delete db.supplierNumbers[name];
+    localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+    if (typeof mirrorToKombiStorage === 'function') mirrorToKombiStorage();
+    const key = supDomKey(name);
+    const badge = document.getElementById('sup-nr-badge-' + key);
+    const input = document.getElementById('sup-nr-' + key);
+    if (badge && input) {
+        badge.style.display = 'inline-flex';
+        input.style.visibility = 'hidden';
+        input.style.position = 'absolute';
+        if (trimmed) {
+            badge.textContent = '# ' + trimmed;
+            badge.style.background = '#e8f0fe'; badge.style.color = '#1a56db';
+            badge.style.border = '1px solid #c5d8fc'; badge.style.fontWeight = '600';
+        } else {
+            badge.textContent = '+ Nummer';
+            badge.style.background = '#f1f3f4'; badge.style.color = '#aaa';
+            badge.style.border = '1px solid #e0e0e0'; badge.style.fontWeight = 'normal';
+        }
+    }
+}
+
 function ensureSupplierMeta() {
     if (!Array.isArray(db.deletedSuppliers)) db.deletedSuppliers = [];
     if (!Array.isArray(db.supplierLinesCleared)) db.supplierLinesCleared = [];
     if (!db.supplierLines || typeof db.supplierLines !== 'object') db.supplierLines = {};
+    if (!db.supplierNumbers || typeof db.supplierNumbers !== 'object') db.supplierNumbers = {};
     if (typeof reconcileSupplierLinesCleared === 'function') reconcileSupplierLinesCleared(db);
     if (typeof purgeClearedSupplierLines === 'function') {
         db.supplierLines = purgeClearedSupplierLines(db.supplierLines, db.supplierLinesCleared);
@@ -246,6 +295,10 @@ function inlineSaveSupplier(oldName) {
         setSupplierLinesForName(oldName, []);
         setSupplierLinesForName(newName, oldLines);
     }
+    if (db.supplierNumbers[oldName] !== undefined) {
+        db.supplierNumbers[newName] = db.supplierNumbers[oldName];
+        delete db.supplierNumbers[oldName];
+    }
     db.deletedSuppliers = db.deletedSuppliers.map(s => s === oldName ? newName : s);
 
     renderAll();
@@ -285,6 +338,7 @@ function deleteSupplier(n) {
         db.suppliers = db.suppliers.filter(s => s !== n); 
         if (!db.deletedSuppliers.includes(n)) db.deletedSuppliers.push(n);
         setSupplierLinesForName(n, []);
+        if (db.supplierNumbers && db.supplierNumbers[n]) delete db.supplierNumbers[n];
         db.articles.forEach(art => { if(art.suppliers) art.suppliers = art.suppliers.filter(s => s !== n); });
         renderAll();
     } 

@@ -295,6 +295,9 @@ function prepareDbForCloudUpload(db) {
     if (payload.workerColors && typeof payload.workerColors === 'object') {
         payload.workerColors = rekeyObjectShallow(payload.workerColors);
     }
+    if (payload.supplierNumbers && typeof payload.supplierNumbers === 'object' && !Array.isArray(payload.supplierNumbers)) {
+        payload.supplierNumbers = rekeyObjectShallow(payload.supplierNumbers);
+    }
     if (payload.dailyAttendance && typeof payload.dailyAttendance === 'object' && !Array.isArray(payload.dailyAttendance)) {
         const att = {};
         Object.keys(payload.dailyAttendance).forEach((dateKey) => {

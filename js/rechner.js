@@ -413,8 +413,13 @@ function filterResults() {
             const rDb = AppStorage.get('kombi_rechner_db', {});
             const produkte = Array.isArray(rDb.savedProdukteRaw) ? rDb.savedProdukteRaw : [];
             let res = [];
-            if (gs1Data) { res = produkte.filter(p => p.includes(gs1Data.gtin) || p.includes(gs1Data.ean)); } 
+            if (gs1Data) { res = produkte.filter(p => p.includes(gs1Data.gtin) || p.includes(gs1Data.ean)); }
             else { res = produkte.filter(p => p.toLowerCase().includes(q)); }
+            res.sort((a, b) => {
+                const na = parseInt((a.match(/^\[(\d+)\]/) || [])[1] ?? 'Infinity');
+                const nb = parseInt((b.match(/^\[(\d+)\]/) || [])[1] ?? 'Infinity');
+                return na - nb;
+            });
             html = res.map(p => `<div class="result-item" onclick="selectResult('${p.replace(/'/g, "\\'")}')">${p}</div>`).join('');
         }
         document.getElementById('modal-results').innerHTML = html || '<div style="padding:20px; color:#999;">Nichts gefunden...</div>';

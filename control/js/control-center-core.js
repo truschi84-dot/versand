@@ -1,4 +1,4 @@
-let isAdminUnlocked = true;
+﻿let isAdminUnlocked = true;
 let pendingTabId = null;
 let pendingTabElement = null;
 let assignMode = 'sup';
@@ -11,7 +11,8 @@ function sanitizeCloudUrl(url) {
     return u;
 }
 function getEffectiveCloudUrl() {
-    return sanitizeCloudUrl(localStorage.getItem('custom_cloud_url') || '');
+    const custom = sanitizeCloudUrl(localStorage.getItem('custom_cloud_url') || '');
+    return custom || 'https://tresch-versand-default-rtdb.firebaseio.com/backup';
 }
 let CLOUD_URL = getEffectiveCloudUrl();
 
@@ -276,6 +277,7 @@ window.onload = () => {
     const dInput = document.getElementById('admin-work-date');
     if (dInput && !dInput.value) dInput.value = ccTodayISO();
 
+    if (typeof initSupplierNumbersFromExcel === 'function') initSupplierNumbersFromExcel();
     initAdminDeliveryListClicks();
     renderAll();
     renderCloudLogs();
@@ -370,35 +372,39 @@ function renderAll() {
     ensureSupplierMeta();
     db.suppliers = mergeSuppliersList(db.suppliers, []);
 
-    // REPARIERTE LIEFERANTEN-TABELLEN STRUKTUR
-    document.getElementById('sup-body').innerHTML = (db.suppliers||[]).sort().map(s => {
+    // LIEFERANTEN-LISTE (Card-Rows)
+    document.getElementById('sup-body').innerHTML = (db.suppliers||[]).sort().map((s, i, arr) => {
         const key = supDomKey(s);
         const esc = s.replace(/"/g, '&quot;');
         const lines = getSupplierLines(s);
-        const linesLabel = lines.length ? `${lines.length} Linie${lines.length > 1 ? 'n' : ''}` : '—';
-        return `<tr>
-            <td style="font-weight: bold; font-size: 15px;">
-                <span id="sup-label-${key}" style="cursor:pointer;" onclick="showSupplierStats(decodeURIComponent('${key}'))" title="Sendungen anzeigen">${s}</span>
-                <input type="text" id="sup-edit-input-${key}" value="${esc}" style="display:none; width: 90%; padding: 6px 10px; font-size: 14px;">
-            </td>
-            <td style="font-size:13px; color:#555;">
-                <span style="display:inline-block; min-width:52px;">${linesLabel}</span>
-                <button type="button" onclick="showSupplierStats(decodeURIComponent('${key}'))" class="btn" style="background:#f3e5f5; color:#6a1b9a; padding:4px 10px; font-size:11px; margin-left:6px;">📊 Statistik</button>
-                <button type="button" onclick="toggleSupplierLinesPanel(decodeURIComponent('${key}'))" class="btn" style="background:#e3f2fd; color:#1565c0; padding:4px 10px; font-size:11px; margin-left:6px;">📋 Pflegen</button>
-            </td>
-            <td style="text-align:right; white-space: nowrap;">
-                <button id="btn-edit-sup-${key}" onclick="inlineEditSupplier(decodeURIComponent('${key}'))" class="btn" style="background:#ffc107; color:black; padding: 6px 12px; font-size: 12px; margin-right:5px;">✏️ Ändern</button>
-                <button id="btn-save-sup-${key}" onclick="inlineSaveSupplier(decodeURIComponent('${key}'))" class="btn btn-success" style="display:none; padding: 6px 12px; font-size: 12px; margin-right:5px;">💾 Ok</button>
-                <button onclick="deleteSupplier(decodeURIComponent('${key}'))" class="btn" style="background:var(--todo); padding: 6px 12px; font-size: 12px;">🗑️ Löschen</button>
-            </td>
-        </tr>
-        <tr id="sup-lines-${key}" style="display:none;">
-            <td colspan="3" style="background:#f8fafc; padding:12px 16px; border-bottom:1px solid #e0e4ea;">
-                <label style="font-size:11px; font-weight:bold; color:#555;">Warenlinien für „${esc}“ (eine pro Zeile)</label>
-                <textarea id="sup-lines-ta-${key}" rows="4" style="width:100%; margin:8px 0; font-size:13px; padding:10px; border-radius:8px; border:1px solid #ccc;" placeholder="Ecken &amp; Scheiben TFB&#10;Geflügel Aspik&#10;Hähnchen&#10;Pute&#10;Kochschinken">${lines.join('\n')}</textarea>
-                <button type="button" class="btn btn-save" style="padding:8px 14px; font-size:12px;" onclick="saveSupplierLinesFromText(decodeURIComponent('${key}'))">Warenlinien speichern</button>
-            </td>
-        </tr>`;
+        const linesLabel = lines.length ? `${lines.length} Linie${lines.length > 1 ? 'n' : ''}` : 'Keine Warenlinien';
+        const nr = (db.supplierNumbers || {})[s] || '';
+        const borderBottom = i < arr.length - 1 ? 'border-bottom:1px solid var(--border);' : '';
+        return `<div style="${borderBottom}">
+            <div style="display:flex; align-items:center; gap:14px; padding:14px 22px; flex-wrap:wrap;">
+                <div style="flex:1; min-width:200px;">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span id="sup-label-${key}" style="font-weight:700; font-size:15px; cursor:pointer; color:#1a1a2e;" onclick="showSupplierStats(decodeURIComponent('${key}'))" title="Statistik anzeigen">${s}</span>
+                        <span id="sup-nr-badge-${key}" onclick="editSupplierNr(decodeURIComponent('${key}'))" title="Lieferantennummer — klicken zum Bearbeiten" style="display:inline-flex; align-items:center; background:${nr ? '#dbeafe' : '#f3f4f6'}; color:${nr ? '#1d4ed8' : '#9ca3af'}; border:1px solid ${nr ? '#bfdbfe' : '#e5e7eb'}; border-radius:99px; padding:2px 10px; font-size:11px; font-weight:${nr ? '700' : '400'}; cursor:pointer; user-select:none;">${nr ? '# ' + nr : '+ Nr.'}</span>
+                        <input type="text" id="sup-nr-${key}" value="${nr}" placeholder="z.B. 70145" style="visibility:hidden; position:absolute; width:90px; padding:2px 10px; font-size:12px; font-weight:700; border:2px solid #3b82f6; border-radius:99px; outline:none; color:#1d4ed8; background:#eff6ff;" onblur="saveSupplierNumber(decodeURIComponent('${key}'), this.value)" onkeydown="if(event.key==='Enter'||event.key==='Escape')this.blur()">
+                    </div>
+                    <input type="text" id="sup-edit-input-${key}" value="${esc}" style="display:none; width:100%; max-width:320px; padding:6px 10px; font-size:14px; margin-top:6px; border-radius:8px; border:2px solid var(--primary);">
+                    <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">📦 ${linesLabel}</div>
+                </div>
+                <div style="display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap; align-items:center;">
+                    <button type="button" onclick="showSupplierStats(decodeURIComponent('${key}'))" class="btn" style="background:#f3e8ff; color:#7c3aed; font-size:12px; padding:7px 13px;">📊 Statistik</button>
+                    <button type="button" onclick="toggleSupplierLinesPanel(decodeURIComponent('${key}'))" class="btn" style="background:#e0f2fe; color:#0369a1; font-size:12px; padding:7px 13px;">📋 Warenlinien</button>
+                    <button id="btn-edit-sup-${key}" onclick="inlineEditSupplier(decodeURIComponent('${key}'))" class="btn" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; font-size:12px; padding:7px 13px;">✏️ Umbenennen</button>
+                    <button id="btn-save-sup-${key}" onclick="inlineSaveSupplier(decodeURIComponent('${key}'))" class="btn btn-success" style="display:none; font-size:12px; padding:7px 13px;">💾 Speichern</button>
+                    <button onclick="deleteSupplier(decodeURIComponent('${key}'))" class="btn" style="background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; font-size:12px; padding:7px 13px;">🗑️</button>
+                </div>
+            </div>
+            <div id="sup-lines-${key}" style="display:none; background:#f8fafc; border-top:1px solid var(--border); padding:16px 22px;">
+                <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-muted); margin-bottom:8px;">Warenlinien für „${esc}" — eine pro Zeile</div>
+                <textarea id="sup-lines-ta-${key}" rows="4" style="width:100%; max-width:500px; font-size:13px; padding:10px 14px; border-radius:8px; border:1px solid var(--border); background:white; display:block; margin-bottom:10px; resize:vertical;" placeholder="Ecken &amp; Scheiben TFB&#10;Geflügel Aspik&#10;Hähnchen&#10;Pute">${lines.join('\n')}</textarea>
+                <button type="button" class="btn btn-save" style="font-size:12px; padding:8px 16px;" onclick="saveSupplierLinesFromText(decodeURIComponent('${key}'))">💾 Warenlinien speichern</button>
+            </div>
+        </div>`;
     }).join('');
 
     renderWorkersList();
@@ -547,7 +553,7 @@ function renderBriefingUI() {
         const tasks = brief.date === today ? (brief.tasks || []) : [];
         const open = tasks.filter(t => !t.done);
         if (brief.date !== today) preview.innerHTML = '<span style="color:#d32f2f;">⚠ Nicht auf heute datiert</span>';
-        else if (!tasks.length && !(brief.message || '').trim()) preview.innerHTML = 'Noch leer — Aufgaben im Tab „Tages-Briefing“ anlegen.';
+        else if (!tasks.length && !(brief.message || '').trim()) preview.innerHTML = 'Noch leer — Aufgaben im Tab „Tages-Briefing" anlegen.';
         else preview.innerHTML = open.length
             ? `<b>${open.length}</b> offen: ${open.map(t => t.text).slice(0, 3).join(' · ')}${open.length > 3 ? ' …' : ''}`
             : '✓ Alle Aufgaben erledigt oder keine offenen.';
@@ -1243,7 +1249,9 @@ function adminDeleteDelivery() {
 
 function renderNoelkeList() {
     const q = document.getElementById('noelke-search').value.toLowerCase();
-    document.getElementById('noelke-body').innerHTML = db.savedProdukteRaw.map((p, i) => p.toLowerCase().includes(q) ? `<tr><td class="noelke-cell-text" style="padding:15px; border-bottom:1px solid #eee;">${p}</td><td style="text-align:right; border-bottom:1px solid #eee; white-space:nowrap;"><button onclick="openEditNoelkeModal(${i})" style="border:none; background:none; color:#17a2b8; cursor:pointer; font-size:18px;" title="Bearbeiten">✏️</button><button onclick="deleteNoelke(${i})" style="border:none; background:none; color:red; cursor:pointer; font-size:18px;" title="Löschen">🗑️</button></td></tr>` : '').join('');
+    const noelkeNr = s => { const m = s.match(/^\[Nr\.\s*(\d+)\]/i); return m ? parseInt(m[1]) : Infinity; };
+    const sorted = db.savedProdukteRaw.map((p, i) => ({ p, i })).sort((a, b) => noelkeNr(a.p) - noelkeNr(b.p));
+    document.getElementById('noelke-body').innerHTML = sorted.map(({ p, i }) => p.toLowerCase().includes(q) ? `<tr><td class="noelke-cell-text" style="padding:15px; border-bottom:1px solid #eee;">${p}</td><td style="text-align:right; border-bottom:1px solid #eee; white-space:nowrap;"><button onclick="openEditNoelkeModal(${i})" style="border:none; background:none; color:#17a2b8; cursor:pointer; font-size:18px;" title="Bearbeiten">✏️</button><button onclick="deleteNoelke(${i})" style="border:none; background:none; color:red; cursor:pointer; font-size:18px;" title="Löschen">🗑️</button></td></tr>` : '').join('');
 }
 
 function renderAdminSonderTpl() {

@@ -1,5 +1,11 @@
 // ======================= DRUCK FUNKTIONEN & ZEBRA =======================
 
+function getNextEtikettenNr() {
+    let nr = parseInt(localStorage.getItem('etikettenNr') || '0') + 1;
+    localStorage.setItem('etikettenNr', nr);
+    return nr;
+}
+
 function printSelectedZebraLabels() {
     let checkboxes = document.querySelectorAll('.print-noelke-cb:checked');
     if (checkboxes.length === 0) { alert("⚠️ Bitte hake zuerst die Artikel in der Liste an, die du drucken möchtest!"); return; }
@@ -49,9 +55,10 @@ function executeZebraLabelPrint(prodString, mhd, e2, kg, charge) {
 
     let chargeToPrint = charge || "C-" + Date.now().toString().slice(-6);
     let gewichtStr = parseFloat(kg).toFixed(2);
-    let barcodeData = `Art-Nr:${eanNr}|Name:${artName}|Datum:${dateStr}|Zeit:${timeStr}|Charge:${chargeToPrint}|MHD:${mhd}|Gewicht:${gewichtStr}kg|Menge:${e2}|Einheit:${einheit}`;
+    let etikettenNr = getNextEtikettenNr();
+    let barcodeData = `Nr:${etikettenNr}|Art-Nr:${eanNr}|Name:${artName}|Datum:${dateStr}|Zeit:${timeStr}|Charge:${chargeToPrint}|MHD:${mhd}|Gewicht:${gewichtStr}kg|Menge:${e2}|Einheit:${einheit}`;
 
-    let defaultZpl = "^XA\n^LL640\n^PW880\n^FO30,30^A0N,30,30^FDVerp-Tag^FS\n^FO220,30^A0N,30,30^FD{dateStr}^FS\n^FO500,30^A0N,30,30^FDUhrzeit^FS\n^FO680,30^A0N,30,30^FD{timeStr}^FS\n^FO30,80^GB820,2,2^FS\n^FO30,100^A0N,50,50^FD{topNr}^FS\n^FO680,100^A0N,45,45^FDKISTE^FS\n^FO30,165^FB580,2,0,L,0^A0N,35,35^FD{artName}^FS\n^FO30,250^A0N,28,28^FDEAN: {eanNr}^FS\n^FO30,290^A0N,28,28^FDCharge: {charge}^FS\n^FO30,330^A0N,28,28^FDMHD: {mhd}^FS\n^FO30,370^A0N,28,28^FDEinheit: {einheit}^FS\n^FO640,170^BXN,4,200,0,0,1^FD{barcodeData}^FS\n^FO30,420^GB480,160,2^FS\n^FO45,435^A0N,30,30^FDGewicht^FS\n^FO45,490^A0N,80,80^FD{gewichtStr} kg^FS\n^FO540,420^GB310,160,2^FS\n^FO555,435^A0N,30,30^FDMenge^FS\n^FO555,490^A0N,80,80^FD{menge}^FS\n^FO30,610^GB820,2,2^FS\n^XZ";
+    let defaultZpl = "^XA\n^LL640\n^PW880\n^FO30,30^A0N,30,30^FDVerp-Tag^FS\n^FO220,30^A0N,30,30^FD{dateStr}^FS\n^FO500,30^A0N,30,30^FDUhrzeit^FS\n^FO680,30^A0N,30,30^FD{timeStr}^FS\n^FO30,80^GB820,2,2^FS\n^FO30,100^A0N,50,50^FD{topNr}^FS\n^FO580,100^A0N,35,35^FDNr. {etikettenNr}^FS\n^FO30,165^FB580,2,0,L,0^A0N,35,35^FD{artName}^FS\n^FO30,250^A0N,28,28^FDEAN: {eanNr}^FS\n^FO30,290^A0N,28,28^FDCharge: {charge}^FS\n^FO30,330^A0N,28,28^FDMHD: {mhd}^FS\n^FO30,370^A0N,28,28^FDEinheit: {einheit}^FS\n^FO640,170^BXN,4,200,0,0,1^FD{barcodeData}^FS\n^FO30,420^GB480,160,2^FS\n^FO45,435^A0N,30,30^FDGewicht^FS\n^FO45,490^A0N,80,80^FD{gewichtStr} kg^FS\n^FO540,420^GB310,160,2^FS\n^FO555,435^A0N,30,30^FDMenge^FS\n^FO555,490^A0N,80,80^FD{menge}^FS\n^FO30,610^GB820,2,2^FS\n^XZ";
     
     let zplTemplate = defaultZpl; // Ignoriert den veralteten Speicher und erzwingt das Layout ohne 'Nr.'
 
@@ -64,6 +71,7 @@ function executeZebraLabelPrint(prodString, mhd, e2, kg, charge) {
         .replace(/\{charge\}/g, chargeToPrint)
         .replace(/\{mhd\}/g, mhd)
         .replace(/\{gewichtStr\}/g, gewichtStr.replace('.', ','))
+        .replace(/\{etikettenNr\}/g, etikettenNr)
         .replace(/\{menge\}/g, e2)
         .replace(/\{einheit\}/g, einheit)
         .replace(/\{e2\}/g, e2)
@@ -177,7 +185,9 @@ function sortierungDrucken() {
         job.pages.forEach((pageItems, pageIndex) => {
             let isVeryLastPage = (jobIndex === printJobs.length - 1) && (pageIndex === job.pages.length - 1);
             let breakStyle = isVeryLastPage ? "" : "page-break-after: always;";
-            printHtml += `<div style="width: 100%; padding: 10mm; padding-top: 60mm; box-sizing: border-box; ${breakStyle}"><h1 style="font-family: Arial, sans-serif; color: black; margin: 0 0 15px 0; font-size: 26px; text-align: left;">Palettenwiege-Schein</h1><table><tr><td colspan="2" style="width: 65%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Lieferant:</span><br><span style="font-size: 28px; font-weight: bold;">${job.lief}</span></td><td style="width: 17.5%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Datum:</span><br><span style="font-size: 16px;">${heute}</span></td><td style="width: 17.5%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Seite:</span><br><span style="font-size: 16px;">${pageIndex + 1} / ${job.pages.length}</span></td></tr><tr style="background-color: #f2f2f2;"><td colspan="2" style="font-weight: bold; font-size: 15px;">Artikel Bezeichnung:</td><td style="font-weight: bold; font-size: 15px;" class="center-text">Gewicht:</td><td style="font-weight: bold; font-size: 15px;" class="center-text">Kisten:</td></tr>`;
+            const _supNr = (AppStorage.get('kombi_logistik_db', {}).supplierNumbers || {})[job.lief] || '';
+            const _supNrHtml = _supNr ? ` <span style="font-size:16px; font-weight:normal; color:#555;">(${_supNr})</span>` : '';
+            printHtml += `<div style="width: 100%; padding: 10mm; padding-top: 60mm; box-sizing: border-box; ${breakStyle}"><h1 style="font-family: Arial, sans-serif; color: black; margin: 0 0 15px 0; font-size: 26px; text-align: left;">Palettenwiege-Schein</h1><table><tr><td colspan="2" style="width: 65%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Lieferant:</span><br><span style="font-size: 28px; font-weight: bold;">${job.lief}</span>${_supNrHtml}</td><td style="width: 17.5%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Datum:</span><br><span style="font-size: 16px;">${heute}</span></td><td style="width: 17.5%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Seite:</span><br><span style="font-size: 16px;">${pageIndex + 1} / ${job.pages.length}</span></td></tr><tr style="background-color: #f2f2f2;"><td colspan="2" style="font-weight: bold; font-size: 15px;">Artikel Bezeichnung:</td><td style="font-weight: bold; font-size: 15px;" class="center-text">Gewicht:</td><td style="font-weight: bold; font-size: 15px;" class="center-text">Kisten:</td></tr>`;
             pageItems.forEach(item => {
                 let kistenArr = []; for(let k in item.leergut) { if(item.leergut[k] > 0) kistenArr.push(`${item.leergut[k]} ${k}`); }
                 let kistenStr = kistenArr.length > 0 ? kistenArr.join(", ") : "-"; 

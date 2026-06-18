@@ -684,36 +684,33 @@
         </div>
 
         <div id="tab-lieferanten" class="tab-content">
-            <h1>🚚 Lieferanten verwalten</h1>
-            
-            <div style="display: flex; gap: 15px; margin-bottom: 25px; max-width: 600px;">
-                <div class="card" style="flex: 2; margin-bottom: 0;">
-                    <h3 style="margin-top: 0; color: var(--primary);">➕ Neuen Lieferanten anlegen</h3>
+            <div class="page-header">
+                <h1>🚚 Lieferanten verwalten</h1>
+                <p>Lieferanten anlegen, Warenlinien pflegen und Statistiken abrufen.</p>
+            </div>
+
+            <div style="display: flex; gap: 16px; margin-bottom: 28px; max-width: 860px; flex-wrap: wrap;">
+                <div class="card lief-add-card" style="flex: 2; min-width: 280px; margin-bottom: 0;">
+                    <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--primary); margin-bottom:10px;">Neuen Lieferanten anlegen</div>
                     <div style="display:flex; gap:10px;">
-                        <input type="text" id="new-sup-name" placeholder="z.B. Kupfer" style="flex: 1;">
-                        <button class="btn btn-save" onclick="saveSupplier()">Hinzufügen</button>
+                        <input type="text" id="new-sup-name" placeholder="z.B. Kupfer" style="flex:1;" onkeyup="if(event.key==='Enter') saveSupplier()">
+                        <button class="btn btn-save" onclick="saveSupplier()">+ Hinzufügen</button>
                     </div>
                 </div>
-                
-                <div class="card" style="flex: 1; margin-bottom: 0; background: #e8f5e9; border: 1px solid #a5d6a7; display: flex; flex-direction: column; justify-content: center;">
-                    <h3 style="margin-top: 0; color: var(--success); font-size: 14px;">🧹 DB-Säuberung</h3>
-                    <button class="btn btn-success" style="padding: 10px; font-size: 12px;" onclick="cleanAllSuppliersDatabase()">✨ Jetzt säubern</button>
+                <div class="card lief-db-card" style="flex:0 0 auto; margin-bottom:0; background:#f0fdf4; border:1px solid #bbf7d0; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:8px; padding:18px 22px;">
+                    <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#15803d;">DB-Säuberung</div>
+                    <button class="btn btn-success" style="font-size:12px;" onclick="cleanAllSuppliersDatabase()">✨ Jetzt säubern</button>
                 </div>
             </div>
 
-            <div class="card" style="max-width: 900px; padding: 15px 20px;">
-                <h3 style="margin-top: 0; margin-bottom: 8px;">Bestehende Lieferanten-Liste</h3>
-                <p style="font-size:12px; color:var(--text-muted); margin:0 0 15px;">Optional <strong>Warenlinien</strong> pflegen — beim LKW-Abladen wählbar. <strong>📊 Statistik</strong> zeigt, wie viel kg pro Linie erfasst wurden.</p>
-                <table class="supplier-table">
-                    <thead>
-                        <tr style="background-color: #f8f9fa;">
-                            <th style="width: 35%;">Name im System</th>
-                            <th style="width: 25%;">Warenlinien</th>
-                            <th style="width: 40%; text-align:right;">Aktionen</th>
-                        </tr>
-                    </thead>
-                    <tbody id="sup-body"></tbody>
-                </table>
+            <div class="card" style="max-width: 860px; padding: 0; overflow: hidden;">
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid var(--border);">
+                    <div>
+                        <div style="font-weight:700; font-size:15px; color:#1a1a2e;">Lieferanten-Liste</div>
+                        <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">Warenlinien pflegen · Statistik · Nummern verwalten</div>
+                    </div>
+                </div>
+                <div id="sup-body"></div>
             </div>
         </div>
 
@@ -1138,6 +1135,7 @@
                     <p style="margin:6px 0 0;">Tages-, Wochen- und Monatsauswertung — nur Sortieren → Drucken (Handy), Export &amp; Uns pro Lieferant.</p>
                 </div>
                 <div class="no-print" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+                    <button class="btn btn-cloud" onclick="refreshErfassungFromCloud(false).then(()=>renderWorkerStats())">🔄 Neu laden</button>
                     <button class="btn btn-black" onclick="toggleWorkerMatrix()" id="btn-toggle-worker-matrix">👤 Mitarbeiter</button>
                     <button class="btn btn-success" onclick="printStatsList()">🖨️ Drucken</button>
                     <button class="btn btn-save" onclick="exportStatsExcel()" style="background:#107c41;">📊 Excel</button>
@@ -1199,11 +1197,11 @@
             </div>
         </div>
     </div>
-    <script src="js/control-center-core.js?v=134"></script>
-    <script src="js/control-center-lieferanten.js?v=134"></script>
-    <script src="js/control-center-mitarbeiter.js?v=134"></script>
-    <script src="js/control-center-artikel.js?v=134"></script>
-    <script src="js/control-center-stats.js?v=134"></script>
-    <script src="js/control-center-deploy.js?v=134"></script>
+    <script src="js/control-center-core.js?v=136"></script>
+    <script src="js/control-center-lieferanten.js?v=136"></script>
+    <script src="js/control-center-mitarbeiter.js?v=135"></script>
+    <script src="js/control-center-artikel.js?v=135"></script>
+    <script src="js/control-center-stats.js?v=135"></script>
+    <script src="js/control-center-deploy.js?v=135"></script>
 </body>
 </html>
