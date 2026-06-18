@@ -82,14 +82,21 @@ function berechneSortierExportNachTierart(datum) {
     if (!datum || !db) return result;
 
     const articles = db.articles || [];
-    const artikelMarkt = db.artikelMarkt || {};
     const tierartZuordnung = db.tierartZuordnung || {};
     const deletedKeys = db.deletedSortierBuchungen || [];
 
+    // Lookup-Map: fertigNr → tierart (nur zugewiesene)
+    const fertigNrZuTierart = {};
+    Object.entries(tierartZuordnung).forEach(([nr, t]) => {
+        if (TIERART_LISTE.includes(t)) fertigNrZuTierart[nr] = t;
+    });
+
     const buchungen = (db.teamSortierBuchungen || []).filter(b => {
         if (!b || !b.datum) return false;
-        if (b.datum !== datum) return false;
-        const bKey = b.id || (b.datum + '|' + b.lief + '|' + (b.sorte || ''));
+        // Datum-Vergleich: ISO (2026-06-18) und DE (18.06.2026) abfangen
+        const bDatum = b.datum.includes('.') ? b.datum.split('.').reverse().join('-') : b.datum;
+        if (bDatum !== datum) return false;
+        const bKey = b.id || (b.datum + '|' + (b.lief || '') + '|' + (b.sorte || ''));
         return !deletedKeys.includes(bKey);
     });
 
@@ -97,15 +104,12 @@ function berechneSortierExportNachTierart(datum) {
         const kg = parseFloat(b.kg) || 0;
         if (kg <= 0) return;
 
-        // Tierart über fertigNr bestimmen
-        const fertigNr = fertigNrAusSorteBuchung(b.sorte, articles);
-        const marktTyp = fertigNr ? (artikelMarkt[String(fertigNr)] || '') : '';
-        if (marktTyp !== 'export') return;
+        // fertigNr direkt aus Buchung oder per Artikel-Matching
+        const fertigNr = b.fertigNr || b.artikelNr || fertigNrAusSorteBuchung(b.sorte, articles);
+        if (!fertigNr) return;
 
-        const tierart = fertigNr ? (tierartZuordnung[String(fertigNr)] || '') : '';
-        if (tierart && result[tierart] !== undefined) {
-            result[tierart] += kg;
-        }
+        const tierart = fertigNrZuTierart[String(fertigNr)];
+        if (tierart) result[tierart] += kg;
     });
 
     return result;
@@ -114,11 +118,32 @@ function berechneSortierExportNachTierart(datum) {
 function fertigNrAusSorteBuchung(sorte, articles) {
     if (!sorte || !articles || !articles.length) return null;
     const q = sorte.toLowerCase().trim();
-    const hit = articles.find(a => {
-        const disp = (a.name || '').toLowerCase();
-        return disp === q || disp.includes(q) || q.includes(disp.substring(0, Math.min(disp.length, 8)));
+    // Exakter Treffer zuerst
+    let hit = articles.find(a => (a.name || '').toLowerCase() === q);
+    // Dann: Buchungsname enthält Artikelname oder umgekehrt
+    if (!hit) hit = articles.find(a => {
+        const n = (a.name || '').toLowerCase();
+        return n.length > 4 && (q.includes(n) || n.includes(q));
     });
     return hit ? (hit.fertigNr || hit.nr || null) : null;
+}
+
+function debugTagesexport() {
+    const datum = document.getElementById('te-datum').value;
+    const buchungen = (db.teamSortierBuchungen || []);
+    const heute = buchungen.filter(b => {
+        if (!b || !b.datum) return false;
+        const bDatum = b.datum.includes('.') ? b.datum.split('.').reverse().join('-') : b.datum;
+        return bDatum === datum;
+    });
+    const tz = db.tierartZuordnung || {};
+    console.log('Tagesexport Debug:');
+    console.log('Datum:', datum);
+    console.log('teamSortierBuchungen gesamt:', buchungen.length);
+    console.log('Buchungen für Datum:', heute.length, heute);
+    console.log('tierartZuordnung:', tz);
+    console.log('articles count:', (db.articles||[]).length);
+    alert(`Debug: ${heute.length} Buchungen für ${datum}\ntierartZuordnung: ${Object.keys(tz).length} Einträge\nDetails in Browser-Konsole (F12)`);
 }
 
 function getTagesexportDaten() {
