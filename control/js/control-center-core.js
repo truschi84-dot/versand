@@ -1211,11 +1211,12 @@ function adminUpdateDelivery() {
     const del = db.deliveries.find(x => x.id === adminEditingDeliveryId); if(!del) return;
     const newKg = parseFloat(document.getElementById('admin-edit-total-kg').value);
     const newDate = document.getElementById('admin-edit-date').value;
-    if(newKg && newKg > 0 && newDate) { 
-        del.kg = newKg; 
-        del.date = newDate; 
-        renderAll(); 
-        closeAdminEditDelivery(); 
+    if(newKg && newKg > 0 && newDate) {
+        del.kg = newKg;
+        del.date = newDate;
+        localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+        renderAll();
+        closeAdminEditDelivery();
     }
 }
 

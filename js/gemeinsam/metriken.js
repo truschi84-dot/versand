@@ -126,7 +126,9 @@ function getHandySortierEntriesFuerDatum(db, datum) {
     sortierenLieferantenFuerDatum(alleBuch, datum, db.deletedSortierBuchungen).forEach(({ name, kg }) => {
         const n = String(name || '').trim() || 'Unbekannt';
         const id = sortierenLieferantDeliveryId(datum, n);
-        byName.set(n, { id, date: datum, name: n, kg, source: 'sortieren', workerShares: [] });
+        const existingDel = (db.deliveries || []).find(d => d.id === id);
+        const entryDate = existingDel?.date || datum;
+        byName.set(n, { id, date: entryDate, name: n, kg, source: 'sortieren', workerShares: [] });
     });
     (db.deliveries || []).filter((x) => normalizeDatumIso(x.date) === datum && (x.source === 'sortieren' || x.source === 'sortieren_tag')).forEach((d) => {
         const n = d.source === 'sortieren_tag'
