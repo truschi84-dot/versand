@@ -56,7 +56,7 @@ function renderTagesexport() {
                     <div style="font-size:11px; color:${farbe.text}; font-weight:600; margin-bottom:6px;">Manuell eingeben (Enter zum Hinzufügen)</div>
                     <input type="number" id="te-input-${key}" placeholder="kg eingeben…" min="0" step="1"
                         style="width:100%; padding:8px 12px; border:2px solid ${farbe.border}; border-radius:8px; font-size:15px; font-weight:700; background:white; color:#333; box-sizing:border-box;"
-                        onkeydown="if(event.key==='Enter'){teManuellHinzufuegen('${tierart}');event.preventDefault();}">
+                        onkeydown="teKeyNav(event,'${tierart}')">
                     <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:4px; min-height:28px;">${eintragListe}</div>
                 </div>
                 <div style="flex:0 0 auto; text-align:right; min-width:100px;">
@@ -68,6 +68,20 @@ function renderTagesexport() {
     }).join('');
 
     aktualisiereGesamtSumme();
+}
+
+function teKeyNav(event, tierart) {
+    if (event.key === 'Enter') { teManuellHinzufuegen(tierart); event.preventDefault(); return; }
+    const idx = TIERART_LISTE.indexOf(tierart);
+    if (event.key === 'ArrowDown' && idx < TIERART_LISTE.length - 1) {
+        event.preventDefault();
+        const next = document.getElementById('te-input-' + TIERART_LISTE[idx + 1].replace(/\s/g, '_'));
+        if (next) next.focus();
+    } else if (event.key === 'ArrowUp' && idx > 0) {
+        event.preventDefault();
+        const prev = document.getElementById('te-input-' + TIERART_LISTE[idx - 1].replace(/\s/g, '_'));
+        if (prev) prev.focus();
+    }
 }
 
 function teManuellHinzufuegen(tierart) {
