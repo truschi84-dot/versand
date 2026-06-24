@@ -140,31 +140,40 @@ async function copyRechnerWebAssets(dest) {
 
 async function copyLogistikWebAssets(dest) {
     fs.mkdirSync(dest, { recursive: true });
-    const lRoot = path.join(ROOT, 'logistik');
-    if (!fs.existsSync(lRoot)) throw new Error('logistik/ Ordner fehlt');
-    let indexHtml = fs.readFileSync(path.join(lRoot, 'index.html'), 'utf8');
-    indexHtml = indexHtml.replace(/\.\.\/icons\//g, 'icons/');
-    if (!indexHtml.includes('cloud_secrets.embed.js')) {
-        indexHtml = indexHtml.replace(
-            '<script src="js/core.js',
-            '<script src="js/cloud_secrets.embed.js"></script>\n<script src="js/core.js'
-        );
-    }
+    const cRoot = path.join(ROOT, 'control');
+    if (!fs.existsSync(cRoot)) throw new Error('control/ Ordner fehlt');
+
+    // index.html: ../js/ → js/ patchen (APK kennt keinen Elternordner)
+    let indexHtml = fs.readFileSync(path.join(cRoot, 'index.html'), 'utf8');
+    indexHtml = indexHtml.replace(/\.\.\/js\//g, 'js/');
     fs.writeFileSync(path.join(dest, 'index.html'), indexHtml);
-    logDeploy('+ index.html (Logistik)');
-    copyDirContents(path.join(lRoot, 'js'), path.join(dest, 'js'));
-    logDeploy('+ js/ (Logistik)');
+    logDeploy('+ index.html (Control)');
+
+    // Control-eigene JS-Dateien
+    const jsDir = path.join(dest, 'js');
+    fs.mkdirSync(jsDir, { recursive: true });
+    copyDirContents(path.join(cRoot, 'js'), jsDir);
+    logDeploy('+ js/ (Control)');
+
+    // Shared JS aus Root (druck_utils, supabase_sync, cloud_auth, gemeinsam/)
+    for (const f of ['druck_utils.js', 'supabase_sync.js', 'cloud_auth.js']) {
+        const fp = path.join(ROOT, 'js', f);
+        if (fs.existsSync(fp)) fs.copyFileSync(fp, path.join(jsDir, f));
+    }
+    const gemeinsamSrc = path.join(ROOT, 'js', 'gemeinsam');
+    if (fs.existsSync(gemeinsamSrc)) {
+        copyDirContents(gemeinsamSrc, path.join(jsDir, 'gemeinsam'));
+        logDeploy('+ js/gemeinsam/ (Shared)');
+    }
+    if (fs.existsSync(jsDir)) embedSecrets(jsDir);
+
     const secretsPath = path.join(ROOT, 'app-secrets.json');
     if (fs.existsSync(secretsPath)) {
         fs.copyFileSync(secretsPath, path.join(dest, 'app-secrets.json'));
         logDeploy('+ app-secrets.json (Cloud)');
     } else {
-        logDeploy('⚠️ app-secrets.json fehlt – Cloud in Logistik-APK nicht eingebettet');
+        logDeploy('⚠️ app-secrets.json fehlt – Cloud in Control-APK nicht eingebettet');
     }
-    const jsDir = path.join(dest, 'js');
-    if (fs.existsSync(jsDir)) embedSecrets(jsDir);
-    const manifest = path.join(lRoot, 'manifest.webmanifest');
-    if (fs.existsSync(manifest)) fs.copyFileSync(manifest, path.join(dest, 'manifest.webmanifest'));
     for (const f of ['app-version.json', 'app-update.json', 'app-settings-public.json']) {
         const fp = path.join(ROOT, f);
         if (fs.existsSync(fp)) fs.copyFileSync(fp, path.join(dest, f));
@@ -340,12 +349,7 @@ function bumpLogistikVersion() {
     av.publishedAt     = new Date().toISOString().replace('T', ' ').slice(0, 16);
     fs.writeFileSync(avPath, JSON.stringify(av, null, 2), 'utf8');
 
-    // Update ?v=XXX in logistik/index.html
-    const lPath = path.join(ROOT, 'logistik', 'index.html');
-    let html = fs.readFileSync(lPath, 'utf8');
-    html = html.replace(/(js\/core\.js\?v=)\d+/g,  '$1' + newV);
-    html = html.replace(/(js\/app\.js\?v=)\d+/g,   '$1' + newV);
-    fs.writeFileSync(lPath, html, 'utf8');
+    // control/index.html hat eigene Versionsnummern – kein Auto-Bump nötig
 
     return newV;
 }
@@ -450,11 +454,11 @@ async function runHealthCheck() {
     const av = readVersions();
     ok('Versionen', 'Rechner Build ' + (av.webVersion||'?') + ' · Logistik v' + (av.logistikLabel||'?'));
 
-    // Logistik app files
-    const logistikFiles = ['logistik/index.html', 'logistik/js/core.js', 'logistik/js/app.js', 'logistik/manifest.webmanifest'];
-    const missingLogistik = logistikFiles.filter(f => !fs.existsSync(path.join(ROOT, f)));
-    if (!missingLogistik.length) ok('Logistik-App', 'Alle Dateien vorhanden');
-    else fail('Logistik-App', 'Dateien fehlen: ' + missingLogistik.join(', '));
+    // Control app files
+    const controlFiles = ['control/index.html', 'control/js/control-center-core.js'];
+    const missingControl = controlFiles.filter(f => !fs.existsSync(path.join(ROOT, f)));
+    if (!missingControl.length) ok('Control-App', 'Alle Dateien vorhanden');
+    else fail('Control-App', 'Dateien fehlen: ' + missingControl.join(', '));
 
     const okCount   = checks.filter(c=>c.status==='ok').length;
     const warnCount = checks.filter(c=>c.status==='warn').length;
@@ -463,7 +467,7 @@ async function runHealthCheck() {
         'Handy zeigt "Gerät verbunden" Meldung (USB)',
         'USB-Debugging in Entwickleroptionen aktiviert',
         'App öffnet sich nach Installation ohne Fehler',
-        'Logistik-App: URL im Browser testen',
+        'Control-App: URL im Browser testen',
     ]};
 }
 

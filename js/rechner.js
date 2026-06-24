@@ -1203,7 +1203,6 @@ function buildAppUI() {
                 <button class="add-btn" style="flex:1" onclick="addPal()">+ Speichern</button>`;
         } else if (prefix === 'sort') {
             buttonsHtml = `<button class="clear-btn" onclick="fullResetSort()">↺</button>
-                <button class="sonder-toggle-btn" onclick="toggleSonderModeSort()">+ Sonderp.</button>
                 <button class="add-btn" style="flex:1" onclick="addSort()">+ Speichern</button>`;
         }
 

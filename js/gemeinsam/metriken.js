@@ -787,7 +787,13 @@ function fertigNrAusSorte(sorte, articles) {
     const endMatch = s.match(/\((\d+)\)\s*$/);
     if (endMatch) return endMatch[1];
     const nrMatch = s.match(/^(\d+)\s*-\s*/);
-    if (nrMatch) return nrMatch[1];
+    if (nrMatch) {
+        if (Array.isArray(articles)) {
+            const hit = articles.find(a => String(a.nr || '') === nrMatch[1] || String(a.fertigNr || '') === nrMatch[1]);
+            if (hit) return hit.fertigNr || hit.nr || nrMatch[1];
+        }
+        return nrMatch[1];
+    }
     const clean = s.replace(/\s*\(UNS\)\s*/gi, '').replace(/\s*\(EX\)\s*/gi, '').trim();
     if (!Array.isArray(articles)) return null;
     const hit = articles.find((a) => {

@@ -11,8 +11,7 @@ function sanitizeCloudUrl(url) {
     return u;
 }
 function getEffectiveCloudUrl() {
-    const custom = sanitizeCloudUrl(localStorage.getItem('custom_cloud_url') || '');
-    return custom || 'https://tresch-versand-default-rtdb.firebaseio.com/backup';
+    return sanitizeCloudUrl(localStorage.getItem('custom_cloud_url') || '');
 }
 let CLOUD_URL = getEffectiveCloudUrl();
 

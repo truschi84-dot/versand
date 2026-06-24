@@ -138,13 +138,17 @@ function berechneSortierExportNachTierart(datum) {
         return !deletedKeys.includes(bKey);
     });
 
+    const artikelMarkt = db.artikelMarkt || {};
     buchungen.forEach(b => {
         const kg = parseFloat(b.gebuchtKg || b.kg) || 0;
         if (kg <= 0) return;
         const fertigNr = b.fertigNr || b.artikelNr || fertigNrAusSorteBuchung(b.sorte, articles);
         if (!fertigNr) return;
         const tierart = fertigNrZuTierart[String(fertigNr)];
-        if (tierart) result[tierart] += kg;
+        const marktTyp = typeof artikelMarktTyp === 'function'
+            ? artikelMarktTyp(fertigNr, b.sorte, artikelMarkt)
+            : 'export';
+        if (tierart && marktTyp === 'export') result[tierart] += kg;
     });
 
     return result;

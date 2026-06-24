@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WMS Tablet – Lagerverwaltung</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<style>
+:root {
+  --bg:#0f1117; --surface:#1a1d27; --surface2:#22263a; --border:#2e3347;
+  --accent:#4f8ef7; --green:#22c55e; --red:#ef4444; --orange:#f97316;
+  --yellow:#eab308; --purple:#a855f7; --text:#e2e8f0; --muted:#94a3b8; --r:14px;
+  --nav-w:220px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;overflow:hidden}
+
+/* ── SIDEBAR NAV ── */
+aside{width:var(--nav-w);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;padding:20px 0}
+.nav-logo{padding:0 20px 20px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.nav-logo h1{font-size:18px;font-weight:900;color:var(--accent)}
+.nav-logo p{font-size:11px;color:var(--muted);margin-top:2px}
+nav button{width:100%;padding:14px 20px;background:none;border:none;color:var(--muted);font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:12px;text-align:left;transition:all .2s;border-left:3px solid transparent}
+nav button.active{color:var(--accent);background:rgba(79,142,247,.08);border-left-color:var(--accent)}
+nav button svg{width:22px;height:22px;flex-shrink:0}
+.nav-bottom{margin-top:auto;padding:16px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)}
+
+/* ── MAIN ── */
+main{flex:1;overflow-y:auto;padding:24px}
+.page{display:none}
+.page.active{display:block}
+.page-title{font-size:22px;font-weight:800;margin-bottom:20px;color:var(--text)}
+
+/* ── TWO-COL LAYOUT ── */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+.cols-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:start}
+@media(max-width:900px){.cols,.cols-3{grid-template-columns:1fr}}
+
+/* ── CARDS ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:16px}
+.card h3{font-size:12px;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:.6px}
+
+/* ── FORMS ── */
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;margin-top:14px}
+label:first-child{margin-top:0}
+input,select{width:100%;padding:13px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:16px;outline:none;transition:border-color .2s}
+input:focus,select:focus{border-color:var(--accent)}
+select option{background:var(--surface2)}
+
+/* ── BUTTONS ── */
+.btn{width:100%;padding:15px;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;margin-top:14px;transition:opacity .15s,transform .1s}
+.btn:active{opacity:.85;transform:scale(.98)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-green{background:var(--green);color:#fff}
+.btn-red{background:var(--red);color:#fff}
+.btn-orange{background:var(--orange);color:#fff}
+.btn-outline{background:transparent;border:2px solid var(--border);color:var(--text)}
+.btn-purple{background:var(--purple);color:#fff}
+.btn-row{display:flex;gap:10px}
+.btn-row .btn{flex:1}
+.btn-icon{display:flex;align-items:center;justify-content:center;gap:8px}
+
+/* ── SCANNER ── */
+.scanner-wrap{position:relative;border-radius:var(--r);overflow:hidden;background:#000;margin-bottom:12px;display:none}
+.scanner-wrap video{width:100%;display:block;max-height:300px;object-fit:cover}
+.scanner-wrap canvas{display:none}
+.scan-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.scan-box{width:200px;height:200px;border:3px solid var(--accent);border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.45)}
+.scan-line{position:absolute;width:180px;height:2px;background:var(--accent);animation:scanline 2s linear infinite}
+@keyframes scanline{0%{top:calc(50% - 90px)}50%{top:calc(50% + 90px)}100%{top:calc(50% - 90px)}}
+
+/* ── ALERTS ── */
+.alert{padding:14px 16px;border-radius:10px;font-size:15px;margin-bottom:14px;display:none;line-height:1.5}
+.alert.show{display:block}
+.alert-ok{background:#14532d;border:1px solid var(--green);color:#86efac}
+.alert-err{background:#7f1d1d;border:1px solid var(--red);color:#fca5a5}
+.alert-info{background:#1e3a5f;border:1px solid var(--accent);color:#93c5fd}
+.alert-warn{background:#451a03;border:1px solid var(--orange);color:#fed7aa}
+
+/* ── BARCODE PARSED ── */
+.parsed-box{background:var(--surface2);border:2px solid var(--accent);border-radius:var(--r);padding:16px;margin-bottom:14px;display:none}
+.parsed-box.show{display:block}
+.parsed-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:14px}
+.parsed-row:last-child{border:none}
+.parsed-key{color:var(--muted)}
+.parsed-val{font-weight:700;color:var(--text)}
+
+/* ── FIFO BOX ── */
+.fifo-box{background:var(--surface2);border:3px solid var(--green);border-radius:var(--r);padding:24px;text-align:center;display:none;margin-bottom:16px}
+.fifo-box.show{display:block}
+.fifo-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.fifo-qr{font-size:48px;font-weight:900;color:var(--green);letter-spacing:4px;margin:8px 0}
+.fifo-sub{font-size:14px;color:var(--muted);line-height:1.7}
+
+/* ── STATS ── */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;text-align:center}
+.stat-val{font-size:38px;font-weight:900;line-height:1}
+.stat-label{font-size:12px;color:var(--muted);margin-top:6px}
+
+/* ── LAGERKARTE ── */
+.map-section{margin-bottom:28px}
+.map-title{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.map-title span{background:var(--surface2);padding:3px 12px;border-radius:99px;font-size:11px;font-weight:600}
+.regal-grid{display:flex;flex-direction:column;gap:7px}
+.regal-row{display:flex;gap:7px;align-items:center}
+.e-label{font-size:11px;color:var(--muted);width:26px;text-align:right;flex-shrink:0;font-weight:700}
+.spot{width:64px;height:64px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s;border:2px solid transparent;flex-shrink:0}
+.spot:hover{transform:scale(1.08)}
+.spot.frei{background:#14532d;color:var(--green);border-color:#166534}
+.spot.p1{background:#1e3a5f;color:#93c5fd;border-color:#1e40af}
+.spot.p2{background:#312e81;color:#c4b5fd;border-color:#3730a3}
+.spot.p3{background:#451a03;color:#fdba74;border-color:#7c2d12}
+.spot.p4{background:#4a1942;color:#f0abfc;border-color:#6b21a8}
+.spot.alt{background:#7c2d12;color:#fca5a5;border-color:#991b1b}
+.spot.ziel{background:var(--green);color:#fff;border-color:#16a34a;animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+.spot-nr{font-size:11px;font-weight:900}
+.spot-count{font-size:13px;font-weight:900;margin-top:2px}
+
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.leg{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.leg-dot{width:14px;height:14px;border-radius:4px;flex-shrink:0}
+
+/* ── TABELLE ── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{padding:11px 10px;text-align:left;color:var(--muted);border-bottom:1px solid var(--border);font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+td{padding:11px 10px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+.age-ok{color:var(--green);font-weight:700}
+.age-warn{color:var(--yellow);font-weight:700}
+.age-old{color:var(--red);font-weight:700}
+.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700}
+.badge-R{background:#1e3a5f;color:#93c5fd}
+.badge-G{background:#14532d;color:#86efac}
+.badge-L{background:#312e81;color:#c4b5fd}
+
+.flex-row{display:flex;gap:10px;align-items:center}
+.flex-row input{flex:1}
+.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+.muted{color:var(--muted);font-size:14px}
+.text-center{text-align:center}
+.mt8{margin-top:8px}
+
+/* ── ARTIKEL SUCHE ── */
+.artikel-search-wrap{position:relative}
+.artikel-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;max-height:260px;overflow-y:auto;z-index:200;display:none;margin-top:4px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.artikel-dropdown.show{display:block}
+.artikel-option{padding:12px 16px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.artikel-option:hover{background:var(--surface2)}
+.artikel-option:last-child{border:none}
+.artikel-nr{font-size:11px;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ── -->
+<aside>
+  <div class="nav-logo">
+    <h1>WMS</h1>
+    <p>Lagerverwaltung</p>
+  </div>
+  <nav>
+    <button class="active" onclick="showPage('einlagern')" id="nav-einlagern">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7-7 7 7"/></svg>Einlagern
+    </button>
+    <button onclick="showPage('auslagern')" id="nav-auslagern">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7 7 7-7"/></svg>Auslagern
+    </button>
+    <button onclick="showPage('uebersicht')" id="nav-uebersicht">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Übersicht
+    </button>
+  </nav>
+  <div class="nav-bottom">Tresch &amp; Sohn<br>Kleines Lager · 69 Plätze</div>
+</aside>
+
+<!-- ── MAIN ── -->
+<main>
+
+<!-- ══════ EINLAGERN ══════ -->
+<div class="page active" id="page-einlagern">
+  <div class="page-title">Einlagern</div>
+  <div class="cols">
+
+    <!-- Linke Spalte: Stellplatz + Paletten-Barcode -->
+    <div>
+      <div class="card">
+        <h3>Schritt 1 — Stellplatz scannen</h3>
+        <div class="scanner-wrap" id="sw-spot">
+          <video id="vid-spot" autoplay playsinline muted></video>
+          <canvas id="cvs-spot"></canvas>
+          <div class="scan-overlay"><div class="scan-box"></div><div class="scan-line"></div></div>
+        </div>
+        <div class="flex-row">
+          <input type="text" id="qr-spot" placeholder="QR-Code z.B. R-03-E2" oninput="this.value=this.value.toUpperCase()">
+          <button class="btn btn-outline" style="width:56px;margin-top:0;padding:13px 0;font-size:20px" onclick="toggleScan('spot')">📷</button>
+        </div>
+        <button class="btn btn-primary btn-icon" onclick="ladeSpot()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          Stellplatz laden
+        </button>
+      </div>
+
+      <div id="spot-info" class="alert"></div>
+
+      <div id="warn-card" class="card" style="display:none">
+        <div id="spot-warn" class="alert alert-warn show"></div>
+        <button class="btn btn-orange" onclick="zeigPalettenScan()">Trotzdem einlagern (Sonderposten)</button>
+        <button class="btn btn-outline mt8" onclick="resetEin()">Abbrechen</button>
+      </div>
+    </div>
+
+    <!-- Rechte Spalte: Paletten-Barcode + Formular -->
+    <div>
+      <div class="card" id="pallet-scan-card" style="display:none">
+        <h3>Schritt 2 — Paletten-Barcode scannen</h3>
+        <div class="scanner-wrap" id="sw-pallet">
+          <video id="vid-pallet" autoplay playsinline muted></video>
+          <canvas id="cvs-pallet"></canvas>
+          <div class="scan-overlay"><div class="scan-box"></div><div class="scan-line"></div></div>
+        </div>
+        <div class="flex-row">
+          <input type="text" id="qr-pallet" placeholder="Paletten-Barcode" oninput="parsePalletBarcode(this.value)">
+          <button class="btn btn-outline" style="width:56px;margin-top:0;padding:13px 0;font-size:20px" onclick="toggleScan('pallet')">📷</button>
+        </div>
+        <div id="parsed-box" class="parsed-box">
+          <div class="parsed-row"><span class="parsed-key">Artikel</span><span class="parsed-val" id="p-artikel">–</span></div>
+          <div class="parsed-row"><span class="parsed-key">Art.-Nr.</span><span class="parsed-val" id="p-nr">–</span></div>
+          <div class="parsed-row"><span class="parsed-key">Verp.-Datum</span><span class="parsed-val" id="p-datum">–</span></div>
+        </div>
+        <p class="muted" style="margin-bottom:12px;font-size:13px">Oder manuell eingeben:</p>
+
+        <label>Artikel suchen</label>
+        <div class="artikel-search-wrap">
+          <input type="text" id="artikel-search" placeholder="Name oder Nummer tippen…" oninput="filterArtikel()" autocomplete="off">
+          <div class="artikel-dropdown" id="artikel-dropdown"></div>
+          <input type="hidden" id="ein-artikel-id">
+          <div id="ein-artikel-display" style="font-size:13px;color:var(--accent);margin-top:6px;display:none"></div>
+        </div>
+
+        <label>Verpackungsdatum</label>
+        <input type="date" id="ein-datum">
+        <label>Mitarbeiter</label>
+        <input type="text" id="ein-ma" placeholder="Name (optional)">
+        <button class="btn btn-green btn-icon" onclick="einlagern()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          Einlagern bestätigen
+        </button>
+        <button class="btn btn-outline mt8" onclick="resetEin()">Abbrechen</button>
+      </div>
+
+      <div id="ein-result" class="alert"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ AUSLAGERN ══════ -->
+<div class="page" id="page-auslagern">
+  <div class="page-title">Auslagern (FIFO)</div>
+  <div class="cols">
+
+    <div>
+      <div class="card">
+        <h3>Artikel suchen</h3>
+        <label>Artikel</label>
+        <div class="artikel-search-wrap">
+          <input type="text" id="aus-search" placeholder="Name oder Nummer tippen…" oninput="filterArtikelAus()" autocomplete="off">
+          <div class="artikel-dropdown" id="aus-dropdown"></div>
+          <input type="hidden" id="aus-artikel-id">
+          <div id="aus-artikel-display" style="font-size:13px;color:var(--accent);margin-top:6px;display:none"></div>
+        </div>
+        <button class="btn btn-primary btn-icon" style="margin-top:20px" onclick="sucheArtikel()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          Älteste Palette suchen
+        </button>
+      </div>
+
+      <div id="aus-alle" style="display:none">
+        <div class="card">
+          <h3>Alle Plätze mit diesem Artikel</h3>
+          <div id="aus-alle-liste"></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="fifo-box" id="aus-fifo">
+        <div class="fifo-label">FIFO — Älteste Palette</div>
+        <div class="fifo-qr" id="aus-qr"></div>
+        <div class="fifo-sub" id="aus-detail"></div>
+        <hr class="divider">
+        <div style="overflow-x:auto" id="aus-map"></div>
+      </div>
+
+      <div class="card" id="aus-confirm" style="display:none">
+        <h3>QR-Code scannen zur Bestätigung</h3>
+        <div class="scanner-wrap" id="sw-aus">
+          <video id="vid-aus" autoplay playsinline muted></video>
+          <canvas id="cvs-aus"></canvas>
+          <div class="scan-overlay"><div class="scan-box"></div><div class="scan-line"></div></div>
+        </div>
+        <div class="flex-row">
+          <input type="text" id="qr-aus" placeholder="QR-Code scannen" oninput="this.value=this.value.toUpperCase()">
+          <button class="btn btn-outline" style="width:56px;margin-top:0;padding:13px 0;font-size:20px" onclick="toggleScan('aus')">📷</button>
+        </div>
+        <label>Mitarbeiter</label>
+        <input type="text" id="aus-ma" placeholder="Name (optional)">
+        <div class="btn-row">
+          <button class="btn btn-red btn-icon" onclick="auslagern()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+            Bestätigen
+          </button>
+          <button class="btn btn-outline" onclick="resetAus()">Abbrechen</button>
+        </div>
+      </div>
+
+      <div id="aus-result" class="alert"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ ÜBERSICHT ══════ -->
+<div class="page" id="page-uebersicht">
+  <div class="page-title">Lagerübersicht</div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-val" id="st-paletten">–</div><div class="stat-label">Paletten gesamt</div></div>
+    <div class="stat"><div class="stat-val" style="color:var(--green)" id="st-frei">–</div><div class="stat-label">Freie Plätze</div></div>
+    <div class="stat"><div class="stat-val" style="color:var(--red)" id="st-alt">–</div><div class="stat-label">Alte Ware (&gt;7T)</div></div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <div class="card">
+        <h3>Lagerkarte</h3>
+        <div class="legend">
+          <div class="leg"><div class="leg-dot" style="background:#14532d"></div>Frei</div>
+          <div class="leg"><div class="leg-dot" style="background:#1e3a5f"></div>1 Palette</div>
+          <div class="leg"><div class="leg-dot" style="background:#312e81"></div>2 Paletten</div>
+          <div class="leg"><div class="leg-dot" style="background:#7c2d12"></div>Alte Ware</div>
+        </div>
+        <div id="ue-map" style="overflow-x:auto"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h3>Bestand — älteste zuerst</h3>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Artikel</th><th>Platz</th><th>Verp.-Datum</th><th>Alter</th></tr></thead>
+            <tbody id="ue-tabelle"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+const SB = supabase.createClient(
+  'https://qoaqpzmclvacaorginor.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvYXFwem1jbHZhY2Fvcmdpbm9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNzQ3NjYsImV4cCI6MjA5Njg1MDc2Nn0.QddH8vVM2-yD8PIW89phVVKAkwX8Rl4-occwmabeUyk'
+);
+
+let alleArtikel = [], aktSpot = null, zielPalette = null, scanStreams = {}, scanIntervals = {};
+let einArtikelId = null, ausArtikelId = null;
+
+// ── INIT ──────────────────────────────────────────
+async function init() {
+  const { data } = await SB.from('wms_artikel').select('*').eq('aktiv', true).order('name');
+  alleArtikel = data || [];
+  document.getElementById('ein-datum').valueAsDate = new Date();
+}
+
+// ── NAVIGATION ────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  stopAllScan();
+  if (name === 'uebersicht') ladeUebersicht();
+}
+
+// ── QR / BARCODE SCANNER ──────────────────────────
+async function toggleScan(id) {
+  const w = document.getElementById('sw-' + id);
+  if (w.style.display === 'block') { stopScan(id); return; }
+  w.style.display = 'block';
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const v = document.getElementById('vid-' + id); v.srcObject = stream; v.play();
+    scanStreams[id] = stream;
+    scanIntervals[id] = setInterval(() => scanFrame(id), 200);
+  } catch(e) { w.style.display = 'none'; alert('Kamera: ' + e.message); }
+}
+function scanFrame(id) {
+  const v = document.getElementById('vid-' + id);
+  if (v.readyState !== v.HAVE_ENOUGH_DATA) return;
+  const c = document.getElementById('cvs-' + id);
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  const ctx = c.getContext('2d'); ctx.drawImage(v, 0, 0);
+  const code = jsQR(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height, { inversionAttempts: 'dontInvert' });
+  if (!code?.data) return;
+  const val = code.data.trim();
+  stopScan(id);
+  if (id === 'spot')   { document.getElementById('qr-spot').value = val.toUpperCase(); ladeSpot(); }
+  if (id === 'pallet') { document.getElementById('qr-pallet').value = val; parsePalletBarcode(val); }
+  if (id === 'aus')    { document.getElementById('qr-aus').value = val.toUpperCase(); }
+}
+function stopScan(id) {
+  clearInterval(scanIntervals[id]);
+  scanStreams[id]?.getTracks().forEach(t => t.stop()); delete scanStreams[id];
+  const w = document.getElementById('sw-' + id); if (w) w.style.display = 'none';
+}
+function stopAllScan() { ['spot','pallet','aus'].forEach(stopScan); }
+
+// ── GS1-128 BARCODE PARSER ────────────────────────
+function parsePalletBarcode(raw) {
+  if (!raw || raw.length < 10) return;
+  const box = document.getElementById('parsed-box');
+
+  // AI 01: GTIN (14 Stellen) → Artikelnummer
+  let artikelNr = null;
+  const gtinMatch = raw.match(/^01(\d{14})/);
+  if (gtinMatch) {
+    // GTIN-14: Stelle 2-13 (ohne führende Null und Check-Digit) = Artikelnummer
+    artikelNr = String(parseInt(gtinMatch[1].slice(1, 13)));
+  }
+
+  // AI 11: Produktionsdatum YYMMDD
+  let datum = null;
+  const dateMatch = raw.match(/11(\d{6})/);
+  if (dateMatch) {
+    const yy = dateMatch[1].slice(0,2), mm = dateMatch[1].slice(2,4), dd = dateMatch[1].slice(4,6);
+    datum = `20${yy}-${mm}-${dd}`;
+  }
+
+  if (!artikelNr && !datum) { box.classList.remove('show'); return; }
+
+  // Artikel in Liste suchen
+  let gefunden = null;
+  if (artikelNr) gefunden = alleArtikel.find(a => a.artikel_nummer === artikelNr);
+
+  document.getElementById('p-nr').textContent = artikelNr || '–';
+  document.getElementById('p-artikel').textContent = gefunden ? gefunden.name : (artikelNr ? `Unbekannt (${artikelNr})` : '–');
+  document.getElementById('p-datum').textContent = datum ? fmtDatum(datum) : '–';
+  box.classList.add('show');
+
+  // Felder auto-ausfüllen
+  if (datum) document.getElementById('ein-datum').value = datum;
+  if (gefunden) setArtikel(gefunden.id, gefunden.name, gefunden.artikel_nummer);
+}
+
+// ── ARTIKEL SUCHE ─────────────────────────────────
+function filterArtikel() {
+  const q = document.getElementById('artikel-search').value.toLowerCase();
+  showArtikelDropdown(q, 'artikel-dropdown', setArtikel);
+}
+function filterArtikelAus() {
+  const q = document.getElementById('aus-search').value.toLowerCase();
+  showArtikelDropdown(q, 'aus-dropdown', setArtikelAus);
+}
+function showArtikelDropdown(q, dropId, onSelect) {
+  const drop = document.getElementById(dropId);
+  if (!q) { drop.classList.remove('show'); return; }
+  const matches = alleArtikel.filter(a =>
+    a.name.toLowerCase().includes(q) || (a.artikel_nummer || '').includes(q)
+  ).slice(0, 12);
+  if (!matches.length) { drop.classList.remove('show'); return; }
+  drop.innerHTML = matches.map(a =>
+    `<div class="artikel-option" onclick="(${onSelect.name})('${a.id}','${a.name.replace(/'/g,"\\'")}','${a.artikel_nummer||''}')">
+      <span>${a.name}</span>
+      ${a.artikel_nummer ? `<span class="artikel-nr">${a.artikel_nummer}</span>` : ''}
+    </div>`
+  ).join('');
+  drop.classList.add('show');
+}
+function setArtikel(id, name, nr) {
+  einArtikelId = id;
+  document.getElementById('ein-artikel-id').value = id;
+  document.getElementById('artikel-search').value = name;
+  document.getElementById('ein-artikel-display').textContent = `✓ ${name}${nr ? ' · Nr. ' + nr : ''}`;
+  document.getElementById('ein-artikel-display').style.display = 'block';
+  document.getElementById('artikel-dropdown').classList.remove('show');
+}
+function setArtikelAus(id, name, nr) {
+  ausArtikelId = id;
+  document.getElementById('aus-artikel-id').value = id;
+  document.getElementById('aus-search').value = name;
+  document.getElementById('aus-artikel-display').textContent = `✓ ${name}${nr ? ' · Nr. ' + nr : ''}`;
+  document.getElementById('aus-artikel-display').style.display = 'block';
+  document.getElementById('aus-dropdown').classList.remove('show');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.artikel-search-wrap')) {
+    document.querySelectorAll('.artikel-dropdown').forEach(d => d.classList.remove('show'));
+  }
+});
+
+// ── EINLAGERN ─────────────────────────────────────
+async function ladeSpot() {
+  const qr = document.getElementById('qr-spot').value.trim().toUpperCase();
+  if (!qr) return;
+  const { data, error } = await SB.from('wms_stellplaetze')
+    .select('*, wms_paletten(id, artikel_id, verpackungsdatum, wms_artikel(name))')
+    .eq('qr_code', qr).single();
+  const info = document.getElementById('spot-info');
+  resetEinCards();
+  if (error || !data) { showAlert(info, 'err', `Stellplatz "${qr}" nicht gefunden.`); return; }
+  aktSpot = data;
+  const pCount = data.wms_paletten?.length || 0;
+  const eb = ['','Ebene 1 (Boden)','Ebene 2 (Mitte)','Ebene 3 (Oben)'][data.reihe]||'';
+  const br = {R:'Rechts',G:'Geradeaus',L:'Links'}[data.bereich]||data.bereich;
+  showAlert(info, 'info', `✓ ${br}, Feld ${data.spalte}, ${eb}`);
+  if (pCount > 0) {
+    const namen = [...new Set(data.wms_paletten.map(p => p.wms_artikel?.name||'?'))].join(', ');
+    document.getElementById('spot-warn').textContent = `Platz hat bereits ${pCount} Palette(n): ${namen}. Sonderposten hinzufügen?`;
+    document.getElementById('warn-card').style.display = 'block';
+  } else { zeigPalettenScan(); }
+}
+function zeigPalettenScan() {
+  document.getElementById('warn-card').style.display = 'none';
+  document.getElementById('pallet-scan-card').style.display = 'block';
+}
+async function einlagern() {
+  const artId = einArtikelId;
+  const datum = document.getElementById('ein-datum').value;
+  const ma = document.getElementById('ein-ma').value;
+  const result = document.getElementById('ein-result');
+  if (!aktSpot || !artId || !datum) { showAlert(result, 'err', 'Bitte Artikel und Datum ausfüllen.'); return; }
+  const { data: pal, error } = await SB.from('wms_paletten').insert({ stellplatz_id:aktSpot.id, artikel_id:artId, verpackungsdatum:datum, eingelagert_von:ma||null }).select().single();
+  if (error) { showAlert(result, 'err', 'Fehler: ' + error.message); return; }
+  await SB.from('wms_stellplaetze').update({ belegt:true }).eq('id', aktSpot.id);
+  await SB.from('wms_bewegungen').insert({ typ:'einlagerung', stellplatz_id:aktSpot.id, artikel_id:artId, verpackungsdatum:datum, palette_id:pal.id, mitarbeiter:ma||null });
+  const artName = alleArtikel.find(a=>a.id===artId)?.name||'';
+  showAlert(result, 'ok', `✓ ${artName} eingelagert auf ${aktSpot.qr_code}`);
+  resetEin();
+}
+function resetEin() {
+  aktSpot = null; einArtikelId = null;
+  document.getElementById('qr-spot').value = '';
+  document.getElementById('qr-pallet').value = '';
+  document.getElementById('artikel-search').value = '';
+  document.getElementById('ein-artikel-display').style.display = 'none';
+  document.getElementById('parsed-box').classList.remove('show');
+  resetEinCards();
+}
+function resetEinCards() {
+  document.getElementById('spot-info').style.display = 'none';
+  document.getElementById('warn-card').style.display = 'none';
+  document.getElementById('pallet-scan-card').style.display = 'none';
+}
+
+// ── AUSLAGERN (FIFO) ──────────────────────────────
+async function sucheArtikel() {
+  const artId = ausArtikelId;
+  const result = document.getElementById('aus-result');
+  if (!artId) { showAlert(result, 'err', 'Bitte Artikel wählen.'); return; }
+  result.style.display = 'none';
+  const { data, error } = await SB.from('wms_paletten')
+    .select('*, wms_stellplaetze(id,qr_code,bezeichnung,bereich,reihe,spalte)')
+    .eq('artikel_id', artId).order('verpackungsdatum', { ascending: true });
+  if (error || !data?.length) {
+    document.getElementById('aus-fifo').classList.remove('show');
+    document.getElementById('aus-alle').style.display = 'none';
+    showAlert(result, 'err', 'Kein Bestand mit diesem Artikel.'); return;
+  }
+  zielPalette = data[0];
+  const sp = data[0].wms_stellplaetze;
+  const alter = tageDiff(data[0].verpackungsdatum);
+  document.getElementById('aus-qr').textContent = sp.qr_code;
+  document.getElementById('aus-detail').innerHTML =
+    `${sp.bezeichnung}<br>Verpackt: ${fmtDatum(data[0].verpackungsdatum)} — ${alter} Tage alt`;
+  document.getElementById('aus-fifo').classList.add('show');
+  document.getElementById('aus-confirm').style.display = 'block';
+  await renderMiniMap(sp);
+  if (data.length > 1) {
+    const liste = data.slice(1).map(p =>
+      `<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:14px">
+        <span class="badge badge-${p.wms_stellplaetze.bereich}">${p.wms_stellplaetze.qr_code}</span>
+        &nbsp;${p.wms_stellplaetze.bezeichnung}<br>
+        <span style="color:var(--muted);font-size:12px">${fmtDatum(p.verpackungsdatum)} · ${tageDiff(p.verpackungsdatum)} Tage</span>
+      </div>`).join('');
+    document.getElementById('aus-alle-liste').innerHTML = liste;
+    document.getElementById('aus-alle').style.display = 'block';
+  } else { document.getElementById('aus-alle').style.display = 'none'; }
+}
+async function renderMiniMap(zielSP) {
+  const { data } = await SB.from('wms_stellplaetze').select('*, wms_paletten(id,verpackungsdatum)').eq('bereich', zielSP.bereich).order('reihe').order('spalte');
+  document.getElementById('aus-map').innerHTML = buildRegal(data, zielSP.qr_code);
+}
+async function auslagern() {
+  const qr = document.getElementById('qr-aus').value.trim().toUpperCase();
+  const ma = document.getElementById('aus-ma').value;
+  const result = document.getElementById('aus-result');
+  if (!zielPalette) { showAlert(result, 'err', 'Bitte zuerst Artikel suchen.'); return; }
+  if (qr !== zielPalette.wms_stellplaetze.qr_code) {
+    showAlert(result, 'err', `Falscher QR! Erwartet: ${zielPalette.wms_stellplaetze.qr_code}`); return;
+  }
+  await SB.from('wms_bewegungen').insert({ typ:'auslagerung', stellplatz_id:zielPalette.stellplatz_id, artikel_id:zielPalette.artikel_id, verpackungsdatum:zielPalette.verpackungsdatum, palette_id:zielPalette.id, mitarbeiter:ma||null });
+  await SB.from('wms_paletten').delete().eq('id', zielPalette.id);
+  const { data: rest } = await SB.from('wms_paletten').select('id').eq('stellplatz_id', zielPalette.stellplatz_id);
+  if (!rest?.length) await SB.from('wms_stellplaetze').update({ belegt:false }).eq('id', zielPalette.stellplatz_id);
+  showAlert(result, 'ok', `✓ Ausgelagert von ${zielPalette.wms_stellplaetze.qr_code}`);
+  resetAus();
+}
+function resetAus() {
+  zielPalette = null; ausArtikelId = null;
+  document.getElementById('qr-aus').value = '';
+  document.getElementById('aus-search').value = '';
+  document.getElementById('aus-artikel-display').style.display = 'none';
+  document.getElementById('aus-fifo').classList.remove('show');
+  document.getElementById('aus-confirm').style.display = 'none';
+  document.getElementById('aus-alle').style.display = 'none';
+}
+
+// ── ÜBERSICHT ─────────────────────────────────────
+async function ladeUebersicht() {
+  const [{ data: spots }, { data: paletten }] = await Promise.all([
+    SB.from('wms_stellplaetze').select('*, wms_paletten(id,verpackungsdatum)').order('bereich').order('reihe').order('spalte'),
+    SB.from('wms_paletten').select('*, wms_stellplaetze(qr_code,bezeichnung,bereich), wms_artikel(name)').order('verpackungsdatum', { ascending: true })
+  ]);
+  document.getElementById('st-paletten').textContent = paletten?.length || 0;
+  document.getElementById('st-frei').textContent = spots?.filter(s => !s.belegt).length || 0;
+  document.getElementById('st-alt').textContent = paletten?.filter(p => tageDiff(p.verpackungsdatum) > 7).length || 0;
+  const R = spots?.filter(s => s.bereich==='R')||[], G = spots?.filter(s=>s.bereich==='G')||[], L = spots?.filter(s=>s.bereich==='L')||[];
+  document.getElementById('ue-map').innerHTML =
+    `<div class="map-section"><div class="map-title">Rechts <span>7 × 3</span></div>${buildRegal(R)}</div>` +
+    `<div class="map-section"><div class="map-title">Geradeaus <span>9 × 3</span></div>${buildRegal(G)}</div>` +
+    `<div class="map-section"><div class="map-title">Links <span>7 × 3</span></div>${buildRegal(L)}</div>`;
+  const tbody = document.getElementById('ue-tabelle');
+  if (!paletten?.length) { tbody.innerHTML = '<tr><td colspan="4" class="muted text-center" style="padding:20px">Kein Bestand</td></tr>'; return; }
+  tbody.innerHTML = paletten.map(p => {
+    const alter = tageDiff(p.verpackungsdatum);
+    const cls = alter>7?'age-old':alter>4?'age-warn':'age-ok';
+    const b = p.wms_stellplaetze?.bereich||'?';
+    return `<tr><td>${p.wms_artikel?.name||'–'}</td><td><span class="badge badge-${b}">${p.wms_stellplaetze?.qr_code||'–'}</span></td><td>${fmtDatum(p.verpackungsdatum)}</td><td class="${cls}">${alter}T</td></tr>`;
+  }).join('');
+}
+
+// ── LAGERKARTE ────────────────────────────────────
+function buildRegal(spots, zielQr=null) {
+  if (!spots?.length) return '<p class="muted">Keine Plätze</p>';
+  const em = {};
+  spots.forEach(s => { if (!em[s.reihe]) em[s.reihe]=[]; em[s.reihe].push(s); });
+  const ebenen = Object.keys(em).map(Number).sort((a,b)=>b-a);
+  const el = {1:'E1',2:'E2',3:'E3'};
+  let h = '<div class="regal-grid">';
+  ebenen.forEach(e => {
+    h += `<div class="regal-row"><div class="e-label">${el[e]||e}</div>`;
+    em[e].sort((a,b)=>a.spalte-b.spalte).forEach(s => {
+      const isZiel = zielQr && s.qr_code===zielQr;
+      const pals = s.wms_paletten||[], n=pals.length;
+      const maxAlter = n>0?Math.max(...pals.map(p=>tageDiff(p.verpackungsdatum))):0;
+      const cls = isZiel?'ziel':(n===0?'frei':(maxAlter>7?'alt':`p${Math.min(n,4)}`));
+      const label = isZiel?'↓':(n===0?'':n+'P');
+      const nr = s.qr_code.replace(/^[RGL]-/,'').replace('-E','/');
+      h += `<div class="spot ${cls}" title="${s.bezeichnung}"><div class="spot-nr">${nr}</div><div class="spot-count">${label}</div></div>`;
+    });
+    h += '</div>';
+  });
+  return h + '</div>';
+}
+
+// ── HELPERS ───────────────────────────────────────
+function tageDiff(d) { return Math.floor((new Date()-new Date(d))/86400000); }
+function fmtDatum(d) { if(!d)return'–'; const[y,m,t]=d.split('-'); return`${t}.${m}.${y}`; }
+function showAlert(el,type,msg) { el.className=`alert alert-${type} show`; el.style.display='block'; el.textContent=msg; }
+
+init();
+</script>
+</body>
+</html>

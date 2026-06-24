@@ -2,6 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tresch & Sohn – Control Center</title>
     <style>
         :root { --primary: #004b93; --primary-light: #e8f0fa; --bg: #eef1f6; --sidebar: #141820; --sidebar-hover: #1f2633; --accent: #e65100; --success: #137333; --noelke: #137333; --todo: #d32f2f; --sonder: #673ab7; --text-muted: #5f6368; --border: #e0e4ea; --radius: 12px; }
@@ -300,6 +301,51 @@
         .offline-banner { background:#fff8e1; border:1.5px solid #ff9800; border-radius:10px; padding:14px 18px; display:none; }
         .offline-banner h3 { margin:0 0 6px; color:#e65100; font-size:14px; }
         .offline-banner p  { margin:0; font-size:13px; color:#5d4037; }
+
+        /* DROPDOWN NAV GROUPS */
+        .nav-group-header { padding: 11px 20px; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 10px; user-select: none; font-size: 14px; border-left: 3px solid transparent; color: #e8eaed; }
+        .nav-group-header:hover { background: var(--sidebar-hover); }
+        .nav-group-header .nav-arrow { margin-left: auto; font-size: 10px; transition: transform 0.2s; opacity: 0.55; }
+        .nav-group-header.open .nav-arrow { transform: rotate(180deg); }
+        .nav-group-header.open { color: #fff; }
+        .nav-group-body { display: none; flex-direction: column; background: rgba(0,0,0,0.18); }
+        .nav-group-body .nav-item { padding-left: 36px; font-size: 13px; color: #c8cdd6; }
+        .nav-group-body .nav-item.active { background: rgba(0,75,147,0.4); border-left-color: #ff9800; color: #fff; }
+
+        /* MOBILE HEADER (nur ≤900px sichtbar) */
+        .mobile-header { display: none; position: sticky; top: 0; left: 0; right: 0; height: 52px; background: var(--sidebar); color: #e8eaed; align-items: center; gap: 14px; padding: 0 18px; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.25); flex-shrink: 0; }
+        .hamburger-btn { background: none; border: none; color: #e8eaed; font-size: 22px; cursor: pointer; padding: 4px 8px; border-radius: 6px; line-height: 1; touch-action: manipulation; }
+        .hamburger-btn:hover { background: var(--sidebar-hover); }
+        .mobile-title { font-weight: 800; font-size: 15px; letter-spacing: 0.02em; }
+        .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 150; }
+        .sidebar-backdrop.visible { display: block; }
+
+        /* TABLET / MOBILE RESPONSIVE */
+        @media (max-width: 900px) {
+            body { overflow-y: auto; height: auto; min-height: 100vh; flex-direction: column; }
+            .sidebar { position: fixed; left: -268px; top: 0; bottom: 0; height: 100vh; z-index: 200; transition: left 0.25s ease; }
+            .sidebar.mobile-open { left: 0; }
+            .mobile-header { display: flex; }
+            .main { width: 100%; }
+            .tab-content { padding: 16px 16px 80px; }
+            .sticky-save-bar { left: 0; }
+            #tab-artikel.active { height: auto !important; min-height: calc(100vh - 52px); overflow: visible !important; }
+            .v10-table-container { max-height: 60vh; }
+            .deploy-grid { grid-template-columns: 1fr; }
+            .deploy-steps { grid-template-columns: repeat(2, 1fr); }
+            .deploy-status-grid { grid-template-columns: repeat(2, 1fr); }
+            .briefing-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ANDROID APK mode (Klasse wird per WebView gesetzt) */
+        html.is-android-app { height: 100%; overflow: hidden; }
+        .is-android-app body { height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+        .is-android-app .mobile-header { flex-shrink: 0; }
+        .is-android-app .main { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+        .is-android-app .tab-content.active { flex: 1 !important; overflow-y: auto !important; height: auto !important; -webkit-overflow-scrolling: touch; padding-bottom: 70px; }
+        .is-android-app #tab-artikel.active { height: auto !important; overflow: visible !important; flex: 1; }
+        .is-android-app .v10-table-container { flex: 1; overflow-y: auto; max-height: none; }
+        .is-android-app .sticky-save-bar { left: 0; right: 0; position: fixed; bottom: 0; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="../js/druck_utils.js?v=134"></script>
@@ -406,31 +452,54 @@
         </div>
     </div>
 
-    <div class="sidebar">
+    <div class="mobile-header" id="mobile-header">
+        <button class="hamburger-btn" onclick="toggleMobileSidebar()" aria-label="Menü">☰</button>
+        <span class="mobile-title">Tresch Control Center</span>
+    </div>
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+
+    <div class="sidebar" id="main-sidebar">
         <div class="sidebar-header">
             <div class="brand">Tresch Control Center</div>
-            <div class="sub">Logistik & Rechner · PC</div>
-            <a class="app-link" href="../index.html" target="_blank">📱 Tablet-App öffnen</a>
+            <div class="sub">Verwaltung · PC / Tablet</div>
+            <a class="app-link" href="../index.html" target="_blank">📱 Rechner-App öffnen</a>
         </div>
         <div class="sidebar-nav-main">
-        <div class="nav-section">Verwaltung</div>
         <div class="nav-item active" onclick="showTab('home', this)">🏠 Übersicht</div>
-        <div class="nav-item" onclick="showTab('artikel', this)">📦 Artikel-Zuordnung</div>
-        <div class="nav-item" onclick="showTab('lieferanten', this)">🚚 Lieferanten</div>
-        <div class="nav-item" id="nav-mitarbeiter" onclick="showTab('mitarbeiter', this)">👥 Mitarbeiter</div>
+
+        <div class="nav-group" id="group-verwaltung">
+            <div class="nav-group-header" onclick="toggleNavGroup('group-verwaltung')">📦 Verwaltung <span class="nav-arrow">▾</span></div>
+            <div class="nav-group-body">
+                <div class="nav-item" onclick="showTab('artikel', this)">📦 Artikel-Zuordnung</div>
+                <div class="nav-item" onclick="showTab('lieferanten', this)">🚚 Lieferanten</div>
+                <div class="nav-item" id="nav-mitarbeiter" onclick="showTab('mitarbeiter', this)">👥 Mitarbeiter</div>
+                <div class="nav-item" onclick="showTab('noelke', this)">📝 Nölke-Katalog</div>
+                <div class="nav-item" onclick="showTab('sortimente', this)">🔗 Sortimente</div>
+                <div class="nav-item" onclick="showTab('sonderposten', this)">📦 Sonderposten</div>
+                <div class="nav-item" onclick="showTab('qm', this)">🛡️ Reklamationen</div>
+            </div>
+        </div>
+
         <div class="nav-item" id="nav-briefing" onclick="showTab('briefing', this)">📢 Tages-Briefing</div>
-        <div class="nav-item" onclick="showTab('sortimente', this)">🔗 Sortimente</div>
-        <div class="nav-item" onclick="showTab('noelke', this)">📝 Nölke-Katalog</div>
-        <div class="nav-item" onclick="showTab('sonderposten', this)">📦 Sonderposten</div>
-        <div class="nav-item" onclick="showTab('qm', this)">🛡️ Reklamationen</div>
-        <div class="nav-item" onclick="showTab('tagesexport', this); initTagesexportTab();">📊 Tagesexport</div>
-        <div class="nav-section" style="margin-top:8px;">Einstellungen</div>
-        <div class="nav-item" onclick="showTab('erfassung', this)">📅 Tages-Erfassung</div>
-        <div class="nav-item" onclick="showTab('stats', this)">📊 Statistiken</div>
-        <div class="nav-item" onclick="showTab('company', this)">⚙️ App-Einstellungen</div>
-        <div class="nav-item" id="nav-system" onclick="showTab('system', this)">🔧 System & PINs</div>
-        <div class="nav-item" id="nav-handy-update" onclick="showTab('handy-update', this)">🚀 Updates & Deploy</div>
-        <div class="nav-item" onclick="showTab('raw', this)">📝 JSON Editor</div>
+
+        <div class="nav-group" id="group-info">
+            <div class="nav-group-header" onclick="toggleNavGroup('group-info')">📊 Info <span class="nav-arrow">▾</span></div>
+            <div class="nav-group-body">
+                <div class="nav-item" onclick="showTab('stats', this)">📊 Statistiken</div>
+                <div class="nav-item" onclick="showTab('tagesexport', this); initTagesexportTab();">📊 Tagesexport</div>
+                <div class="nav-item" onclick="showTab('erfassung', this)">📅 Tages-Erfassung</div>
+            </div>
+        </div>
+
+        <div class="nav-group" id="group-einstellungen">
+            <div class="nav-group-header" onclick="toggleNavGroup('group-einstellungen')">⚙️ Einstellungen <span class="nav-arrow">▾</span></div>
+            <div class="nav-group-body">
+                <div class="nav-item" onclick="showTab('company', this)">⚙️ App-Einstellungen</div>
+                <div class="nav-item" id="nav-system" onclick="showTab('system', this)">🔧 System & PINs</div>
+                <div class="nav-item" id="nav-handy-update" onclick="showTab('handy-update', this)">🚀 Updates & Deploy</div>
+                <div class="nav-item" onclick="showTab('raw', this)">📝 JSON Editor</div>
+            </div>
+        </div>
         </div>
     </div>
 
@@ -623,6 +692,7 @@
                         <h2 style="margin: 0;">Artikel-Zuordnung</h2>
                         <button class="btn btn-black no-print" style="padding: 5px 10px; font-size: 12px; border: 1px solid #fff;" onclick="printV10List()">🖨️ Drucken</button>
                         <button class="btn btn-success no-print" style="padding: 5px 10px; font-size: 12px;" onclick="exportV10Excel()">📊 Excel</button>
+                        <button class="btn no-print" style="padding: 5px 10px; font-size: 12px; background:#6366f1; color:#fff;" onclick="syncArtikelToWMS()">🔄 WMS Sync</button>
                     </div>
                     <button class="btn-lose-menu no-print" onclick="toggleLoseMenu()">🍔 Lose (<span id="count-lose">0</span>)</button>
                 </div>
@@ -1016,21 +1086,18 @@
                             <button class="dbtn dbtn-ghost dbtn-full" id="btn-deploy-apk" onclick="startUsbDeployApkOnly()">📦 Nur APK installieren</button>
                         </div>
                     </div>
-                    <!-- Logistik -->
+                    <!-- Control APK (Tablet) -->
                     <div class="deploy-card">
                         <div class="deploy-card-header">
-                            <div class="deploy-card-icon" style="background:#dcfce7;">📊</div>
+                            <div class="deploy-card-icon" style="background:#dbeafe;">🖥️</div>
                             <div class="deploy-card-body">
-                                <h3>Logistik-App</h3>
-                                <p>Chef-Handys · APK per USB oder WLAN<br><span style="font-size:11px; color:#94a3b8;"><strong id="logistik-lan-url">http://&lt;PC-IP&gt;:8080/logistik/</strong></span></p>
+                                <h3>Control-App (Tablet)</h3>
+                                <p>Chef-Tablet · APK per USB<br><span style="font-size:11px; color:#94a3b8;">Projekt: <code>LogistikApp</code> · USB-Debugging nötig</span></p>
                             </div>
                         </div>
                         <div class="deploy-card-actions">
                             <button class="dbtn dbtn-success logistik dbtn-full" id="btn-deploy-logistik-usb" onclick="startUsbDeployLogistik()">▶ APK bauen + USB installieren</button>
-                            <div class="btn-row">
-                                <button class="dbtn dbtn-ghost" style="flex:1;" id="btn-deploy-logistik-apk" onclick="startUsbDeployLogistikApkOnly()">📦 Nur APK</button>
-                                <a class="dbtn dbtn-ghost" style="flex:1; text-decoration:none; justify-content:center;" href="https://truschi84-dot.github.io/versand/logistik/" target="_blank" rel="noopener">🌐 GitHub-URL</a>
-                            </div>
+                            <button class="dbtn dbtn-ghost dbtn-full" id="btn-deploy-logistik-apk" onclick="startUsbDeployLogistikApkOnly()">📦 Nur APK installieren</button>
                         </div>
                     </div>
                 </div>
@@ -1102,7 +1169,7 @@
                                 <div class="deploy-step-num">4</div>
                                 <div class="deploy-step-icon">📊</div>
                                 <div class="deploy-step-title">Chef-Tablet</div>
-                                <div class="deploy-step-desc">Logistik-APK USB oder WLAN-URL öffnen</div>
+                                <div class="deploy-step-desc">Control-APK USB auf Tablet installieren</div>
                             </div>
                             <div class="deploy-step">
                                 <div class="deploy-step-num">5</div>
@@ -1135,7 +1202,7 @@
                         </div>
                     </div>
                     <div><label style="font-size:11px; font-weight:bold; color:#444;">Formspree URL (E-Mails)</label><input type="text" id="set-notification-url" style="width:100%; padding:10px;" placeholder="https://formspree.io/f/..."></div>
-                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Logistik-App PIN (Tablet)</label><input type="text" id="set-logistik-pin" style="width:100%; padding:10px;"><small style="color:#d32f2f; font-size:10px;">Bei PIN-Änderung: pinVersion steigt – alte Geräte ohne neue PIN sind ausgesperrt.</small></div>
+                    <div><label style="font-size:11px; font-weight:bold; color:#444;">Control PIN (Tablet)</label><input type="text" id="set-logistik-pin" style="width:100%; padding:10px;"><small style="color:#d32f2f; font-size:10px;">Bei PIN-Änderung: pinVersion steigt – alte Geräte ohne neue PIN sind ausgesperrt.</small></div>
                     <div><label style="font-size:11px; font-weight:bold; color:#444;">Admin PIN (PC)</label><input type="text" id="set-admin-pin" style="width:100%; padding:10px;"><small style="color:#666; font-size:10px;">Schützt Admin-Bereich im Control Center und LKW-Auswertung in der App.</small></div>
                     <div><label style="font-size:11px; font-weight:bold; color:#444;">Auto-Sperre nach (Minuten)</label><input type="number" id="set-inactivity-timeout" style="width:100%; padding:10px;" placeholder="0 = aus"><small style="color:#666; font-size:10px;">0 = keine Auto-Sperre. Sonst Minuten Inaktivität bis PIN wieder nötig.</small></div>
                     <div><label style="font-size:11px; font-weight:bold; color:#444;">Nölke Etikett: Art-Nr. Fallback</label><input type="text" id="set-noelke-artnr" style="width:100%; padding:10px;" placeholder="z.B. NÖLKE"></div>
@@ -1230,5 +1297,44 @@
     <script src="js/control-center-artikel.js?v=135"></script>
     <script src="js/control-center-stats.js?v=135"></script>
     <script src="js/control-center-deploy.js?v=135"></script>
+    <script>
+    function toggleMobileSidebar() {
+        document.getElementById('main-sidebar').classList.toggle('mobile-open');
+        document.getElementById('sidebar-backdrop').classList.toggle('visible');
+    }
+    function closeMobileSidebar() {
+        document.getElementById('main-sidebar').classList.remove('mobile-open');
+        document.getElementById('sidebar-backdrop').classList.remove('visible');
+    }
+    document.querySelectorAll('.nav-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+            if (window.innerWidth <= 900) closeMobileSidebar();
+        });
+    });
+
+    function toggleNavGroup(groupId) {
+        const group = document.getElementById(groupId);
+        const header = group.querySelector('.nav-group-header');
+        const body = group.querySelector('.nav-group-body');
+        const isOpen = header.classList.toggle('open');
+        body.style.display = isOpen ? 'flex' : 'none';
+    }
+
+    // Override showTab to auto-open parent group when navigating programmatically
+    const _origShowTab = showTab;
+    window.showTab = function(id, element) {
+        _origShowTab(id, element);
+        if (element) {
+            const groupBody = element.closest('.nav-group-body');
+            if (groupBody) {
+                const header = groupBody.closest('.nav-group').querySelector('.nav-group-header');
+                if (!header.classList.contains('open')) {
+                    header.classList.add('open');
+                    groupBody.style.display = 'flex';
+                }
+            }
+        }
+    };
+    </script>
 </body>
 </html>

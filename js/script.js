@@ -10,7 +10,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 135;
+const WEB_BUILD_VERSION = 136;
 /** Fallback nur wenn app-update.json nicht geladen werden kann — echte URL kommt aus Config. */
 const OFFICE_LAN_URL = '';
 let pendingOtaUpdate = null;
@@ -280,10 +280,10 @@ async function validatePinAndUnlock(enteredPin) {
     const settings = await fetchSettingsForPinCheck();
     if (settings) {
         const cloudPin = String(settings?.logistikPin ?? APP_CONFIG.LOGISTIK_PIN).trim();
-        const cloudPinVersion = parseInt(settings?.pinVersion, 10) || 1;
+        const cloudPinVersion = parseInt(settings?.pinVersion, 10) || 0;
         if (pin !== cloudPin) return false;
         setAppAuthenticated(true);
-        AppStorage.setRaw('app_pin_version', String(cloudPinVersion));
+        if (cloudPinVersion > 0) AppStorage.setRaw('app_pin_version', String(cloudPinVersion));
         cacheSettingsPins(settings);
         return true;
     }
@@ -291,8 +291,8 @@ async function validatePinAndUnlock(enteredPin) {
     const cachedPin = getAppSetting('logistikPin', APP_CONFIG.LOGISTIK_PIN);
     if (pin === String(cachedPin).trim()) {
         setAppAuthenticated(true);
-        const cachedVer = parseInt(getAppSetting('pinVersion', 1), 10) || 1;
-        AppStorage.setRaw('app_pin_version', String(cachedVer));
+        const cachedVer = parseInt(getAppSetting('pinVersion', 0), 10) || 0;
+        if (cachedVer > 0) AppStorage.setRaw('app_pin_version', String(cachedVer));
         return true;
     }
     return false;
@@ -325,6 +325,13 @@ function initAppAfterUnlock() {
     if (typeof loadRechnerData === 'function') loadRechnerData();
     if (typeof initCalc === 'function') initCalc();
     /* Cloud-Laden nur manuell über 🔄 — kein Auto-Load nach PIN */
+    /* Hinweis wenn lokale Daten fehlen (z.B. nach Sicherheits-Wipe) */
+    try {
+        const _chkDb = AppStorage.get('kombi_logistik_db', {});
+        if (!_chkDb.suppliers || _chkDb.suppliers.length === 0) {
+            setTimeout(() => showToast('Lokale Daten fehlen — bitte 🔄 Sync drücken.', 'warning'), 800);
+        }
+    } catch(_) {}
     if (typeof renderAppCloudLogs === 'function') renderAppCloudLogs();
     if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
     if (typeof initLkwShareButtons === 'function') initLkwShareButtons();

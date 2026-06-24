@@ -3,32 +3,70 @@
 Synchronisiert Web-Dateien aus Tresch-Apps nach Android assets/ — für USB-APK-Deploy.
 
 ## Usage
-`/sync-assets` — synct beide Apps (Logistik + Rechner)
-`/sync-assets logistik` — nur Logistik-App
+`/sync-assets` — synct beide Apps (Control + Rechner)
+`/sync-assets control` — nur Control-App (Tablet)
 `/sync-assets rechner` — nur Rechner/Versand-App
 
 ## Source → Destination
 
-**Logistik:**
-- Source: `C:/Users/Trusc/Desktop/Tresch-Apps/logistik/`
-- Dest: `C:/Users/Trusc/AndroidStudioProjects/LogistikApp/app/src/main/assets/`
-- Dateien: `index.html`, `manifest.webmanifest`, `js/*.js`, `icons/`
+**Control (Tablet):**
+- Source: `C:\Users\Trusc\Desktop\Tresch-Apps\control\`
+- Dest: `C:\Users\Trusc\AndroidStudioProjects\LogistikApp\app\src\main\assets\`
+- `control\index.html` → `assets\index.html` (mit Pfad-Patch: `../js/` → `js/`)
+- `control\js\*.js` → `assets\js\*.js`
+- Root `js\druck_utils.js` → `assets\js\druck_utils.js`
+- Root `js\supabase_sync.js` → `assets\js\supabase_sync.js`
+- Root `js\cloud_auth.js` → `assets\js\cloud_auth.js`
+- Root `js\gemeinsam\` → `assets\js\gemeinsam\`
 
 **Rechner (Versand):**
-- Source: `C:/Users/Trusc/Desktop/Tresch-Apps/` (root)
-- Dest: `C:/Users/Trusc/AndroidStudioProjects/Versand/app/src/main/assets/`
-- Dateien: `index.html`, `js/`, `css/`, `icons/`
+- Source: `C:\Users\Trusc\Desktop\Tresch-Apps\` (root)
+- Dest: `C:\Users\Trusc\AndroidStudioProjects\Versand\app\src\main\assets\`
+- `index.html`, `js\`, `css\`, `icons\`
 
-## Implementation
+## Implementation — Control
 
-```bash
-LOGISTIK_SRC="C:/Users/Trusc/Desktop/Tresch-Apps/logistik"
-LOGISTIK_DST="C:/Users/Trusc/AndroidStudioProjects/LogistikApp/app/src/main/assets"
-cp "$LOGISTIK_SRC/index.html" "$LOGISTIK_DST/"
-cp "$LOGISTIK_SRC/manifest.webmanifest" "$LOGISTIK_DST/"
-cp -r "$LOGISTIK_SRC/js/" "$LOGISTIK_DST/"
-echo "Logistik Assets synchronisiert"
+Führe diese PowerShell-Befehle aus (NICHT als Bash):
+
+```powershell
+$SRC  = "C:\Users\Trusc\Desktop\Tresch-Apps"
+$DST  = "C:\Users\Trusc\AndroidStudioProjects\LogistikApp\app\src\main\assets"
+
+# 1. assets\js\ anlegen
+New-Item -ItemType Directory -Force "$DST\js" | Out-Null
+New-Item -ItemType Directory -Force "$DST\js\gemeinsam" | Out-Null
+
+# 2. index.html kopieren + Pfad-Patch: ../js/ → js/
+(Get-Content "$SRC\control\index.html" -Encoding UTF8) `
+    -replace '\.\./js/', 'js/' |
+    Set-Content "$DST\index.html" -Encoding UTF8
+
+# 3. Control-eigene JS-Dateien
+Copy-Item "$SRC\control\js\*.js" "$DST\js\" -Force
+
+# 4. Shared JS aus Root
+Copy-Item "$SRC\js\druck_utils.js"    "$DST\js\" -Force
+Copy-Item "$SRC\js\supabase_sync.js"  "$DST\js\" -Force
+Copy-Item "$SRC\js\cloud_auth.js"     "$DST\js\" -Force
+Copy-Item "$SRC\js\gemeinsam\*.js"    "$DST\js\gemeinsam\" -Force
+
+Write-Host "Control Assets synchronisiert"
 ```
 
-Nach sync: APK neu bauen mit `/build-apk logistik`.
+## Implementation — Rechner
+
+```powershell
+$SRC = "C:\Users\Trusc\Desktop\Tresch-Apps"
+$DST = "C:\Users\Trusc\AndroidStudioProjects\Versand\app\src\main\assets"
+
+Copy-Item "$SRC\index.html" "$DST\" -Force
+Copy-Item "$SRC\js\"    "$DST\js\"    -Recurse -Force
+Copy-Item "$SRC\css\"   "$DST\css\"   -Recurse -Force
+Copy-Item "$SRC\icons\" "$DST\icons\" -Recurse -Force
+
+Write-Host "Rechner Assets synchronisiert"
+```
+
+## Danach
+APK bauen: `/build-apk logistik` (für Control) oder `/build-apk rechner`
 Nur bei explizitem Deploy-Auftrag ausführen.
