@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WMS Tablet – Lagerverwaltung</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
 :root {
   --bg:#0f1117; --surface:#1a1d27; --surface2:#22263a; --border:#2e3347;
@@ -190,7 +190,7 @@ tr:last-child td{border-bottom:none}
         <h3>Schritt 1 — Stellplatz scannen</h3>
         <div class="scanner-wrap" id="sw-spot">
           <video id="vid-spot" autoplay playsinline muted></video>
-          <canvas id="cvs-spot"></canvas>
+    
           <div class="scan-overlay"><div class="scan-box"></div><div class="scan-line"></div></div>
         </div>
         <div class="flex-row">
@@ -386,35 +386,33 @@ function showPage(name) {
   if (name === 'uebersicht') ladeUebersicht();
 }
 
-// ── QR / BARCODE SCANNER ──────────────────────────
+// ── QR / BARCODE SCANNER (ZXing — liest QR, Code128, DataMatrix, GS1-128) ──
+const zxingReaders = {};
+
 async function toggleScan(id) {
   const w = document.getElementById('sw-' + id);
   if (w.style.display === 'block') { stopScan(id); return; }
   w.style.display = 'block';
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    const v = document.getElementById('vid-' + id); v.srcObject = stream; v.play();
-    scanStreams[id] = stream;
-    scanIntervals[id] = setInterval(() => scanFrame(id), 200);
+    const reader = new ZXing.BrowserMultiFormatReader();
+    zxingReaders[id] = reader;
+    const v = document.getElementById('vid-' + id);
+    await reader.decodeFromConstraints(
+      { video: { facingMode: 'environment' } },
+      v,
+      (result, err) => {
+        if (!result) return;
+        const val = result.getText().trim();
+        stopScan(id);
+        if (id === 'spot')   { document.getElementById('qr-spot').value = val.toUpperCase(); ladeSpot(); }
+        if (id === 'pallet') { document.getElementById('qr-pallet').value = val; parsePalletBarcode(val); }
+        if (id === 'aus')    { document.getElementById('qr-aus').value = val.toUpperCase(); }
+      }
+    );
   } catch(e) { w.style.display = 'none'; alert('Kamera: ' + e.message); }
 }
-function scanFrame(id) {
-  const v = document.getElementById('vid-' + id);
-  if (v.readyState !== v.HAVE_ENOUGH_DATA) return;
-  const c = document.getElementById('cvs-' + id);
-  c.width = v.videoWidth; c.height = v.videoHeight;
-  const ctx = c.getContext('2d'); ctx.drawImage(v, 0, 0);
-  const code = jsQR(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height, { inversionAttempts: 'dontInvert' });
-  if (!code?.data) return;
-  const val = code.data.trim();
-  stopScan(id);
-  if (id === 'spot')   { document.getElementById('qr-spot').value = val.toUpperCase(); ladeSpot(); }
-  if (id === 'pallet') { document.getElementById('qr-pallet').value = val; parsePalletBarcode(val); }
-  if (id === 'aus')    { document.getElementById('qr-aus').value = val.toUpperCase(); }
-}
 function stopScan(id) {
-  clearInterval(scanIntervals[id]);
-  scanStreams[id]?.getTracks().forEach(t => t.stop()); delete scanStreams[id];
+  if (zxingReaders[id]) { zxingReaders[id].reset(); delete zxingReaders[id]; }
   const w = document.getElementById('sw-' + id); if (w) w.style.display = 'none';
 }
 function stopAllScan() { ['spot','pallet','aus'].forEach(stopScan); }

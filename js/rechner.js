@@ -209,17 +209,6 @@ function toggleMenuApp2(s) {
     const overlay = document.getElementById('overlay2');
     const open = !!s;
     document.body.classList.toggle('menu-open', open);
-    if (open) {
-        document.body.style.position = 'fixed';
-        document.body.style.top = `-${window.scrollY}px`;
-        document.body.style.width = '100%';
-    } else {
-        const scrollY = parseInt(document.body.style.top || '0') * -1;
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.width = '';
-        window.scrollTo(0, scrollY);
-    }
     if (overlay) overlay.style.display = open ? 'block' : 'none';
     if (!drawer) return;
     if (open) {

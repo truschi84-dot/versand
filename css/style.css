@@ -298,7 +298,7 @@ body.dark-mode .private-note-item { background: #2c2c2c; color: #eee; }
 .table-scroll-x table { min-width: 320px; }
 
 /* ==================== CSS APP 2 (RECHNER V6 PRO CLOUD) ==================== */
-#app2_wrapper { background: var(--bg); color: var(--text); min-height: 100vh; min-height: 100dvh; min-height: calc(var(--vh, 1vh) * 100); display: flex; flex-direction: column; overflow-x: hidden; overflow-y: visible; box-sizing: border-box; padding-bottom: var(--safe-bottom); }
+#app2_wrapper { background: var(--bg); color: var(--text); min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: visible; box-sizing: border-box; padding-bottom: var(--safe-bottom); }
 #app2_wrapper header {
     background: var(--header-gradient);
     background-color: var(--primary);
@@ -1474,30 +1474,21 @@ body.dark-mode .activity-msg { color: #e0e0e0; }
 .is-android-app {
     -webkit-touch-callout: none;
 }
-.is-android-app html {
+.is-android-app html,
+.is-android-app body {
     height: 100%;
     overflow: hidden;
 }
-.is-android-app body {
-    min-height: 100%;
-    height: auto;
-    margin: 0;
-    padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
-    background: var(--bg);
-    box-sizing: border-box;
-    overflow-x: hidden;
-    overflow-y: scroll;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y pinch-zoom;
-    overscroll-behavior: auto;
-}
 .is-android-app #app1_wrapper,
 .is-android-app #app2_wrapper {
-    min-height: 100%;
-    height: auto;
-    overflow: visible;
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
     display: block;
     padding-bottom: 8px;
+    box-sizing: border-box;
 }
 .is-android-app #app2_wrapper .tab-content.active {
     display: block;

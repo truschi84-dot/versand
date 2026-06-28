@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>☁️ Cloud Sync Test — Tresch & Sohn</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 16px; }
+  h1 { font-size: 18px; margin-bottom: 4px; color: #f8fafc; }
+  .subtitle { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+
+  .card { background: #1e293b; border-radius: 10px; padding: 16px; margin-bottom: 14px; border: 1px solid #334155; }
+  .card h2 { font-size: 13px; color: #94a3b8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .test { border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; background: #0f172a; border: 1px solid #1e293b; }
+  .test-header { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
+  .test-header.open { margin-bottom: 10px; }
+  .test-name { font-size: 13px; font-weight: 600; flex: 1; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: bold; white-space: nowrap; }
+  .badge.pending  { background: #334155; color: #94a3b8; }
+  .badge.running  { background: #1e3a5f; color: #60a5fa; }
+  .badge.ok       { background: #14532d; color: #4ade80; }
+  .badge.fail     { background: #450a0a; color: #f87171; }
+  .badge.warn     { background: #451a03; color: #fb923c; }
+
+  .test-time { font-size: 11px; color: #475569; }
+  .test-detail { margin-top: 10px; font-size: 12px; line-height: 1.6; }
+
+  .row { display: flex; gap: 8px; align-items: center; padding: 3px 0; border-bottom: 1px solid #1e293b; }
+  .row:last-child { border-bottom: none; }
+  .row-label { color: #64748b; width: 180px; flex-shrink: 0; }
+  .row-val { color: #e2e8f0; font-family: monospace; }
+  .row-val.green { color: #4ade80; }
+  .row-val.red   { color: #f87171; }
+  .row-val.yellow{ color: #fbbf24; }
+  .row-val.blue  { color: #60a5fa; }
+
+  .divider { border: none; border-top: 1px solid #334155; margin: 8px 0; }
+
+  .btn { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: bold; transition: opacity 0.15s; }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-run { background: #3b82f6; color: white; }
+  .btn-clean { background: #ef4444; color: white; }
+  .btn-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+
+  .summary { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .sum-box { background: #1e293b; border-radius: 8px; padding: 10px 16px; text-align: center; flex: 1; min-width: 80px; }
+  .sum-num { font-size: 24px; font-weight: bold; }
+  .sum-lbl { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .green { color: #4ade80; }
+  .red   { color: #f87171; }
+  .yellow{ color: #fbbf24; }
+  .blue  { color: #60a5fa; }
+
+  .log { background: #0a0f1a; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; color: #64748b; max-height: 120px; overflow-y: auto; margin-top: 10px; }
+  .log-line { padding: 1px 0; }
+  .log-line.info  { color: #60a5fa; }
+  .log-line.ok    { color: #4ade80; }
+  .log-line.error { color: #f87171; }
+  .log-line.warn  { color: #fbbf24; }
+
+  .nz-formula { background: #0f172a; border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #94a3b8; margin-top: 8px; font-family: monospace; }
+
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #1e3a5f; border-top-color: #60a5fa; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<h1>☁️ Cloud Sync Test — Tresch &amp; Sohn</h1>
+<p class="subtitle">Prüft ob Upload / Download / Struktur korrekt funktionieren · Supabase Row: <code>main</code></p>
+
+<div class="btn-row">
+  <button class="btn btn-run" id="btn-run" onclick="runAllTests()">▶ Alle Tests starten</button>
+  <button class="btn btn-clean" id="btn-clean" onclick="cleanupTestData()" disabled>🗑 Testdaten löschen</button>
+</div>
+
+<div class="summary">
+  <div class="sum-box"><div class="sum-num blue" id="sum-total">—</div><div class="sum-lbl">Tests</div></div>
+  <div class="sum-box"><div class="sum-num green" id="sum-ok">—</div><div class="sum-lbl">OK</div></div>
+  <div class="sum-box"><div class="sum-num red" id="sum-fail">—</div><div class="sum-lbl">Fehler</div></div>
+  <div class="sum-box"><div class="sum-num yellow" id="sum-warn">—</div><div class="sum-lbl">Warnung</div></div>
+</div>
+
+<!-- TEST 1 -->
+<div class="card">
+  <h2>🔌 Verbindung &amp; Basis</h2>
+  <div class="test" id="t1">
+    <div class="test-header" id="t1h">
+      <span class="test-name">T1 — Supabase erreichbar (GET main)</span>
+      <span class="badge pending" id="t1b">Ausstehend</span>
+      <span class="test-time" id="t1ms"></span>
+    </div>
+    <div class="test-detail" id="t1d" style="display:none"></div>
+  </div>
+</div>
+
+<!-- TEST 2 -->
+<div class="card">
+  <h2>🖨️ Wiegeschein-Pfad (Sortierung → Export/Uns)</h2>
+  <div class="test" id="t2">
+    <div class="test-header" id="t2h">
+      <span class="test-name">T2 — Upload: Wiegeschein-Daten mit exportKg + unsKg</span>
+      <span class="badge pending" id="t2b">Ausstehend</span>
+      <span class="test-time" id="t2ms"></span>
+    </div>
+    <div class="test-detail" id="t2d" style="display:none"></div>
+  </div>
+  <div class="test" id="t3">
+    <div class="test-header" id="t3h">
+      <span class="test-name">T3 — Download: exportKg / unsKg korrekt angekommen?</span>
+      <span class="badge pending" id="t3b">Ausstehend</span>
+      <span class="test-time" id="t3ms"></span>
+    </div>
+    <div class="test-detail" id="t3d" style="display:none"></div>
+  </div>
+  <div class="test" id="t4">
+    <div class="test-header" id="t4h">
+      <span class="test-name">T4 — Prüfung: N/Z = gesamtKg − exportKg − unsKg</span>
+      <span class="badge pending" id="t4b">Ausstehend</span>
+      <span class="test-time" id="t4ms"></span>
+    </div>
+    <div class="test-detail" id="t4d" style="display:none"></div>
+  </div>
+</div>
+
+<!-- TEST 5 -->
+<div class="card">
+  <h2>📅 Tages-Erfassung Control Center (nur N/V)</h2>
+  <div class="test" id="t5">
+    <div class="test-header" id="t5h">
+      <span class="test-name">T5 — Upload: Manuelle Erfassung ohne ex/uns (N/V)</span>
+      <span class="badge pending" id="t5b">Ausstehend</span>
+      <span class="test-time" id="t5ms"></span>
+    </div>
+    <div class="test-detail" id="t5d" style="display:none"></div>
+  </div>
+  <div class="test" id="t6">
+    <div class="test-header" id="t6h">
+      <span class="test-name">T6 — Prüfung: exportKg=0 / unsKg=0 / N/Z = gesamtKg</span>
+      <span class="badge pending" id="t6b">Ausstehend</span>
+      <span class="test-time" id="t6ms"></span>
+    </div>
+    <div class="test-detail" id="t6d" style="display:none"></div>
+  </div>
+</div>
+
+<!-- TEST 7 -->
+<div class="card">
+  <h2>🔄 Merge-Verhalten</h2>
+  <div class="test" id="t7">
+    <div class="test-header" id="t7h">
+      <span class="test-name">T7 — Merge: Wiegeschein überschreibt NICHT manuelle Erfassung</span>
+      <span class="badge pending" id="t7b">Ausstehend</span>
+      <span class="test-time" id="t7ms"></span>
+    </div>
+    <div class="test-detail" id="t7d" style="display:none"></div>
+  </div>
+</div>
+
+<!-- LOG -->
+<div class="card">
+  <h2>📋 Log</h2>
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+// ─── Config ───────────────────────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://qoaqpzmclvacaorginor.supabase.co';
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvYXFwem1jbHZhY2Fvcmdpbm9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNzQ3NjYsImV4cCI6MjA5Njg1MDc2Nn0.QddH8vVM2-yD8PIW89phVVKAkwX8Rl4-occwmabeUyk';
+const ROW_KEY       = 'main';
+
+// Testdaten-Schlüssel (werden in teamTagesMengen unter diesen Datum-Keys gespeichert)
+const TEST_DATE_WIEGESCHEIN = '_test_wiegeschein_2099-01-01';
+const TEST_DATE_ERFASSUNG   = '_test_erfassung_2099-01-02';
+
+// ─── Supabase Helpers ─────────────────────────────────────────────────────────
+function headers() {
+  return {
+    'apikey': SUPABASE_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    'Content-Type': 'application/json'
+  };
+}
+
+async function cloudGet() {
+  const res = await fetch(
+    SUPABASE_URL + '/rest/v1/cloud_backup?key=eq.' + encodeURIComponent(ROW_KEY) + '&select=data',
+    { headers: headers() }
+  );
+  if (!res.ok) throw new Error('GET fehlgeschlagen: HTTP ' + res.status);
+  const rows = await res.json();
+  return (rows && rows[0]) ? rows[0].data : null;
+}
+
+async function cloudPatch(partial) {
+  const current = await cloudGet() || {};
+  const merged  = deepMerge(current, partial);
+  const res = await fetch(SUPABASE_URL + '/rest/v1/cloud_backup', {
+    method: 'POST',
+    headers: { ...headers(), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ key: ROW_KEY, data: merged, updated_at: new Date().toISOString() })
+  });
+  if (!res.ok) throw new Error('PATCH fehlgeschlagen: HTTP ' + res.status);
+}
+
+async function cloudRemoveTestKeys() {
+  const data = await cloudGet();
+  if (!data || !data.teamTagesMengen) return;
+  delete data.teamTagesMengen[TEST_DATE_WIEGESCHEIN];
+  delete data.teamTagesMengen[TEST_DATE_ERFASSUNG];
+  const res = await fetch(SUPABASE_URL + '/rest/v1/cloud_backup', {
+    method: 'POST',
+    headers: { ...headers(), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ key: ROW_KEY, data, updated_at: new Date().toISOString() })
+  });
+  if (!res.ok) throw new Error('Cleanup fehlgeschlagen: HTTP ' + res.status);
+}
+
+function deepMerge(a, b) {
+  const out = { ...a };
+  for (const k of Object.keys(b)) {
+    if (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && a[k] && typeof a[k] === 'object') {
+      out[k] = deepMerge(a[k], b[k]);
+    } else {
+      out[k] = b[k];
+    }
+  }
+  return out;
+}
+
+function nzKg(gesamtKg, exportKg, unsKg) {
+  return Math.max(0, (parseFloat(gesamtKg) || 0) - (parseFloat(exportKg) || 0) - (parseFloat(unsKg) || 0));
+}
+
+// ─── UI Helpers ───────────────────────────────────────────────────────────────
+function log(msg, type) {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = 'log-line ' + (type || 'info');
+  const ts = new Date().toLocaleTimeString('de-DE');
+  line.textContent = '[' + ts + '] ' + msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(id, status, ms) {
+  const badge = document.getElementById(id + 'b');
+  const labels = { pending: 'Ausstehend', running: 'Läuft…', ok: '✓ OK', fail: '✗ Fehler', warn: '⚠ Warnung' };
+  badge.textContent = labels[status] || status;
+  badge.className = 'badge ' + status;
+  if (ms !== undefined) document.getElementById(id + 'ms').textContent = ms + ' ms';
+}
+
+function setDetail(id, html) {
+  const el = document.getElementById(id + 'd');
+  el.innerHTML = html;
+  el.style.display = html ? 'block' : 'none';
+  document.getElementById(id + 'h').className = 'test-header' + (html ? ' open' : '');
+}
+
+function rowHtml(label, val, color, expected) {
+  const cls = color || '';
+  const exp = expected !== undefined ? `<span style="color:#475569"> (erwartet: ${expected})</span>` : '';
+  return `<div class="row"><span class="row-label">${label}</span><span class="row-val ${cls}">${val}</span>${exp}</div>`;
+}
+
+function updateSummary(results) {
+  const ok   = results.filter(r => r === 'ok').length;
+  const fail = results.filter(r => r === 'fail').length;
+  const warn = results.filter(r => r === 'warn').length;
+  document.getElementById('sum-total').textContent = results.length;
+  document.getElementById('sum-ok').textContent    = ok;
+  document.getElementById('sum-fail').textContent  = fail;
+  document.getElementById('sum-warn').textContent  = warn;
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+async function runAllTests() {
+  document.getElementById('btn-run').disabled   = true;
+  document.getElementById('btn-clean').disabled = true;
+  document.getElementById('log').innerHTML      = '';
+  const results = [];
+
+  // T1 — Verbindung
+  {
+    setStatus('t1', 'running');
+    log('T1: Verbindungstest läuft…');
+    const t0 = Date.now();
+    try {
+      const data = await cloudGet();
+      const ms = Date.now() - t0;
+      const hasData = data && typeof data === 'object';
+      const hasTTM  = hasData && typeof data.teamTagesMengen === 'object';
+      setStatus('t1', hasTTM ? 'ok' : 'warn', ms);
+      setDetail('t1',
+        rowHtml('Verbindung', '✓ Erreichbar', 'green') +
+        rowHtml('Antwortzeit', ms + ' ms', ms < 800 ? 'green' : ms < 2000 ? 'yellow' : 'red') +
+        rowHtml('Daten vorhanden', hasData ? '✓ Ja' : '✗ Leer', hasData ? 'green' : 'red') +
+        rowHtml('teamTagesMengen', hasTTM ? '✓ Vorhanden' : '⚠ Fehlt', hasTTM ? 'green' : 'yellow') +
+        rowHtml('Anzahl Tage in TTM', hasTTM ? Object.keys(data.teamTagesMengen).length + ' Einträge' : '—', 'blue')
+      );
+      results.push(hasTTM ? 'ok' : 'warn');
+      log('T1: OK — ' + ms + ' ms', 'ok');
+    } catch (e) {
+      setStatus('t1', 'fail', Date.now() - t0);
+      setDetail('t1', rowHtml('Fehler', e.message, 'red'));
+      results.push('fail');
+      log('T1: FEHLER — ' + e.message, 'error');
+    }
+  }
+
+  // T2 — Upload Wiegeschein
+  const wiegescheinData = {
+    gesamtKg:       5000,
+    exportKg:       3200,   // kommt aus artikelMarkt (export)
+    unsKg:          1500,   // kommt aus artikelMarkt (uns)
+    personalAnzahl: 4,
+    _quelle:        'wiegeschein'
+  };
+  {
+    setStatus('t2', 'running');
+    log('T2: Upload Wiegeschein-Daten…');
+    const t0 = Date.now();
+    try {
+      await cloudPatch({ teamTagesMengen: { [TEST_DATE_WIEGESCHEIN]: wiegescheinData } });
+      const ms = Date.now() - t0;
+      setStatus('t2', 'ok', ms);
+      setDetail('t2',
+        `<div style="color:#4ade80; font-size:12px; margin-bottom:6px;">✓ Hochgeladen als Testdatum: <code>${TEST_DATE_WIEGESCHEIN}</code></div>` +
+        rowHtml('gesamtKg', wiegescheinData.gesamtKg + ' kg', 'blue') +
+        rowHtml('exportKg (Export)', wiegescheinData.exportKg + ' kg', 'blue') +
+        rowHtml('unsKg (Uns)', wiegescheinData.unsKg + ' kg', 'blue') +
+        rowHtml('personalAnzahl', wiegescheinData.personalAnzahl, 'blue') +
+        `<div class="nz-formula">N/Z = ${wiegescheinData.gesamtKg} − ${wiegescheinData.exportKg} − ${wiegescheinData.unsKg} = <b>${nzKg(wiegescheinData.gesamtKg, wiegescheinData.exportKg, wiegescheinData.unsKg)} kg</b></div>`
+      );
+      results.push('ok');
+      log('T2: Upload OK — ' + ms + ' ms', 'ok');
+    } catch (e) {
+      setStatus('t2', 'fail', Date.now() - t0);
+      setDetail('t2', rowHtml('Fehler', e.message, 'red'));
+      results.push('fail');
+      log('T2: FEHLER — ' + e.message, 'error');
+    }
+  }
+
+  // T3 — Download Wiegeschein prüfen
+  {
+    setStatus('t3', 'running');
+    log('T3: Download & Prüfung Wiegeschein-Felder…');
+    const t0 = Date.now();
+    try {
+      const data = await cloudGet();
+      const ms   = Date.now() - t0;
+      const ttm  = data?.teamTagesMengen || {};
+      const entry = ttm[TEST_DATE_WIEGESCHEIN];
+      const ok_gesamt = parseFloat(entry?.gesamtKg) === wiegescheinData.gesamtKg;
+      const ok_export = parseFloat(entry?.exportKg) === wiegescheinData.exportKg;
+      const ok_uns    = parseFloat(entry?.unsKg)    === wiegescheinData.unsKg;
+      const allOk     = ok_gesamt && ok_export && ok_uns;
+      setStatus('t3', allOk ? 'ok' : 'fail', ms);
+      setDetail('t3',
+        rowHtml('Eintrag gefunden', entry ? '✓ Ja' : '✗ Nein', entry ? 'green' : 'red') +
+        rowHtml('gesamtKg', (entry?.gesamtKg ?? '—') + ' kg', ok_gesamt ? 'green' : 'red', wiegescheinData.gesamtKg + ' kg') +
+        rowHtml('exportKg (Export)', (entry?.exportKg ?? '—') + ' kg', ok_export ? 'green' : 'red', wiegescheinData.exportKg + ' kg') +
+        rowHtml('unsKg (Uns)', (entry?.unsKg ?? '—') + ' kg', ok_uns ? 'green' : 'red', wiegescheinData.unsKg + ' kg')
+      );
+      results.push(allOk ? 'ok' : 'fail');
+      log('T3: ' + (allOk ? 'OK' : 'FEHLER — Felder stimmen nicht'), allOk ? 'ok' : 'error');
+    } catch (e) {
+      setStatus('t3', 'fail', Date.now() - t0);
+      setDetail('t3', rowHtml('Fehler', e.message, 'red'));
+      results.push('fail');
+      log('T3: FEHLER — ' + e.message, 'error');
+    }
+  }
+
+  // T4 — N/Z Formel Wiegeschein
+  {
+    setStatus('t4', 'running');
+    log('T4: N/Z Berechnung prüfen…');
+    const t0 = Date.now();
+    try {
+      const data  = await cloudGet();
+      const ms    = Date.now() - t0;
+      const entry = data?.teamTagesMengen?.[TEST_DATE_WIEGESCHEIN] || {};
+      const g = parseFloat(entry.gesamtKg) || 0;
+      const e = parseFloat(entry.exportKg) || 0;
+      const u = parseFloat(entry.unsKg)    || 0;
+      const nz     = nzKg(g, e, u);
+      const nzErw  = nzKg(wiegescheinData.gesamtKg, wiegescheinData.exportKg, wiegescheinData.unsKg);
+      const ok_nz  = nz === nzErw;
+      const ok_pos = nz >= 0;
+      setStatus('t4', (ok_nz && ok_pos) ? 'ok' : 'fail', ms);
+      setDetail('t4',
+        `<div class="nz-formula">N/Z = gesamtKg − exportKg − unsKg<br>${g} − ${e} − ${u} = <b>${nz} kg</b></div>` +
+        '<hr class="divider">' +
+        rowHtml('N/Z Ergebnis', nz + ' kg', ok_nz ? 'green' : 'red', nzErw + ' kg') +
+        rowHtml('N/Z ≥ 0 (kein Minus)', ok_pos ? '✓ Ja' : '✗ Negativ!', ok_pos ? 'green' : 'red') +
+        rowHtml('N/Z korrekt berechnet', ok_nz ? '✓ Ja' : '✗ Abweichung', ok_nz ? 'green' : 'red')
+      );
+      results.push((ok_nz && ok_pos) ? 'ok' : 'fail');
+      log('T4: N/Z = ' + nz + ' kg — ' + ((ok_nz && ok_pos) ? 'OK' : 'FEHLER'), (ok_nz && ok_pos) ? 'ok' : 'error');
+    } catch (e) {
+      setStatus('t4', 'fail', Date.now() - t0);
+      setDetail('t4', rowHtml('Fehler', e.message, 'red'));
+      results.push('fail');
+      log('T4: FEHLER — ' + e.message, 'error');
+    }
+  }
+
+  // T5 — Upload Tages-Erfassung (N/V)
+  const erfassungData = {
+    gesamtKg:       3800,
+    exportKg:       0,     // Control Center hat keine ex/uns Zuordnung
+    unsKg:          0,     // alles gilt als N/V
+    personalAnzahl: 3,
+    _quelle:        'tages_erfassung_control'
+  };
+  {
+    setStatus('t5', 'running');
+    log('T5: Upload Tages-Erfassung (ohne ex/uns)…');
+    const t0 = Date.now();
+    try {
+      await cloudPatch({ teamTagesMengen: { [TEST_DATE_ERFASSUNG]: erfassungData } });
+      const ms = Date.now() - t0;
+      setStatus('t5', 'ok', ms);
+      setDetail('t5',
+        `<div style="color:#4ade80; font-size:12px; margin-bottom:6px;">✓ Hochgeladen als Testdatum: <code>${TEST_DATE_ERFASSUNG}</code></div>` +
+        rowHtml('gesamtKg', erfassungData.gesamtKg + ' kg', 'blue') +
+        rowHtml('exportKg (Export)', erfassungData.exportKg + ' kg — N/V', 'yellow') +
+        rowHtml('unsKg (Uns)', erfassungData.unsKg + ' kg — N/V', 'yellow') +
+        `<div class="nz-formula">N/Z = ${erfassungData.gesamtKg} − 0 − 0 = <b>${erfassungData.gesamtKg} kg (alles N/V)</b></div>`
+      );
+      results.push('ok');
+      log('T5: Upload OK — ' + ms + ' ms', 'ok');
+    } catch (e) {
+      setStatus('t5', 'fail', Date.now() - t0);
+      setDetail('t5', rowHtml('Fehler', e.message, 'red'));
+      results.push('fail');
+      log('T5: FEHLER — ' + e.message, 'error');
+    }
+  }
+
+  // T6 — Prüfung Erfassung N/V
+  {
+    setStatus('t6', 'running');
+    log('T6: Prüfe N/V Einhaltung bei Tages-Erfassung…');
+    const t0 = Date.now();
+    try {
+      const data  = await cloudGet();
+      const ms    = Date.now() - t0;
+      const entry = data?.teamTagesMengen?.[TEST_DATE_ERFASSUNG] || {};
+      const g       = parseFloat(entry.gesamtKg) || 0;
+      const e2      = parseFloat(entry.exportKg) || 0;
+      const u       = parseFloat(entry.unsKg)    || 0;
+      const nz      = nzKg(g, e2, u);
+      const ok_g    = g === erfassungData.gesamtKg;
+      const ok_e    = e2 === 0;
+      const ok_u    = u === 0;
+      const ok_nz   = nz === erfassungData.gesamtKg; // alles ist N/V
+      const allOk   = ok_g && ok_e && ok_u && ok_nz;
+      setStatus('t6', allOk ? 'ok' : 'fail', ms);
+      setDetail('t6',
+        rowHtml('Eintrag gefunden', entry.gesamtKg !== undefined ? '✓ Ja' : '✗ Nein', entry.gesamtKg !== undefined ? 'green' : 'red') +
+        rowHtml('gesamtKg', g + ' kg', ok_g ? 'green' : 'red', erfassungData.gesamtKg + ' kg') +
+        rowHtml('exportKg = 0 (kein Export)', e2 === 0 ? '✓ 0' : '✗ ' + e2, e2 === 0 ? 'green' : 'red', '0') +
+        rowHtml('unsKg = 0 (kein Uns)', u === 0 ? '✓ 0' : '✗ ' + u, u === 0 ? 'green' : 'red', '0') +
+        '<hr class="divider">' +
+        `<div class="nz-formula">N/Z = ${g} − ${e2} − ${u} = <b>${nz} kg</b><br>→ Alles gilt als N/V (nicht zugeordnet)</div>` +
+        rowHtml('N/Z = gesamtKg', ok_nz ? '✓ Korrekt' : '✗ Abweichung', ok_nz ? 'green' : 'red', erfassungData.gesamtKg + ' kg')
+      );
+      results.push(allOk ? 'ok' : 'fail');
+      log('T6: N/V Prüfung — ' + (allOk ? 'OK' : 'FEHLER'), allOk ? 'ok' : 'error');
+    } catch (e) {
+      setStatus('t6', 'fail', Date.now() - t0);
+      setDetail('t6', rowHtml('Fehler', e.message, 'red'));
+      results.push('fail');
+      log('T6: FEHLER — ' + e.message, 'error');
+    }
+  }
+
+  // T7 — Merge: Wiegeschein überschreibt nicht Erfassung
+  {
+    setStatus('t7', 'running');
+    log('T7: Merge-Test — beide Einträge unabhängig?');
+    const t0 = Date.now();
+    try {
+      const data = await cloudGet();
+      const ms   = Date.now() - t0;
+      const ttm  = data?.teamTagesMengen || {};
+      const w    = ttm[TEST_DATE_WIEGESCHEIN];
+      const ef   = ttm[TEST_DATE_ERFASSUNG];
+      const ok_w  = w  && parseFloat(w.exportKg)  === wiegescheinData.exportKg && parseFloat(w.unsKg) === wiegescheinData.unsKg;
+      const ok_ef = ef && parseFloat(ef.exportKg) === 0 && parseFloat(ef.unsKg) === 0;
+      const ok    = ok_w && ok_ef;
+      setStatus('t7', ok ? 'ok' : 'fail', ms);
+      setDetail('t7',
+        `<div style="font-size:12px; color:#94a3b8; margin-bottom:8px;">Beide Datum-Einträge müssen unabhängig in der Cloud liegen:</div>` +
+        rowHtml('Wiegeschein-Eintrag', w ? '✓ Vorhanden' : '✗ Fehlt', w ? 'green' : 'red') +
+        rowHtml('  → exportKg', (w?.exportKg ?? '—') + ' kg', ok_w ? 'green' : 'red', wiegescheinData.exportKg + ' kg') +
+        rowHtml('  → unsKg', (w?.unsKg ?? '—') + ' kg', ok_w ? 'green' : 'red', wiegescheinData.unsKg + ' kg') +
+        '<hr class="divider">' +
+        rowHtml('Erfassungs-Eintrag', ef ? '✓ Vorhanden' : '✗ Fehlt', ef ? 'green' : 'red') +
+        rowHtml('  → exportKg = 0', (ef?.exportKg ?? '—'), ok_ef ? 'green' : 'red', '0') +
+        rowHtml('  → unsKg = 0', (ef?.unsKg ?? '—'), ok_ef ? 'green' : 'red', '0') +
+        '<hr class="divider">' +
+        rowHtml('Kein gegenseitiges Überschreiben', ok ? '✓ Korrekt' : '✗ Problem', ok ? 'green' : 'red')
+      );
+      results.push(ok ? 'ok' : 'fail');
+      log('T7: Merge-Test — ' + (ok ? 'OK' : 'FEHLER'), ok ? 'ok' : 'error');
+    } catch (e) {
+      setStatus('t7', 'fail', Date.now() - t0);
+      setDetail('t7', rowHtml('Fehler', e.message, 'red'));
+      results.push('fail');
+      log('T7: FEHLER — ' + e.message, 'error');
+    }
+  }
+
+  updateSummary(results);
+  document.getElementById('btn-run').disabled   = false;
+  document.getElementById('btn-clean').disabled = false;
+  log('──── Fertig: ' + results.filter(r=>r==='ok').length + '/' + results.length + ' Tests bestanden ────',
+    results.every(r => r === 'ok') ? 'ok' : 'warn');
+}
+
+async function cleanupTestData() {
+  document.getElementById('btn-clean').disabled = true;
+  log('🗑 Testdaten werden gelöscht…', 'warn');
+  try {
+    await cloudRemoveTestKeys();
+    log('✓ Testdaten gelöscht (_test_wiegeschein_2099-01-01, _test_erfassung_2099-01-02)', 'ok');
+  } catch (e) {
+    log('✗ Löschen fehlgeschlagen: ' + e.message, 'error');
+  }
+  document.getElementById('btn-clean').disabled = false;
+}
+</script>
+</body>
+</html>

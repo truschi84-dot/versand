@@ -1,5 +1,12 @@
 # Claude Code — Tresch & Sohn Kombi-App
 
+## Projektordner-Regel (PFLICHT)
+Dieser Ordner (`Tresch-Apps`) ist **ausschließlich für die Tresch & Sohn Apps** reserviert.
+- Hier werden **nur** Aufgaben erledigt die direkt mit den Tresch-Apps zu tun haben
+- Keine privaten Projekte, Pi-Setup, Home Assistant, Kaninchen-App oder andere Themen
+- Für alles andere einen neuen Ordner oder Chat verwenden
+- Wenn eine Anfrage nichts mit den Tresch-Apps zu tun hat: freundlich darauf hinweisen
+
 ## Projekt-Übersicht
 Firmen-PWA für Tresch & Sohn Logistik. Läuft auf mehreren Firmen-Handys.
 Deployment: GitHub Pages → `https://truschi84-dot.github.io/versand/`

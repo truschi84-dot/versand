@@ -117,7 +117,8 @@
         });
     }
 
-    if (isFile) {
+    var isAndroidAsset = location.href.indexOf('android_asset') !== -1;
+    if (isFile && !isAndroidAsset) {
         fixLinks();
         fetch(serverBase + 'api/deploy/status', { cache: 'no-store' })
             .then(function (r) { if (r.ok) location.replace(serverBase + 'Start.html'); })

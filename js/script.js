@@ -1,3 +1,9 @@
+// APK: Klasse sofort setzen, damit Android-CSS immer greift (auch vor OTA-Redirect)
+if (typeof AndroidApp !== 'undefined') {
+    document.documentElement.classList.add('is-android-app', 'is-mobile');
+    document.body.classList.add('is-android-app', 'is-mobile');
+}
+
 // =========================================================================
 // ZENTRALE KONFIGURATION (CLOUD)
 // =========================================================================
@@ -606,6 +612,7 @@ function switchApp(appNum) {
 function logoutLogistik(auto = false, message) {
     setAppAuthenticated(false);
     setAuswertungAuthenticated(false);
+    _appInitialized = false;
     if (typeof updateAdminOnlyDrawerItems === 'function') updateAdminOnlyDrawerItems();
     if (typeof toggleMenuApp1 === 'function') toggleMenuApp1(false);
     if (typeof toggleMenuApp2 === 'function') toggleMenuApp2(false);
@@ -673,7 +680,9 @@ window.onload = async () => {
 
     if (ensureNativeApkUsesBundledAssets()) return;
 
-    if (await initOtaApkBootstrap()) return;
+    initMobileApp();
+
+    if (!isBundledApkPage() && await initOtaApkBootstrap()) return;
 
     // HARD-CACHE PURGE V7 (BETA MERGE): Zwingt Browser/Tablets, alte Beta-Dateien und fehlerhafte Versionen endgültig zu verwerfen.
     if (AppStorage.getRaw('hard_purge_v70') !== 'done') {
