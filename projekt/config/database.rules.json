@@ -25,10 +25,6 @@
     "app_config": {
       ".read": "auth != null",
       ".write": "auth != null"
-    },
-    "kaninchen_futter_2026": {
-      ".read": true,
-      ".write": true
     }
   }
 }

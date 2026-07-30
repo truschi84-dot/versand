@@ -35,14 +35,12 @@ assets/                          ← Firmen-App (nur das aufs Handy)
 ├── app-secrets.json             ← lokal, nicht in Git
 ├── manifest.webmanifest, sw.js
 ├── js/, css/, lib/, icons/
-├── kaninchen/                   ← Ausnahme: feste GitHub-URL /versand/kaninchen/
 │
 └── projekt/                     ← alles andere
     ├── pc/                      ← PC-Admin (nicht in APK)
     │   ├── control-center.html
     │   ├── kontingent.html
-    │   ├── Checkliste.html
-    │   └── kaninchen.html
+    │   └── Checkliste.html
     ├── docs/                    ← Anleitungen
     ├── config/                  ← Vorlagen, Firebase-Regeln
     ├── scripts/                 ← Deploy & Publish
@@ -58,7 +56,6 @@ assets/                          ← Firmen-App (nur das aufs Handy)
 
 - **Nicht auf GitHub:** `../app-secrets.json`, `deploy.config.json`
 - **PC-Dateien** (`pc/`) und **projekt/** werden nicht in die APK kopiert
-- **Kaninchen** (`../kaninchen/`) liegt im Root für GitHub-URL, geht **nicht** in die Firmen-APK
 - **Lokale Backups (später):** `backups-local/` – getrennt von Firebase `/backup`
 - **Firebase Hosting** (`firebase.json`) veröffentlicht nur den App-Root (`..`), nicht `projekt/`
 
@@ -66,5 +63,5 @@ assets/                          ← Firmen-App (nur das aufs Handy)
 
 ## Geplant nach Urlaub (noch nichts verschoben)
 
-Siehe `docs/ROADMAP-NACH-URLAUB.md` – Aufräumen Hasen-App, Archiv-Ordner, Backups trennen.  
+Siehe `docs/ROADMAP-NACH-URLAUB.md` – Archiv-Ordner, Backups trennen (Hasen-App-Punkt erledigt, siehe oben).  
 **Bis dahin:** alles bleibt an den jetzigen Pfaden, damit App + GitHub + Deploy weiterlaufen.

@@ -74,7 +74,7 @@ cd C:\Users\Trusc\Desktop\assets\projekt
 firebase deploy --only database
 ```
 
-Die Datei `database.rules.json` erlaubt Lesen/Schreiben **nur mit Firebase-Login** (`auth != null`) – **ausser** `kaninchen_futter_2026` (öffentlicher Futterplan, ohne Login).
+Die Datei `database.rules.json` erlaubt Lesen/Schreiben **nur mit Firebase-Login** (`auth != null`).
 
 **Test:** Im Browser `https://tresch-versand-default-rtdb.firebaseio.com/backup.json` öffnen → sollte **`Permission denied`** zeigen.
 

@@ -5,7 +5,6 @@
 |-------|-------|
 | `index.html` | Rechner-App (Mitarbeiter) |
 | `logistik.html` | Logistik-App (Chef) — neu seit 2026-06-10 |
-| `kaninchen/index.html` | Kaninchen Mini-App |
 | `projekt/buero/control-center.html` | PC Control Center |
 
 ## JS-Module

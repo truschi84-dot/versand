@@ -16,7 +16,6 @@ Deployment: GitHub Pages → `https://truschi84-dot.github.io/versand/`
 |-------|-------|--------|
 | `index.html` | Rechner-App (LKW, Sortierung, Leergut, Nölke, Brandenburg) | Alle Mitarbeiter |
 | `logistik.html` | Logistik-App (Touren, Lieferanten, Artikel-Zuordnung) | Chef/Admin |
-| `kaninchen/index.html` | Kaninchen-App (separate Mini-App) | Extern |
 | `projekt/buero/control-center.html` | PC Control Center | Büro-PC |
 
 ## JS-Dateien
@@ -54,7 +53,6 @@ GitHub Pages deployed automatisch nach dem Push.
 | **Rechner** | `index.html`, `js/`, `css/` | ja — nur hier ändern |
 | **Logistik** | `logistik/` | ja — eigene `core.js`, `app.js`, `metriken.js` |
 | **Control Center** | `control/` | ja — nur PC/Büro |
-| **Kaninchen** | `kaninchen/` | ja |
 
 **Nicht** in `AndroidStudioProjects/.../app/src/main/assets/` entwickeln.
 

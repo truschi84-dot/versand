@@ -202,7 +202,6 @@ const FIREBASE_PATHS = [
     { key: 'backup', label: '/backup (Stammdaten & Lieferungen)', url: FIREBASE_BASE + '/backup.json' },
     { key: 'snapshots', label: '/snapshots (Sicherungen)', url: FIREBASE_BASE + '/snapshots.json' },
     { key: 'reklamationen', label: '/reklamationen', url: FIREBASE_BASE + '/reklamationen.json' },
-    { key: 'kaninchen', label: '/kaninchen_futter_2026', url: FIREBASE_BASE + '/kaninchen_futter_2026.json' },
     { key: 'shared_lkw', label: '/backup/_shared_lkw', url: FIREBASE_BASE + '/backup/_shared_lkw.json' },
     { key: 'app_config', label: '/app_config (OTA-Hinweis)', url: FIREBASE_BASE + '/app_config.json' }
 ];
@@ -272,7 +271,7 @@ function updateSimulation(totalBackupBytes) {
     document.getElementById('sim-result').innerHTML =
         `Bei <b>${devices}</b> Geräten × <b>${fmtBytes(totalBackupBytes)}</b> Backup/Tag ≈
         <b>${fmtBytes(perMonth)}</b>/Monat Firebase-Download
-        (${pct.toFixed(2)} % vom Free-Limit 10 GB) – plus Reklamationen, Kaninchen, Snapshots.`;
+        (${pct.toFixed(2)} % vom Free-Limit 10 GB) – plus Reklamationen, Snapshots.`;
 }
 
 async function refreshAll() {

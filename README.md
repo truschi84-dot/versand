@@ -1,7 +1,6 @@
 # Tresch Kombi-App (Firmen-Handy)
 
-Nur die **Firmen-App** liegt hier im Root – alles andere unter **`projekt/`**.  
-Ausnahme: **`kaninchen/`** bleibt im Root (feste Online-URL: `/versand/kaninchen/`).
+Nur die **Firmen-App** liegt hier im Root – alles andere unter **`projekt/`**.
 
 | Was | Wo |
 |-----|-----|
