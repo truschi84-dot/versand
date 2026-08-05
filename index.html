@@ -743,19 +743,22 @@
     </div>
 </div>
 
-<script src="js/druck_utils.js?v=135"></script>
-<script src="js/supabase_sync.js?v=135"></script>
-<script src="js/cloud_auth.js?v=135"></script>
-<script src="js/gemeinsam/datenbank.js?v=135"></script>
-<script src="js/gemeinsam/metriken.js?v=135"></script>
-<script src="js/script.js?v=135"></script>
-<script src="js/team_brief.js?v=135"></script>
-<script src="js/rechner.js?v=135"></script>
-<script src="js/rechner_scanner.js?v=135"></script>
-<script src="js/rechner_druck.js?v=135"></script>
-<script src="js/rechner_reklamation.js?v=135"></script>
-<script src="js/rechner_leergut.js?v=135"></script>
-<script src="js/logistik.js?v=135"></script>
+<script src="js/druck_utils.js?v=138"></script>
+<script src="js/supabase_sync.js?v=138"></script>
+<script src="js/cloud_auth.js?v=138"></script>
+<script src="js/gemeinsam/datenbank.js?v=138"></script>
+<script src="js/gemeinsam/metriken.js?v=138"></script>
+<script src="js/script.js?v=138"></script>
+<script src="js/team_brief.js?v=138"></script>
+<script src="js/rechner.js?v=138"></script>
+<script src="js/rechner_scanner.js?v=138"></script>
+<script src="js/rechner_druck.js?v=138"></script>
+<script src="js/rechner_reklamation.js?v=138"></script>
+<script src="js/rechner_leergut.js?v=138"></script>
+<!-- js/logistik.js gehoert NICHT auf die Rechner-Seite (Projektregel: Apps getrennt halten).
+     Es deklarierte getLocalISO ein zweites Mal (auch in script.js) -> SyntaxError beim Laden,
+     dadurch lief die Datei hier ohnehin nie. Entfernt am 2026-08-05. -->
+
 
 </body>
 </html>

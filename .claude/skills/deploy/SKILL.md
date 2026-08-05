@@ -17,7 +17,8 @@ Wenn der Nutzer "deployen", "pushen", "veröffentlichen", "auf GitHub laden" ode
 3. `?v=XXX` in `index.html` auf neue Nummer setzen
 4. Logistik-Version in `logistik/index.html` (`?v=XXX`) und `app-version.json` (logistikVersion) erhöhen — NUR wenn Logistik-Dateien geändert wurden
 5. Sicherheitscheck: `app-secrets.json` darf NICHT in git staged sein
-6. Git commit + push
+6. Automatisierte Tests (`npm test`) laufen lassen — bei Fehlschlag NICHT pushen ohne Rücksprache
+7. Git commit + push
 
 ## Schritte
 
@@ -50,14 +51,23 @@ git diff --name-only HEAD
 - `logistikLabel` auf `"1.X"` setzen (X = logistikVersion)
 - `?v=XXX` in `logistik/index.html` bei `core.js` und `app.js` auf neuen Wert setzen
 
-### 6. Commit und Push
+### 6. Automatisierte Tests (PFLICHT vor jedem Push)
+```powershell
+npm test
+```
+- Playwright-Testsuite deckt Rechner-App + Control Center ab (`tests/`), inkl. Regressionswachen für bereits bekannte Bugs (siehe `KNOWN_BUGS.md`).
+- Schlagen Tests fehl, die NICHT bereits als bekannter/erwarteter Fehlschlag in `KNOWN_BUGS.md` dokumentiert sind → STOPP, nicht pushen, Nutzer über die fehlgeschlagenen Tests informieren und gemeinsam entscheiden (Fix vor Push, oder bewusste Ausnahme).
+- Bekannte, bereits dokumentierte Fehlschläge (offene Bugs, noch nicht gefixt) sind kein Push-Stopper, aber im Bericht an den Nutzer erwähnen.
+- Testbericht bei Bedarf: `npm run test:report`
+
+### 7. Commit und Push
 ```powershell
 git add -A
 git commit -m "App Update Build <neue_version>"
 git push origin main
 ```
 
-### 7. Bestätigung
+### 8. Bestätigung
 Melde dem Nutzer:
 - Rechner-App: Build-Nummer
 - Logistik-App: Version + GitHub Pages URL: https://truschi84-dot.github.io/versand/logistik/
@@ -72,4 +82,5 @@ Die App hat ein eigenes Manifest (logistik/manifest.webmanifest) und erscheint a
 ## Wichtig
 - Niemals pushen wenn `app-secrets.json` staged ist
 - Immer `git status` vor dem Commit zeigen
+- Niemals pushen bei unerwarteten `npm test`-Fehlschlägen (siehe Schritt 6)
 - Bei Fehler: nicht force-pushen, Fehler erklären

@@ -285,7 +285,11 @@ function openSearchModal(type) {
                 filterSelect.innerHTML = '<option value="ALL">🌐 Alle Vorlagen anzeigen</option><option value="GLOBAL">⭐ Nur Globale Vorlagen (Ohne Lieferant)</option>' + sups.sort().map(s => `<option value="${s}">🏢 Vorlagen von: ${s}</option>`).join('');
                 
                 let currentTabLief = type === 'sonder-tpl-sort' ? (document.getElementById('lief-sort')?document.getElementById('lief-sort').value:"") : (document.getElementById('lief')?document.getElementById('lief').value:"");
-                if (currentTabLief && sups.includes(currentTabLief)) { filterSelect.value = currentTabLief; } 
+                // Nur auf den Lieferanten aus dem Tab vorbelegen, wenn es fuer ihn auch eigene Vorlagen gibt.
+                // Sonst zeigte das Fenster gar keine Vorlage an, obwohl welche vorhanden sind -- sie sahen
+                // dann geloescht aus (2026-08-05: einzige Vorlage "Krakauer" haengt an Lieferant "Nove").
+                const hatEigeneVorlagen = currentTabLief && sonderTemplates.some(t => t.lief === currentTabLief);
+                if (hatEigeneVorlagen && sups.includes(currentTabLief)) { filterSelect.value = currentTabLief; }
                 else { filterSelect.value = 'ALL'; }
             } else {
                 sonderFilterBar.style.display = 'none';
@@ -605,11 +609,11 @@ function renderLKW() {
         if(!stats[e.lief]) stats[e.lief] = {n:0, kart:0, leergut:{}};
         stats[e.lief].n += e.netto; stats[e.lief].kart += (e.kart||0); tKart+=(e.kart||0);
         
-        let lgMap = e.leergut || {};
-        if(e.e2) lgMap['E2'] = (lgMap['E2']||0) + e.e2;
-        if(e.he) lgMap['Herta'] = (lgMap['Herta']||0) + e.he;
-        if(e.h1) lgMap['H1'] = (lgMap['H1']||0) + e.h1;
-        if(e.eu) lgMap['Euro'] = (lgMap['Euro']||0) + e.eu;
+        let lgMap = { ...(e.leergut || {}) };
+        if(e.e2) lgMap['E2'] = e.e2;
+        if(e.he) lgMap['Herta'] = e.he;
+        if(e.h1) lgMap['H1'] = e.h1;
+        if(e.eu) lgMap['Euro'] = e.eu;
         
         for(let key in lgMap) {
             stats[e.lief].leergut[key] = (stats[e.lief].leergut[key]||0) + lgMap[key];
@@ -700,11 +704,11 @@ function renderSort() {
         if (!listContainer || typeof entriesSort === 'undefined') return;
 
         listContainer.innerHTML = entriesSort.map((e,i) => {
-            let lgMap = e.leergut || {};
-            if(e.e2) lgMap['E2'] = (lgMap['E2']||0) + e.e2;
-            if(e.he) lgMap['Herta'] = (lgMap['Herta']||0) + e.he;
-            if(e.h1) lgMap['H1'] = (lgMap['H1']||0) + e.h1;
-            if(e.eu) lgMap['Euro'] = (lgMap['Euro']||0) + e.eu;
+            let lgMap = { ...(e.leergut || {}) };
+            if(e.e2) lgMap['E2'] = e.e2;
+            if(e.he) lgMap['Herta'] = e.he;
+            if(e.h1) lgMap['H1'] = e.h1;
+            if(e.eu) lgMap['Euro'] = e.eu;
 
             let tare = 0; let infoArr = [];
             const config = getLeergutConfig();
@@ -809,9 +813,9 @@ function openEditLKW(i) {
             const config = getLeergutConfig();
             config.forEach(lg => { let el = document.getElementById('edit_' + lg.id); if(el) el.value = ''; });
             
-            let lgMap = e.leergut || {};
-            if(e.e2) lgMap['E2'] = (lgMap['E2']||0) + e.e2; if(e.he) lgMap['Herta'] = (lgMap['Herta']||0) + e.he;
-            if(e.h1) lgMap['H1'] = (lgMap['H1']||0) + e.h1; if(e.eu) lgMap['Euro'] = (lgMap['Euro']||0) + e.eu;
+            let lgMap = { ...(e.leergut || {}) };
+            if(e.e2) lgMap['E2'] = e.e2; if(e.he) lgMap['Herta'] = e.he;
+            if(e.h1) lgMap['H1'] = e.h1; if(e.eu) lgMap['Euro'] = e.eu;
             
             let tare = 0;
             for(let key in lgMap) {
@@ -842,9 +846,9 @@ function openEditSort(i) {
             const config = getLeergutConfig();
             config.forEach(lg => { let el = document.getElementById('edit_' + lg.id); if(el) el.value = ''; });
             
-            let lgMap = e.leergut || {};
-            if(e.e2) lgMap['E2'] = (lgMap['E2']||0) + e.e2; if(e.he) lgMap['Herta'] = (lgMap['Herta']||0) + e.he;
-            if(e.h1) lgMap['H1'] = (lgMap['H1']||0) + e.h1; if(e.eu) lgMap['Euro'] = (lgMap['Euro']||0) + e.eu;
+            let lgMap = { ...(e.leergut || {}) };
+            if(e.e2) lgMap['E2'] = e.e2; if(e.he) lgMap['Herta'] = e.he;
+            if(e.h1) lgMap['H1'] = e.h1; if(e.eu) lgMap['Euro'] = e.eu;
             
             let tare = 0;
             for(let key in lgMap) {

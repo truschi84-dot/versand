@@ -174,17 +174,23 @@ function getV10ExportData() {
     const title = 'Artikelliste (' + tabLabels[activeV10Tab] + ')';
     let headers = [], rows = [];
     if (activeV10Tab === 'todo') {
-        headers = ['Fertig-Nr.', 'Bezeichnung'];
-        rows = (db.todo || []).map(a => [a.fertigNr || '-', a.name || '-']);
+        headers = ['Fertig-Nr.', 'Bezeichnung', 'Markt', 'Tierart'];
+        rows = (db.todo || []).map(a => {
+            const m = getArtikelMarktValue(a.fertigNr);
+            return [a.fertigNr || '-', a.name || '-', m === 'export' ? 'Export' : m === 'uns' ? 'Uns' : '—', getTierart(a.fertigNr) || '—'];
+        });
     } else if (activeV10Tab === 'later') {
-        headers = ['Fertig-Nr.', 'Bezeichnung'];
-        rows = (db.later || []).map(a => [a.fertigNr || '-', a.name || '-']);
+        headers = ['Fertig-Nr.', 'Bezeichnung', 'Markt', 'Tierart'];
+        rows = (db.later || []).map(a => {
+            const m = getArtikelMarktValue(a.fertigNr);
+            return [a.fertigNr || '-', a.name || '-', m === 'export' ? 'Export' : m === 'uns' ? 'Uns' : '—', getTierart(a.fertigNr) || '—'];
+        });
     } else if (activeV10Tab === 'done') {
-        headers = ['Lose-Nr.', 'Fertig-Nr.', 'Markt', 'Name für App', 'Originalbezeichnung'];
+        headers = ['Lose-Nr.', 'Fertig-Nr.', 'Markt', 'Tierart', 'Name für App', 'Originalbezeichnung'];
         rows = [...(db.articles || [])].sort((a, b) => (parseInt(a.fertigNr) || 0) - (parseInt(b.fertigNr) || 0))
             .map(a => {
                 const m = getArtikelMarktValue(a.fertigNr);
-                return [a.nr || '-', a.fertigNr || '-', m === 'export' ? 'Export' : m === 'uns' ? 'Uns' : '—', a.name || '-', a.originalName || '-'];
+                return [a.nr || '-', a.fertigNr || '-', m === 'export' ? 'Export' : m === 'uns' ? 'Uns' : '—', getTierart(a.fertigNr) || '—', a.name || '-', a.originalName || '-'];
             });
     } else if (activeV10Tab === 'hidden') {
         headers = ['Fertig-Nr.', 'Bezeichnung'];

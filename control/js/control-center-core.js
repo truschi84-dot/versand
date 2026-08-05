@@ -15,6 +15,27 @@ function getEffectiveCloudUrl() {
 }
 let CLOUD_URL = getEffectiveCloudUrl();
 
+// 2026-08-05: CLOUD_URL ist im Normalfall ein leerer String. Das bisherige
+// CLOUD_URL.replace('/backup', '/archive') lief damit ins Leere ('' bleibt ''),
+// und supabaseCloudFetch ordnete Archiv, Snapshot und Reklamationen dem
+// Hauptdatensatz 'main' zu -> Daten wurden ueberschrieben. Diese Funktion baut
+// den Pfad immer selbst, damit die Regex-Kette in supabaseCloudFetch greift.
+function cloudTargetUrl(target, subKey) {
+    const base = (CLOUD_URL || '').replace(/\/+$/, '');
+    const paths = {
+        backup: '/backup',              // trifft kein Muster -> Datensatz 'main'
+        archive: '/archive',            // trifft /\/archive/i
+        snapshot: '/snapshot',          // trifft /\/snapshot/i
+        reklamationen: '/reklamationen' // trifft /reklamation/i
+    };
+    const path = paths[target];
+    if (!path) throw new Error("Unbekanntes Cloud-Ziel: " + target);
+    return base + path + (subKey ? '/' + subKey : '');
+}
+
+/** Fallback nur falls noch keine Settings aus Supabase geladen wurden — echte PIN kommt aus den Cloud-Settings. */
+const DEFAULT_ADMIN_PIN = "0000";
+
 const rawData = [
     {id:"20100", name:"Katenschinken ger. Verschn."}, {id:"20101", name:"Kräuterlachsschinken Verschn."}, {id:"20102", name:"Lachsschinken Natur Verschn."}, {id:"20103", name:"Lachsschinken Grav Art Verschn"}, {id:"20104", name:"Serrano Ver mit Interliver"}, {id:"20105", name:"Schwarzwälder Schinken Verschn"}, {id:"20106", name:"Südtiroler Alpenspeck Verschn."}, {id:"20107", name:"Serrano Schinken Kappen"}, {id:"20108", name:"Serrano Schinken Wickelpack90g"}, {id:"20109", name:"Bel. Rohschinken luft Versch"},
     {id:"20110", name:"Ital Rohschinken ca. 300g Vers"}, {id:"20111", name:"Bacon Würfel"}, {id:"20112", name:"Katenschinken luft Verschn."}, {id:"20113", name:"Pariser Lachsschinken Verschn"}, {id:"20114", name:"Bauernschinken Würfel"}, {id:"20115", name:"Bacon geräuchert Verschn."}, {id:"20116", name:"Eierspeck SB Bacon"}, {id:"20117", name:"Serrano Schinken ca.300g"}, {id:"20118", name:"Bel. Rohschinken ger Verschnitt"}, {id:"20119", name:"Edellachsschinken Verschn."},
@@ -94,8 +115,8 @@ let db = {
     settings: { 
         printerIp: "192.168.211.40", 
         notificationUrl: "https://formspree.io/f/xrejnkgq", 
-        logistikPin: "3132", 
-        adminPin: "110784",
+        logistikPin: "3132",
+        adminPin: DEFAULT_ADMIN_PIN,
         pinVersion: 1,
         inactivityTimeout: 0,
         noelkeDefaultArtNr: "NÖLKE" },
@@ -347,13 +368,13 @@ function renderAll() {
     db.later = (db.later||[]).filter(a => a && a.fertigNr && a.name !== undefined && isNotAssigned(a));
     db.hidden = (db.hidden||[]).filter(a => a && a.fertigNr && a.name !== undefined && isNotAssigned(a));
     
-    if(!db.settings) db.settings = { printerIp: "192.168.211.40", notificationUrl: "https://formspree.io/f/xrejnkgq", logistikPin: "3132", adminPin: "110784", pinVersion: 1, inactivityTimeout: 0, noelkeDefaultArtNr: "NÖLKE" };
+    if(!db.settings) db.settings = { printerIp: "192.168.211.40", notificationUrl: "https://formspree.io/f/xrejnkgq", logistikPin: "3132", adminPin: DEFAULT_ADMIN_PIN, pinVersion: 1, inactivityTimeout: 0, noelkeDefaultArtNr: "NÖLKE" };
     if (db.settings.pinVersion == null) db.settings.pinVersion = 1;
     if(!db.workers) db.workers = [];
     if(!db.workerColors) db.workerColors = {};
     (db.workers || []).forEach(w => { if (!db.workerColors[w]) db.workerColors[w] = nextWorkerColor(); });
     if(!db.company) db.company = { name: "Tresch & Sohn", color: "#004b93", modules: { lkw: true, sort: true, noelke: true }, leergut: "E2:2.0, Herta:2.5, H1:18.0, Euro:21.0" };
-    ADMIN_PIN = db.settings.adminPin || "110784";
+    ADMIN_PIN = db.settings.adminPin || DEFAULT_ADMIN_PIN;
     
     document.getElementById('set-printer-ip').value = db.settings.printerIp || "";
     document.getElementById('set-notification-url').value = db.settings.notificationUrl || "";
@@ -1425,7 +1446,8 @@ async function loadReklamationen() {
     const list = document.getElementById('qm-list'); if(!list) return;
     list.innerHTML = '<p style="padding:15px; color:#666;">Lade Daten sicher aus dem Archiv...</p>';
     try {
-        const res = await cloudFetch(CLOUD_URL.replace('/backup', '/reklamationen') + ".json?t=" + Date.now());
+        // 2026-08-05: Ziel-Pfad ueber cloudTargetUrl, sonst wurde bei leerer CLOUD_URL 'main' gelesen
+        const res = await cloudFetch(cloudTargetUrl('reklamationen') + ".json?t=" + Date.now());
         const data = await res.json(); qmData = [];
         if (data) { Object.keys(data).forEach(key => { qmData.push({ dbKey: key, ...data[key] }); });
             qmData.sort((a, b) => {
@@ -1547,8 +1569,9 @@ function updateQmReklamation() {
         photoBase64: q.photoBase64 || ""
     };
 
-    let rekUrl = CLOUD_URL.replace('/backup', '/reklamationen') + "/" + currentEditQmKey + ".json";
-    
+    // 2026-08-05: bisher wurde bei leerer CLOUD_URL der komplette Hauptdatensatz mit einer Reklamation ueberschrieben
+    let rekUrl = cloudTargetUrl('reklamationen', currentEditQmKey) + ".json";
+
     cloudFetch(rekUrl, { method: 'PUT', body: JSON.stringify(updatedData), headers: { 'Content-Type': 'application/json' } })
     .then(res => {
         btn.innerText = "💾 Änderungen speichern";
@@ -1560,7 +1583,8 @@ function updateQmReklamation() {
 
 function deleteQmReklamation(dbKey) {
     if (confirm("Möchtest du diese Reklamation wirklich dauerhaft aus der Cloud löschen?")) {
-        let rekUrl = CLOUD_URL.replace('/backup', '/reklamationen') + "/" + dbKey + ".json";
+        // 2026-08-05: ohne cloudTargetUrl fehlte der Reklamations-Unterschluessel, das Loeschen lief ins Leere
+        let rekUrl = cloudTargetUrl('reklamationen', dbKey) + ".json";
         cloudFetch(rekUrl, { method: 'DELETE' }).then(res => { if (res.ok) { alert("Reklamation gelöscht!"); loadReklamationen(); } else { alert("Fehler beim Löschen."); } }).catch(e => { alert("Netzwerkfehler."); });
     }
 }
@@ -1589,7 +1613,8 @@ async function archiveOldData() {
     }
     
     try {
-        let archiveUrl = CLOUD_URL.replace('/backup', '/archive');
+        // 2026-08-05: bisher zeigte archiveUrl bei leerer CLOUD_URL auf 'main' - die alten Lieferungen wurden dadurch geloescht
+        let archiveUrl = cloudTargetUrl('archive');
         const res = await cloudFetch(archiveUrl + ".json?t=" + Date.now());
         let archiveDb = {};
         if (res.ok) { archiveDb = await res.json() || {}; }
@@ -1602,14 +1627,15 @@ async function archiveOldData() {
         db.deliveries = toKeep;
         let uploadDb = prepareDbForCloudUpload(db);
         try {
-            const snapRes = await cloudFetch(CLOUD_URL + ".json?t=" + Date.now());
+            // 2026-08-05: Hauptdatensatz jetzt explizit ueber cloudTargetUrl, damit Archiv und Haupt sauber getrennt sind
+            const snapRes = await cloudFetch(cloudTargetUrl('backup') + ".json?t=" + Date.now());
             if (snapRes.ok) {
                 const snap = await snapRes.json();
                 if (typeof finalizeCloudPutPayload === 'function') uploadDb = finalizeCloudPutPayload(uploadDb, snap);
             }
         } catch (e) { /* Archiv-Upload ohne Snapshot */ }
         db.supplierLines = uploadDb.supplierLines;
-        await cloudFetch(CLOUD_URL + ".json", { method: 'PUT', body: JSON.stringify(uploadDb), headers: { 'Content-Type': 'application/json' } });
+        await cloudFetch(cloudTargetUrl('backup') + ".json", { method: 'PUT', body: JSON.stringify(uploadDb), headers: { 'Content-Type': 'application/json' } });
         
         renderAll();
         addCloudLog("ARCHIV: " + toArchive.length + " Einträge verschoben [OK]");
@@ -1624,7 +1650,8 @@ async function archiveOldData() {
 function createManualSnapshot() {
     const todayStr = new Date().toISOString().split('T')[0];
     const timeStr = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
-    const snapshotUrl = CLOUD_URL.replace('/backup', '/snapshots/' + todayStr + '_' + timeStr);
+    // 2026-08-05: Snapshot landete bei leerer CLOUD_URL auf dem Hauptdatensatz statt in der Snapshot-Zeile
+    const snapshotUrl = cloudTargetUrl('snapshot', todayStr + '_' + timeStr);
     
     document.getElementById('db-status').innerText = "Erstelle Snapshot...";
     let payload;
@@ -1773,7 +1800,8 @@ async function pushToCloud(skipConfirm) {
             // Automatischer Tages-Snapshot (überschreibt sich pro Tag selbst, um nicht zu übermüllen)
             try {
                 const todayStr = new Date().toISOString().split('T')[0];
-                const snapshotUrl = CLOUD_URL.replace('/backup', '/snapshots/auto_' + todayStr);
+                // 2026-08-05: Tages-Snapshot ueberschrieb bisher den Hauptdatensatz statt die Snapshot-Zeile zu fuellen
+                const snapshotUrl = cloudTargetUrl('snapshot', 'auto_' + todayStr);
                 cloudFetch(snapshotUrl + ".json", { method: 'PUT', body: JSON.stringify(payload), headers: { 'Content-Type': 'application/json' } });
             } catch(e) {}
         })

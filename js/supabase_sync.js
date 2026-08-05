@@ -7,6 +7,19 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 window.__useSupabase = true;
 
+// 2026-08-05: Server-Adresse umschaltbar machen. Das Bedienfeld im Sperrbildschirm
+// (promptCustomCloudUrl -> localStorage 'custom_cloud_url') war bisher wirkungslos,
+// weil SUPABASE_URL fest verdrahtet benutzt wurde. Damit laesst sich EIN Testgeraet
+// auf den Firmenserver umstellen, waehrend alle anderen in der Cloud bleiben.
+// Wird bei JEDEM Aufruf frisch gelesen, damit Umschalten sofort greift.
+// Leer oder nicht gesetzt = eingebaute Cloud-Adresse, Verhalten unveraendert.
+function getBackendBaseUrl() {
+    let custom = '';
+    try { custom = (localStorage.getItem('custom_cloud_url') || '').trim(); } catch (e) { custom = ''; }
+    if (!custom) return SUPABASE_URL;
+    return custom.replace(/\/+$/, ''); // nachlaufende Schraegstriche abfangen
+}
+
 const SupabaseSync = {
     _h() {
         return {
@@ -18,7 +31,7 @@ const SupabaseSync = {
 
     async get(rowKey) {
         const res = await fetch(
-            SUPABASE_URL + '/rest/v1/cloud_backup?key=eq.' + encodeURIComponent(rowKey) + '&select=data',
+            getBackendBaseUrl() + '/rest/v1/cloud_backup?key=eq.' + encodeURIComponent(rowKey) + '&select=data',
             { headers: this._h() }
         );
         if (!res.ok) return null;
@@ -27,7 +40,7 @@ const SupabaseSync = {
     },
 
     async upsert(rowKey, data) {
-        return fetch(SUPABASE_URL + '/rest/v1/cloud_backup', {
+        return fetch(getBackendBaseUrl() + '/rest/v1/cloud_backup', {
             method: 'POST',
             headers: { ...this._h(), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
             body: JSON.stringify({ key: rowKey, data, updated_at: new Date().toISOString() })

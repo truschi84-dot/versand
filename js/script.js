@@ -16,7 +16,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 136;
+const WEB_BUILD_VERSION = 138;
 /** Fallback nur wenn app-update.json nicht geladen werden kann — echte URL kommt aus Config. */
 const OFFICE_LAN_URL = '';
 let pendingOtaUpdate = null;
@@ -1792,6 +1792,10 @@ function applyRechnerStammdatenFromCloud(data) {
         changed = true;
     }
     if (Array.isArray(data.articles)) { lDb.articles = data.articles; changed = true; }
+    // Mitarbeiter nur EMPFANGEN, nie hochladen: getRechnerStammdatenCloudPayload() sendet bewusst
+    // keine workers, damit ein Handy mit leerem Speicher die Liste nicht fuer alle ueberschreibt.
+    // Ohne diese Zeile blieb "Angenommen von" in der Reklamation nach einer APK-Neuinstallation leer.
+    if (Array.isArray(data.workers)) { lDb.workers = data.workers; changed = true; }
     if (Array.isArray(data.savedProdukteRaw)) { rDb.savedProdukteRaw = data.savedProdukteRaw; changed = true; }
     if (Array.isArray(data.sonderTemplates)) { rDb.sonderTemplates = data.sonderTemplates; changed = true; }
     if (Array.isArray(data.checklistMorningTemplate)) { lDb.checklistMorningTemplate = data.checklistMorningTemplate; changed = true; }

@@ -395,6 +395,24 @@ function mergeLogistikPayloadMitCloud(localPayload, cloudData) {
     if (cloud.teamTagesMengen && typeof mergeTeamTagesMengen === 'function') {
         payload.teamTagesMengen = mergeTeamTagesMengen(payload.teamTagesMengen || {}, cloud.teamTagesMengen);
     }
+    // Sortiment-Zuweisungen (suppliers) aus der Cloud sichern — werden nur vom Control Center gesetzt.
+    // Verhindert, dass Auto-Sync vom Handy die PC-Zuweisungen überschreibt.
+    if (Array.isArray(cloud.articles) && cloud.articles.length > 0) {
+        const localArticles = payload.articles || [];
+        const cloudMap = new Map(cloud.articles.map(a => [a.fertigNr, a]));
+        const localMap = new Map(localArticles.map(a => [a.fertigNr, a]));
+        const merged = localArticles.map(a => {
+            const ca = cloudMap.get(a.fertigNr);
+            if (!ca || !Array.isArray(ca.suppliers) || ca.suppliers.length === 0) return a;
+            const localSups = new Set(a.suppliers || []);
+            const mergedSups = [...localSups];
+            ca.suppliers.forEach(s => { if (!localSups.has(s)) mergedSups.push(s); });
+            return { ...a, suppliers: mergedSups };
+        });
+        // Artikel die nur in der Cloud existieren (vom Control Center hinzugefügt) ebenfalls übernehmen
+        cloud.articles.forEach(ca => { if (!localMap.has(ca.fertigNr)) merged.push(ca); });
+        payload.articles = merged;
+    }
     return payload;
 }
 
@@ -447,27 +465,75 @@ function applyCloudSortierBuchungen(db, cloudBuchungen) {
     );
 }
 
+/**
+ * Sitzungs-Anteil des Zusammenfuehr-Schluessels.
+ * Leerer String = Altbestand ohne Sitzungskennung (vor Build 115) sowie der
+ * Platzhalter 'default' — beide verhalten sich weiter wie bisher. (2026-08-05)
+ */
+function sortierBuchungSitzungTeil(b) {
+    const s = b && b.sitzungId != null ? String(b.sitzungId).trim() : '';
+    return s === 'default' ? '' : s;
+}
+
+/**
+ * Entscheidet zwischen zwei Buchungen mit demselben Schluessel — unveraenderte Regeln:
+ * 0 kg darf niemals ein echtes Gewicht ueberschreiben, sonst gewinnt der neuere
+ * Druck-Zeitstempel (bei Gleichstand der spaeter gelesene Eintrag = lokal). (2026-08-05)
+ */
+function bessereSortierBuchung(prev, b) {
+    const bKg = parseFloat(b.gebuchtKg) || 0;
+    const prevKg = parseFloat(prev.gebuchtKg) || 0;
+    if (bKg === 0 && prevKg > 0) return prev;
+    if (prevKg === 0 && bKg > 0) return b;
+    const tNew = b.letzterDruck ? Date.parse(b.letzterDruck) : 0;
+    const tPrev = prev.letzterDruck ? Date.parse(prev.letzterDruck) : 0;
+    return tNew >= tPrev ? b : prev;
+}
+
+/**
+ * FEHLERBEHEBUNG 2026-08-05: Der Schluessel war nur sessionKey|datum. Wurde derselbe
+ * Artikel desselben Lieferanten zweimal am selben Tag sortiert, hat der zweite
+ * Sortiervorgang den ersten ueberschrieben (belegt: Ponnath 03.08.2026, 624 kg verloren).
+ * Die bereits vorhandene sitzungId gehoert deshalb mit in den Schluessel.
+ */
 function mergeTeamSortierBuchungen(lokal, cloud, deletedKeys) {
     const delSet = new Set(deletedKeys || []);
-    const byKey = new Map();
+    // sessionKey|datum -> Map(sitzungTeil -> Buchung)
+    const gruppen = new Map();
     asSortierBuchungenArray(cloud).concat(asSortierBuchungenArray(lokal)).forEach((raw) => {
         const b = normalizeSortierBuchungRecord(raw);
         if (!b) return;
         if (istSortierBuchungGeloescht(b, delSet)) return;
-        const k = b.sessionKey + '|' + b.datum;
-        const prev = byKey.get(k);
-        if (!prev) { byKey.set(k, { ...b }); return; }
-        const bKg   = parseFloat(b.gebuchtKg)    || 0;
-        const prevKg = parseFloat(prev.gebuchtKg) || 0;
-        // 0 kg darf niemals ein echtes Gewicht überschreiben
-        if (bKg === 0 && prevKg > 0) return;
-        if (prevKg === 0 && bKg > 0) { byKey.set(k, { ...b }); return; }
-        // Beide haben Gewicht (oder beide 0) → neuerer Druck-Zeitstempel gewinnt (Korrektur)
-        const tNew  = b.letzterDruck    ? Date.parse(b.letzterDruck)    : 0;
-        const tPrev = prev.letzterDruck ? Date.parse(prev.letzterDruck) : 0;
-        if (tNew >= tPrev) byKey.set(k, { ...b });
+        const basis = sortierBuchungMergeKey(b);
+        if (!gruppen.has(basis)) gruppen.set(basis, new Map());
+        const sitzungen = gruppen.get(basis);
+        const sk = sortierBuchungSitzungTeil(b);
+        const prev = sitzungen.get(sk);
+        sitzungen.set(sk, { ...(prev ? bessereSortierBuchung(prev, b) : b) });
     });
-    return Array.from(byKey.values());
+
+    const result = [];
+    gruppen.forEach((sitzungen) => {
+        faltAltbestandOhneSitzung(sitzungen);
+        sitzungen.forEach((b) => result.push(b));
+    });
+    return result;
+}
+
+/**
+ * Altbestand ohne Sitzungskennung und Sitzungs-Eintraege mit gleichem sessionKey|datum
+ * sind derselbe Vorgang, einmal alt und einmal neu gespeichert — sie duerfen nicht
+ * doppelt gezaehlt werden. Der Altbestand faellt daher weg, sobald mindestens ein
+ * Sitzungs-Eintrag ein echtes Gewicht hat. Steht dort ueberall 0 kg, bleibt das
+ * echte Gewicht des Altbestands erhalten (0-kg-Regel). (2026-08-05)
+ */
+function faltAltbestandOhneSitzung(sitzungen) {
+    if (!sitzungen.has('') || sitzungen.size < 2) return;
+    const altKg = parseFloat(sitzungen.get('').gebuchtKg) || 0;
+    const mitSitzung = [...sitzungen.keys()].filter((k) => k !== '');
+    const echtesGewicht = mitSitzung.some((k) => (parseFloat(sitzungen.get(k).gebuchtKg) || 0) > 0);
+    if (echtesGewicht || altKg <= 0) sitzungen.delete('');
+    else mitSitzung.forEach((k) => sitzungen.delete(k));
 }
 
 function sortierBuchungMergeKey(b) {
@@ -514,10 +580,24 @@ function aktivSortierDeliveryIds(db) {
     return ids;
 }
 
+// 2026-08-05: Seit die Sitzungen getrennt gehalten werden, kann eine Sorte an einem Tag
+// mehrere Buchungen haben (z.B. Ponnath morgens und nachmittags). Der alte Loeschschluessel
+// "sessionKey|datum" trifft immer ALLE davon -- ein Klick haette beide geloescht.
+// Neu gibt es zusaetzlich einen sitzungsgenauen Schluessel. Alte Loeschmarken bleiben
+// gueltig und wirken weiterhin auf alle Sitzungen des Tages.
+const SITZUNG_LOESCH_TRENNER = '#S#';
+
+function sortierBuchungSitzungLoeschKey(b) {
+    const s = typeof sortierBuchungSitzungTeil === 'function' ? sortierBuchungSitzungTeil(b) : '';
+    return s ? sortierBuchungMergeKey(b) + SITZUNG_LOESCH_TRENNER + s : '';
+}
+
 function istSortierBuchungGeloescht(b, deletedKeys) {
     if (!b || !deletedKeys) return false;
     const set = deletedKeys instanceof Set ? deletedKeys : new Set(deletedKeys);
-    return set.has(sortierBuchungMergeKey(b));
+    if (set.has(sortierBuchungMergeKey(b))) return true;   // alte Marke: trifft alle Sitzungen des Tages
+    const sk = sortierBuchungSitzungLoeschKey(b);
+    return sk ? set.has(sk) : false;                        // neue Marke: trifft genau diese Sitzung
 }
 
 function filterDeletedSortierBuchungen(buchungen, deletedKeys) {
@@ -526,10 +606,15 @@ function filterDeletedSortierBuchungen(buchungen, deletedKeys) {
     return buchungen.filter((b) => !istSortierBuchungGeloescht(b, deletedKeys));
 }
 
-function sortierLoeschenMarkieren(db, datum, sessionKey) {
+// 2026-08-05: sitzungId ist optional. Ohne sie verhaelt sich die Funktion wie bisher
+// (loescht alle Sitzungen des Tages), mit ihr wird genau eine Buchung markiert.
+function sortierLoeschenMarkieren(db, datum, sessionKey, sitzungId) {
     if (!db || !datum || !sessionKey) return;
     if (!Array.isArray(db.deletedSortierBuchungen)) db.deletedSortierBuchungen = [];
-    const k = sortierBuchungMergeKey({ sessionKey, datum });
+    const basis = sortierBuchungMergeKey({ sessionKey, datum });
+    const teil = typeof sortierBuchungSitzungTeil === 'function'
+        ? sortierBuchungSitzungTeil({ sitzungId }) : (sitzungId || '');
+    const k = teil ? basis + SITZUNG_LOESCH_TRENNER + teil : basis;
     if (!db.deletedSortierBuchungen.includes(k)) db.deletedSortierBuchungen.push(k);
 }
 

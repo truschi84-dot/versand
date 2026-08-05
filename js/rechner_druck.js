@@ -153,10 +153,13 @@ function sortierungDrucken() {
     let aggregatedDaten = [];
     daten.forEach(item => {
         let lgMap = item.leergut ? {...item.leergut} : {};
-        if(item.e2) lgMap['E2'] = (lgMap['E2']||0) + item.e2;
-        if(item.he) lgMap['Herta'] = (lgMap['Herta']||0) + item.he;
-        if(item.h1) lgMap['H1'] = (lgMap['H1']||0) + item.h1;
-        if(item.eu) lgMap['Euro'] = (lgMap['Euro']||0) + item.eu;
+        // 2026-08-05: nicht mehr addieren -- Sonderposten speichern die Kistenzahl doppelt
+        // (einmal als item.e2, einmal in item.leergut). Auf dem Wiegeschein stand dadurch
+        // die doppelte Kistenzahl. item.e2 gewinnt, weil beim Bearbeiten nur das gepflegt wird.
+        if(item.e2) lgMap['E2'] = item.e2;
+        if(item.he) lgMap['Herta'] = item.he;
+        if(item.h1) lgMap['H1'] = item.h1;
+        if(item.eu) lgMap['Euro'] = item.eu;
 
         let existing = aggregatedDaten.find(x => x.lief === item.lief && x.sorte === item.sorte && x.herkunft === item.herkunft);
         if(existing) { existing.netto += item.netto; existing.count += 1; for(let k in lgMap) { existing.leergut[k] = (existing.leergut[k]||0) + lgMap[k]; } } 

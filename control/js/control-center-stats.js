@@ -750,7 +750,10 @@ function renderMonthlyOverview() {
 function renderSortierBuchungenFuerDatum(datum) {
     const alle = (db.teamSortierBuchungen || []).filter(b => b.datum === datum);
     const deleted = db.deletedSortierBuchungen || [];
-    const aktiv = alle.filter(b => !deleted.includes(b.sessionKey + '|' + b.datum));
+    // 2026-08-05: ueber die zentrale Pruefung, damit auch sitzungsgenaue Loeschmarken greifen
+    const aktiv = typeof istSortierBuchungGeloescht === 'function'
+        ? alle.filter(b => !istSortierBuchungGeloescht(b, deleted))
+        : alle.filter(b => !deleted.includes(b.sessionKey + '|' + b.datum));
     if (!aktiv.length) return '<div style="color:#888;font-size:13px;padding:8px 0;">Keine Buchungen für dieses Datum.</div>';
     return `<table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead><tr style="background:#f5f5f5;">
@@ -761,21 +764,32 @@ function renderSortierBuchungenFuerDatum(datum) {
         </tr></thead>
         <tbody>${aktiv.map(b => `<tr style="border-bottom:1px solid #eee;">
             <td style="padding:6px 8px;">${b.lief || '–'}</td>
-            <td style="padding:6px 8px;color:#555;">${b.sorte || '–'}</td>
+            <td style="padding:6px 8px;color:#555;">${b.sorte || '–'}${b.letzterDruck ? ` <span style="color:#999;font-size:11px;">(${new Date(b.letzterDruck).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr)</span>` : ''}</td>
             <td style="padding:6px 8px;text-align:right;font-weight:bold;">${parseFloat(b.gebuchtKg || 0).toLocaleString('de-DE')}</td>
             <td style="padding:6px 8px;text-align:right;">
-                <button onclick="deleteSortierBuchung('${b.sessionKey}','${b.datum}')" style="background:#e53935;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;">🗑️ Löschen</button>
+                <button onclick="deleteSortierBuchung('${b.sessionKey}','${b.datum}','${b.sitzungId || ''}')" style="background:#e53935;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;">🗑️ Löschen</button>
             </td>
         </tr>`).join('')}</tbody>
     </table>`;
 }
 
-function deleteSortierBuchung(sessionKey, datum) {
+// 2026-08-05: sitzungId ergaenzt. Seit die Sortier-Sitzungen getrennt gehalten werden, kann
+// eine Sorte an einem Tag mehrere Buchungen haben (Ponnath: morgens und nachmittags).
+// Ohne die Sitzung haette ein Klick BEIDE geloescht -- also mehr Menge als gemeint.
+function deleteSortierBuchung(sessionKey, datum, sitzungId) {
     if (!confirm('Buchung wirklich löschen? Sie wird auch aus der Cloud entfernt.')) return;
     if (!Array.isArray(db.deletedSortierBuchungen)) db.deletedSortierBuchungen = [];
-    const key = sessionKey + '|' + datum;
-    if (!db.deletedSortierBuchungen.includes(key)) db.deletedSortierBuchungen.push(key);
-    db.teamSortierBuchungen = (db.teamSortierBuchungen || []).filter(b => !(b.sessionKey === sessionKey && b.datum === datum));
+    if (typeof sortierLoeschenMarkieren === 'function') {
+        sortierLoeschenMarkieren(db, datum, sessionKey, sitzungId);
+    } else {
+        const key = sessionKey + '|' + datum + (sitzungId ? '#S#' + sitzungId : '');
+        if (!db.deletedSortierBuchungen.includes(key)) db.deletedSortierBuchungen.push(key);
+    }
+    db.teamSortierBuchungen = (db.teamSortierBuchungen || []).filter(b => {
+        if (b.sessionKey !== sessionKey || b.datum !== datum) return true;
+        if (!sitzungId) return false;                       // ohne Sitzung: altes Verhalten
+        return String(b.sitzungId || '') !== String(sitzungId);
+    });
     localStorage.setItem('logistik_offline_db', JSON.stringify(db));
     renderWorkerStats();
     if (typeof pushToCloud === 'function') pushToCloud(true);
@@ -791,7 +805,10 @@ function filterSortierBuchungen() {
     const datum = anaSelectedDatum();
     const alle = (db.teamSortierBuchungen || []).filter(b => b.datum === datum);
     const deleted = db.deletedSortierBuchungen || [];
-    let aktiv = alle.filter(b => !deleted.includes(b.sessionKey + '|' + b.datum));
+    // 2026-08-05: ueber die zentrale Pruefung, damit auch sitzungsgenaue Loeschmarken greifen
+    let aktiv = typeof istSortierBuchungGeloescht === 'function'
+        ? alle.filter(b => !istSortierBuchungGeloescht(b, deleted))
+        : alle.filter(b => !deleted.includes(b.sessionKey + '|' + b.datum));
     if (q) aktiv = aktiv.filter(b => (b.lief || '').toLowerCase().includes(q) || (b.sorte || '').toLowerCase().includes(q));
     const el = document.getElementById('sortier-buchungen-liste');
     if (!el) return;
@@ -805,10 +822,10 @@ function filterSortierBuchungen() {
         </tr></thead>
         <tbody>${aktiv.map(b => `<tr style="border-bottom:1px solid #eee;">
             <td style="padding:6px 8px;">${b.lief || '–'}</td>
-            <td style="padding:6px 8px;color:#555;">${b.sorte || '–'}</td>
+            <td style="padding:6px 8px;color:#555;">${b.sorte || '–'}${b.letzterDruck ? ` <span style="color:#999;font-size:11px;">(${new Date(b.letzterDruck).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr)</span>` : ''}</td>
             <td style="padding:6px 8px;text-align:right;font-weight:bold;">${parseFloat(b.gebuchtKg || 0).toLocaleString('de-DE')}</td>
             <td style="padding:6px 8px;text-align:right;">
-                <button onclick="deleteSortierBuchung('${b.sessionKey}','${b.datum}')" style="background:#e53935;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;">🗑️ Löschen</button>
+                <button onclick="deleteSortierBuchung('${b.sessionKey}','${b.datum}','${b.sitzungId || ''}')" style="background:#e53935;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;">🗑️ Löschen</button>
             </td>
         </tr>`).join('')}</tbody>
     </table>`;
