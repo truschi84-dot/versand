@@ -403,8 +403,20 @@ function renderWorkerStats() {
     if (showWorkerMatrix) renderWorkerMatrixOnly();
 }
 
+// 2026-08-17 Geschwindigkeit: Die Konsistenzpruefung (ensureDatenKonsistenz) lief pro Rendern
+// fuenfmal — hier, in teamZeitraumMetrikenAusDb (Woche/Monat) und zweimal im Wochen-Vergleich.
+// Sie laeuft jetzt genau einmal vorne (in syncSortierDatenFuerErfassung); fuer die Dauer des
+// Renderns ist die Klappe zu, die verschachtelten Aufrufe bleiben stehen und tun nichts.
 function renderTeamDashboard() {
     if (typeof syncSortierDatenFuerErfassung === 'function') syncSortierDatenFuerErfassung();
+    else if (typeof ensureDatenKonsistenz === 'function') ensureDatenKonsistenz(db);
+    if (typeof ohneWeitereKonsistenzPruefung === 'function') {
+        return ohneWeitereKonsistenzPruefung(renderTeamDashboardInhalt);
+    }
+    return renderTeamDashboardInhalt();
+}
+
+function renderTeamDashboardInhalt() {
     ensureTeamTagesMengen();
     const container = document.getElementById('team-stats-container');
     if (!container) return;
@@ -790,7 +802,10 @@ function deleteSortierBuchung(sessionKey, datum, sitzungId) {
         if (!sitzungId) return false;                       // ohne Sitzung: altes Verhalten
         return String(b.sitzungId || '') !== String(sitzungId);
     });
-    localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+    // 2026-08-17: speichereOffline wirft nicht. Vorher haette ein voller Speicher hier
+    // abgebrochen: Buchung lokal weg, in der Liste aber weiter sichtbar — und die Cloud
+    // haette vom Loeschen nie erfahren. Liste und Cloud laufen jetzt in jedem Fall.
+    speichereOffline(db);
     renderWorkerStats();
     if (typeof pushToCloud === 'function') pushToCloud(true);
 }

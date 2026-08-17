@@ -16,6 +16,32 @@ function _dbGet(key, defaultVal) {
     }
 }
 
+/**
+ * 2026-08-17: Sichtbare Meldung bei Speicherfehlern. Bewusst NUR Konsole und Bildschirm:
+ * ein Protokoll-Eintrag (addCloudLog) wuerde wieder in denselben vollen Speicher schreiben
+ * und dabei erneut werfen — genau das hat den Klick mitten im Ablauf abgebrochen.
+ * Diese Funktion wirft selbst nie.
+ */
+function meldeSpeicherFehler(key, e) {
+    const grund = (e && (e.name || e.message)) || 'Fehler';
+    console.error('Speicherfehler bei "' + key + '"', e);
+    try {
+        // Statuszeilen des Control Centers; in der Rechner-App gibt es sie nicht.
+        ['db-status', 'sticky-status'].forEach((id) => {
+            const el = (typeof document !== 'undefined') ? document.getElementById(id) : null;
+            if (el) el.textContent = '⚠️ NICHT gespeichert — Speicher voll (' + grund + ')';
+        });
+        if (typeof showToast === 'function') showToast('Speicherfehler: ' + key + ' nicht gespeichert!', 'error');
+    } catch (_) {
+        /* Melden darf den Ablauf nie stoeren */
+    }
+}
+
+/**
+ * true = geschrieben, false = Speicherfehler (wurde gemeldet). Wirft nie nach oben.
+ * Hinweis: In der Rechner-App faengt AppStorage.set den Fehler selbst ab und meldet ihn
+ * dort per Toast — der Rueckgabewert ist in diesem Fall immer true.
+ */
 function _dbSet(key, val) {
     try {
         if (typeof AppStorage !== 'undefined') {
@@ -23,8 +49,10 @@ function _dbSet(key, val) {
         } else {
             localStorage.setItem(key, JSON.stringify(val));
         }
+        return true;
     } catch (e) {
-        console.error('Storage Fehler', e);
+        meldeSpeicherFehler(key, e);
+        return false;
     }
 }
 
@@ -33,7 +61,7 @@ function ladeLogistikDb() {
 }
 
 function speichereLogistikDb(db) {
-    _dbSet(STORAGE_KEYS.LOGISTIK, db);
+    return _dbSet(STORAGE_KEYS.LOGISTIK, db);
 }
 
 function ladeRechnerDb() {
@@ -41,7 +69,7 @@ function ladeRechnerDb() {
 }
 
 function speichereRechnerDb(db) {
-    _dbSet(STORAGE_KEYS.RECHNER, db);
+    return _dbSet(STORAGE_KEYS.RECHNER, db);
 }
 
 function spiegelAufKombi(db) {
@@ -93,8 +121,9 @@ function spiegelAufKombi(db) {
     const rechner = ladeRechnerDb();
     rechner.savedProdukteRaw = db.savedProdukteRaw || rechner.savedProdukteRaw || [];
     rechner.sonderTemplates = db.sonderTemplates || rechner.sonderTemplates || [];
-    speichereLogistikDb(logistik);
-    speichereRechnerDb(rechner);
+    const logistikOk = speichereLogistikDb(logistik);
+    const rechnerOk = speichereRechnerDb(rechner);
+    return logistikOk && rechnerOk;
 }
 
 /** Rückwärtskompatibilität für bestehende Aufrufer */
@@ -109,6 +138,15 @@ function mergeDeliveriesArrays(localList, cloudList) {
 
 function ladeOfflineDb() {
     return _dbGet(STORAGE_KEYS.OFFLINE, {});
+}
+
+/**
+ * Vollstand ins Offline-Lager schreiben. Eine Stelle fuer alle Aufrufer im Control Center,
+ * damit der Speicherfehler nur einmal abgesichert und gemeldet werden muss.
+ * Rueckgabe: true = geschrieben, false = Speicher voll (Meldung ist schon raus).
+ */
+function speichereOffline(db) {
+    return _dbSet(STORAGE_KEYS.OFFLINE, db);
 }
 
 function patchOfflineDb(patch) {

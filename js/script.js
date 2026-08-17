@@ -16,7 +16,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 138;
+const WEB_BUILD_VERSION = 139;
 /** Fallback nur wenn app-update.json nicht geladen werden kann — echte URL kommt aus Config. */
 const OFFICE_LAN_URL = '';
 let pendingOtaUpdate = null;
@@ -1894,16 +1894,27 @@ async function pushSortierNachDruckSilent() {
         teamTagesMengen: mergedMengen,
         deliveries: mergedDeliveries
     };
+    // 2026-08-17: Der Fehlerfall war vorher stumm. Genau beim Serverumzug (Schluesselwechsel
+    // -> 401) hoerten die gedruckten Buchungen auf hochzugehen, ohne dass es jemand merkt.
+    // Die Buchung ist gedruckt und liegt lokal — sie fehlt aber in der Cloud.
+    function meldeSortierPushFehler(grund) {
+        if (typeof addAppCloudLog === 'function') addAppCloudLog('FEHLER: Sortier nach Druck NICHT in die Cloud - ' + grund);
+        if (typeof showToast === 'function') showToast('Buchung gedruckt, aber nicht in die Cloud gemeldet — bitte "In Cloud sichern" drücken.', 'warning');
+    }
     try {
         const res = await cloudFetch(APP_CONFIG.CLOUD_URL + '.json', {
             method: 'PATCH',
             body: JSON.stringify(patch),
             headers: { 'Content-Type': 'application/json' }
         });
-        if (res.ok && typeof addAppCloudLog === 'function') {
-            addAppCloudLog('AUTO-SYNC: Sortier nach Druck [OK]');
+        if (res.ok) {
+            if (typeof addAppCloudLog === 'function') addAppCloudLog('AUTO-SYNC: Sortier nach Druck [OK]');
+        } else {
+            meldeSortierPushFehler('Status ' + res.status);
         }
-    } catch (_) { /* still */ }
+    } catch (e) {
+        meldeSortierPushFehler((e && e.message) || 'Netzwerkfehler');
+    }
 }
 
 async function silentPushLogistikToCloud() {

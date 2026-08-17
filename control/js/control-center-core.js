@@ -142,8 +142,9 @@ let editingNoelkeIdx = null;
 let editingPoolCtx = null;
 
 /** Spiegelt PC-db nach kombi_* (gleicher Browser / Notfall-Kompatibilität zur Kombi-App). */
+/** false = mindestens eine Kopie konnte nicht geschrieben werden (Speicher voll, wurde gemeldet). */
 function mirrorToKombiStorage() {
-    spiegelAufKombi(db);
+    return spiegelAufKombi(db);
 }
 
 /** Sortier-Buchungen + Deliveries vor Erfassung/Statistik angleichen (gleiche Quelle wie Analyse). */
@@ -453,13 +454,21 @@ function renderAll() {
     if (todoCard) todoCard.style.display = db.todo.length > 0 ? 'block' : 'none';
     updateHomeDashboard();
     renderAssignLeft(); renderAssignRight(); renderNoelkeList();
-    syncSortierDatenFuerErfassung();
+    // 2026-08-17 Geschwindigkeit: syncSortierDatenFuerErfassung() lief hier und gleich danach
+    // noch einmal in renderAdminDeliveries(). Der Aufruf steht jetzt nur noch dort — und dort
+    // ganz vorne, damit er auch ohne Erfassungs-Felder im Fenster genau einmal passiert.
     renderAdminDeliveries();
     document.getElementById('db-status').innerText = 'Stand: ' + new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    localStorage.setItem('logistik_offline_db', JSON.stringify(db));
-    mirrorToKombiStorage();
+    // 2026-08-17: Der Speicher ist bei ~2,8 MB je Vollkopie am 5-MB-Limit. Kippte das Schreiben,
+    // brach renderAll() mitten im Klick ab. speichereOffline() und der Spiegel melden den
+    // Fehler sichtbar (Konsole + Statuszeile) und laufen weiter.
+    const lokalGespeichert = speichereOffline(db);
+    const gespiegelt = mirrorToKombiStorage();
     const stickyStatus = document.getElementById('sticky-status');
-    if (stickyStatus) stickyStatus.textContent = 'Lokal gespeichert · ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    if (stickyStatus) {
+        stickyStatus.textContent = (lokalGespeichert && gespiegelt ? 'Lokal gespeichert · ' : '⚠️ NICHT gespeichert (Speicher voll) · ')
+            + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    }
 }
 
 function updateHomeDashboard() {
@@ -821,8 +830,11 @@ function saveCompanySettings() {
     saveSystemSettings(); 
 }
 
+// 2026-08-17: Diese Funktion darf nie nach oben werfen. Sie wird auch aus Fehlerzweigen
+// gerufen — und ihr eigenes setItem lief bei vollem Speicher genauso auf den Fehler wie
+// das Schreiben, das gemeldet werden sollte. Der Klick brach dann trotz catch ab.
 function addCloudLog(action) {
-    let logs = JSON.parse(localStorage.getItem('admin_cloud_logs') || '[]');
+    let logs = ladeCloudLogs();
     const now = new Date();
     const time = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const date = now.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -830,14 +842,27 @@ function addCloudLog(action) {
     const isOk = /\[OK\]|erfolg|gespeichert|geladen/i.test(action);
     logs.unshift({ date, time, action, cls: isErr ? 'err' : isOk ? 'ok' : '' });
     if(logs.length > 50) logs.pop();
-    localStorage.setItem('admin_cloud_logs', JSON.stringify(logs));
+    try {
+        localStorage.setItem('admin_cloud_logs', JSON.stringify(logs));
+    } catch (e) {
+        console.error('admin_cloud_logs nicht gespeichert', e);
+    }
     renderCloudLogs();
+}
+
+function ladeCloudLogs() {
+    try {
+        return JSON.parse(localStorage.getItem('admin_cloud_logs') || '[]');
+    } catch (e) {
+        console.error('admin_cloud_logs unlesbar', e);
+        return [];
+    }
 }
 
 function renderCloudLogs() {
     const list = document.getElementById('cloud-log-list');
     if(!list) return;
-    let logs = JSON.parse(localStorage.getItem('admin_cloud_logs') || '[]');
+    let logs = ladeCloudLogs();
     if(logs.length === 0) {
         list.innerHTML = '<div class="activity-item"><span class="activity-time">—</span><span class="activity-msg">Noch keine Cloud-Aktionen</span></div>';
         return;
@@ -927,7 +952,7 @@ function adminSaveDelivery() {
     const entry = { id: Date.now().toString(), date: d, name: s, kg: k, workerShares: [], source: 'lkw' };
     if (line) entry.line = line;
     db.deliveries.push(entry);
-    localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+    speichereOffline(db);
     document.getElementById('admin-weight').value = '';
     renderAll();
 }
@@ -1005,9 +1030,12 @@ async function refreshErfassungFromCloud(silent) {
             if (typeof bereinigeGeloeschteSortierDeliveries === 'function') bereinigeGeloeschteSortierDeliveries(db);
             syncSortierDatenFuerErfassung();
             window._erfassungLastCloudPull = Date.now();
-            localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+            // 2026-08-17: speichereOffline wirft nicht — ein Speicherfehler darf hier nicht im
+            // Cloud-catch landen und "Cloud-Abruf fehlgeschlagen" melden. Das waere die falsche
+            // Ursache. Gemeldet wird der Speicherfehler von speichereOffline selbst.
+            const gespeichert = speichereOffline(db);
             mirrorToKombiStorage();
-            addCloudLog('ERFASSUNG: Cloud-Stand geladen [OK]');
+            if (gespeichert) addCloudLog('ERFASSUNG: Cloud-Stand geladen [OK]');
         }
         const dInput = document.getElementById('admin-work-date');
         if (dInput && !dInput.value) {
@@ -1029,10 +1057,13 @@ async function refreshErfassungFromCloud(silent) {
 }
 
 function renderAdminDeliveries() {
+    // 2026-08-17: Stand vor den DOM-Pruefungen, damit der Abgleich auch dann genau einmal
+    // laeuft, wenn die Erfassungs-Felder gerade nicht im Fenster sind (vorher rief renderAll()
+    // ihn zusaetzlich selbst auf).
+    syncSortierDatenFuerErfassung();
     const d = document.getElementById('admin-work-date'); if(!d) return;
     const list = document.getElementById('admin-delivery-list'); if(!list) return;
     const openList = document.getElementById('admin-open-deliveries-list');
-    syncSortierDatenFuerErfassung();
 
     let datum = d.value;
     if (!datum) { datum = ccTodayISO(); d.value = datum; }
@@ -1159,10 +1190,8 @@ function openAdminEditDelivery(id) {
         alert('Eintrag nicht gefunden — bitte 🔄 Cloud aktualisieren.');
         return;
     }
-    try {
-        localStorage.setItem('logistik_offline_db', JSON.stringify(db));
-        mirrorToKombiStorage();
-    } catch (e) { /* ignore */ }
+    speichereOffline(db);
+    mirrorToKombiStorage();
     adminEditingDeliveryId = del.id;
     document.getElementById('admin-edit-del-name').innerText = deliveryDisplayName(del);
     const kgInput = document.getElementById('admin-edit-total-kg');
@@ -1235,7 +1264,7 @@ function adminUpdateDelivery() {
     if(newKg && newKg > 0 && newDate) {
         del.kg = newKg;
         del.date = newDate;
-        localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+        speichereOffline(db);
         renderAll();
         closeAdminEditDelivery();
     }
@@ -1262,7 +1291,7 @@ function adminDeleteDelivery() {
             deletedSortierBuchungen: db.deletedSortierBuchungen || []
         });
     }
-    localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+    speichereOffline(db);
     closeAdminEditDelivery();
     renderAll();
 }
@@ -1359,9 +1388,14 @@ function saveRawJson() {
         else if (inputStr.startsWith("```")) inputStr = inputStr.replace(/```/g, "").trim();
         
         db = { ...db, ...JSON.parse(inputStr) };
-        localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+        // 2026-08-17: Erst neu laden, wenn wirklich geschrieben wurde. Sonst waere der
+        // eingefuegte Text nach dem Neustart weg, obwohl nichts gespeichert wurde.
+        if (!speichereOffline(db)) {
+            alert("❌ Nicht gespeichert — der Speicher ist voll.\n\nBitte erst Platz schaffen (Daten archivieren), dann erneut speichern. Der eingefügte Text bleibt stehen.");
+            return;
+        }
         mirrorToKombiStorage();
-        alert("✅ JSON-Code erfolgreich gespeichert! Das Programm wird nun neu gestartet, um alles sauber zu laden."); 
+        alert("✅ JSON-Code erfolgreich gespeichert! Das Programm wird nun neu gestartet, um alles sauber zu laden.");
         location.reload();
     } catch(e) { 
         alert("❌ Fehler beim Einlesen! Bitte prüfe, ob du den Text richtig kopiert hast.\n\nDetails: " + e.message); 
@@ -1624,16 +1658,26 @@ async function archiveOldData() {
         
         await cloudFetch(archiveUrl + ".json", { method: 'PUT', body: JSON.stringify(archiveDb), headers: { 'Content-Type': 'application/json' } });
         
+        const deliveriesVorher = db.deliveries;
         db.deliveries = toKeep;
         let uploadDb = prepareDbForCloudUpload(db);
+        let snapGelesen = false;
         try {
             // 2026-08-05: Hauptdatensatz jetzt explizit ueber cloudTargetUrl, damit Archiv und Haupt sauber getrennt sind
             const snapRes = await cloudFetch(cloudTargetUrl('backup') + ".json?t=" + Date.now());
             if (snapRes.ok) {
                 const snap = await snapRes.json();
+                snapGelesen = true;
                 if (typeof finalizeCloudPutPayload === 'function') uploadDb = finalizeCloudPutPayload(uploadDb, snap);
             }
-        } catch (e) { /* Archiv-Upload ohne Snapshot */ }
+        } catch (e) { console.warn('Archiv: Cloud-Stand nicht gelesen', e); }
+        // 2026-08-17: Gleicher Fall wie in pushToCloud — der PUT unten ersetzt die ganze
+        // Hauptzeile. Ohne gelesenen Cloud-Stand wuerde er Handy-Daten loeschen. Lieber
+        // abbrechen und den lokalen Stand unangetastet lassen.
+        if (!snapGelesen) {
+            db.deliveries = deliveriesVorher;
+            throw new Error('Cloud konnte nicht gelesen werden — es wurde nichts überschrieben. Die alten Einträge liegen jetzt zusätzlich im Archiv, lokal ist alles unverändert. Bitte später erneut archivieren.');
+        }
         db.supplierLines = uploadDb.supplierLines;
         await cloudFetch(cloudTargetUrl('backup') + ".json", { method: 'PUT', body: JSON.stringify(uploadDb), headers: { 'Content-Type': 'application/json' } });
         
@@ -1676,11 +1720,16 @@ async function pushToCloud(skipConfirm) {
     db.articles.forEach(a => { if(a.suppliers) a.suppliers = a.suppliers.map(s => s.trim()).filter(s => s !== ""); if(a.nr) a.nr = a.nr.trim(); });
 
     let cloudSnapshot = null;
+    // 2026-08-17: Merker getrennt vom Inhalt. cloudSnapshot ist auch dann null, wenn die
+    // Cloud-Zeile rechtmaessig noch leer ist (Erstbefuellung) — daran darf das Speichern
+    // nicht scheitern. Entscheidend ist, OB gelesen werden konnte.
+    let cloudGelesen = false;
     try {
-        const res = await cloudFetch(CLOUD_URL + ".json?t=" + Date.now()); 
+        const res = await cloudFetch(CLOUD_URL + ".json?t=" + Date.now());
         if(res.ok) {
             const cloudDb = await res.json();
             cloudSnapshot = cloudDb;
+            cloudGelesen = true;
             if(cloudDb) {
                 // Schutzmechanismus: Verhindert, dass eine leere PC-Liste die volle Cloud-Liste löscht
                 if (db.articles.length === 0 && cloudDb.articles && cloudDb.articles.length > 0) {
@@ -1755,6 +1804,20 @@ async function pushToCloud(skipConfirm) {
             }
         }
     } catch(e) { console.warn("Smart Sync failed", e); }
+
+    // 2026-08-17: Der PUT unten ersetzt die komplette Cloud-Zeile. Ohne gelesenen Cloud-Stand
+    // kann weder der Smart Sync oben noch finalizeCloudPutPayload etwas retten — alles, was nur
+    // in der Cloud steht (Handy-Buchungen, LKW-Liste, Anwesenheiten, Briefing-Status), waere weg.
+    // Darum wird hier NICHT geschrieben, und der Bediener erfaehrt es.
+    if (!cloudGelesen) {
+        const meldung = 'Cloud konnte nicht gelesen werden — es wurde NICHTS geschrieben. Bitte erneut versuchen.';
+        document.getElementById('db-status').innerText = meldung;
+        const stickyStatus = document.getElementById('sticky-status');
+        if (stickyStatus) stickyStatus.textContent = '⚠️ Nicht in der Cloud gespeichert · ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        addCloudLog('ABBRUCH: Cloud nicht gelesen — kein Upload (Datenverlust verhindert)');
+        alert('⚠️ ' + meldung);
+        return;
+    }
 
     if (typeof reconcileSupplierLinesCleared === 'function') reconcileSupplierLinesCleared(db);
 

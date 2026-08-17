@@ -4,7 +4,7 @@ function initSupplierNumbersFromExcel() {
     if (!db.supplierNumbers || typeof db.supplierNumbers !== 'object') db.supplierNumbers = {};
     if (Object.keys(db.supplierNumbers).length > 0) return;
     db.supplierNumbers = { ...LIEFERANTEN_NUMMERN_EXCEL };
-    localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+    speichereOffline(db);
     if (typeof mirrorToKombiStorage === 'function') mirrorToKombiStorage();
 }
 
@@ -25,7 +25,7 @@ function saveSupplierNumber(name, nr) {
     const trimmed = nr.trim();
     if (trimmed) db.supplierNumbers[name] = trimmed;
     else delete db.supplierNumbers[name];
-    localStorage.setItem('logistik_offline_db', JSON.stringify(db));
+    speichereOffline(db);
     if (typeof mirrorToKombiStorage === 'function') mirrorToKombiStorage();
     const key = supDomKey(name);
     const badge = document.getElementById('sup-nr-badge-' + key);

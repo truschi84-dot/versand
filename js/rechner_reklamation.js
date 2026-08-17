@@ -129,11 +129,15 @@ function finalizePrintReklamation(datum, zeit, lief, ls, temp, mhd, worker, kate
     
     if (typeof requireAppAuth === 'function' && !requireAppAuth()) return;
     cloudFetch(rekUrl + ".json", { method: 'POST', body: JSON.stringify(rekData), headers: { 'Content-Type': 'application/json' } })
-    .then(() => {
+    .then((res) => {
+        // 2026-08-17: res.ok wurde nicht geprueft — bei Status >= 400 lief dieser Zweig trotzdem
+        // und warf den Entwurf weg. Der Entwurf bleibt jetzt stehen, bis er wirklich oben ist.
+        if (!res.ok) throw new Error('Status ' + res.status);
         delete reklamationDrafts[lief]; saveRechnerDB();
         if (typeof addAppCloudLog === 'function') addAppCloudLog("UPLOAD: Reklamation in QM-Archiv gesichert [OK]");
     }).catch(e => {
-        if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Reklamation Upload fehlgeschlagen");
+        if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Reklamation Upload fehlgeschlagen - " + ((e && e.message) || ''));
+        if (typeof showToast === 'function') showToast('Reklamation nicht in die Cloud gesichert — Entwurf bleibt erhalten.', 'warning');
     });
 
     setTimeout(() => {

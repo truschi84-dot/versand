@@ -6,7 +6,7 @@ const http    = require('http');
 const fs      = require('fs');
 const path    = require('path');
 const { exec, execSync } = require('child_process');
-const { getLanIPv4, syncLiveOfficeUrls } = require('./office-config');
+const { getLanIPv4, syncLiveOfficeUrls, LOCAL_UPDATE_FILE, readJson } = require('./office-config');
 
 const PORT = 8080;
 const ROOT = __dirname;
@@ -535,6 +535,21 @@ async function handleApi(req, res) {
     json({ ok:false, error: 'Unbekannte Route: ' + url }, 404);
 }
 
+// ── app-update.json: oertliche Werte oben drauf ────────────────
+// 2026-08-17: app-update.json im Repo bleibt unveraendert (Buero-Adresse fuer die Handys).
+// Die IP DIESES Rechners steht in app-update.local.json (nicht in Git) und wird beim
+// Ausliefern darueber gelegt. Fehlt die oertliche Datei, kommt die eingecheckte unveraendert.
+function sendAppUpdateJson(res) {
+    // readJson kommt aus office-config.js — dieselbe Datei schreibt app-update.local.json.
+    const base  = readJson(path.join(ROOT, 'app-update.json'));
+    const local = readJson(path.join(ROOT, LOCAL_UPDATE_FILE));
+    if (!base && !local) return false;
+    const merged = { ...(base || {}), ...(local || {}) };
+    res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache' });
+    res.end(JSON.stringify(merged, null, 2) + '\n');
+    return true;
+}
+
 // ── Static file server ────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -547,6 +562,7 @@ const server = http.createServer(async (req, res) => {
     if (url === '/' || url === '') url = '/Start.html';
     // Alte Pfade weiterleiten
     if (url === '/projekt/buero/control-center.html') { res.writeHead(302, { Location: '/control/index.html' }); res.end(); return; }
+    if (url === '/app-update.json' && sendAppUpdateJson(res)) return;
     let filePath = path.join(ROOT, url);
     if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
         filePath = path.join(filePath, 'index.html');

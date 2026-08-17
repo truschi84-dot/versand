@@ -6,6 +6,13 @@ const os = require('os');
 const path = require('path');
 
 const DEFAULT_PORT = 8080;
+/**
+ * 2026-08-17: Die LAN-IP dieses Rechners geht NUR noch in diese oertliche Datei
+ * (steht in .gitignore). app-update.json im Repo wird nicht mehr angefasst — am 05.08.
+ * war so eine Hotspot-Adresse in einen Commit geraten und fast auf die Handys gelangt.
+ * server.js legt beim Ausliefern von /app-update.json diese Werte oben drauf.
+ */
+const LOCAL_UPDATE_FILE = 'app-update.local.json';
 
 function getLanIPv4() {
     const candidates = [];
@@ -44,15 +51,15 @@ function syncLiveOfficeUrls(appRoot, port) {
     const officeBase = 'http://' + lanIp + ':' + port;
     const logistikUrl = officeBase + '/logistik/';
     const changed = [];
-    const updatePath = path.join(appRoot, 'app-update.json');
-    const upd = readJson(updatePath);
-    if (upd && String(upd.officeWebBaseUrl || '').trim() !== officeBase) {
-        upd.officeWebBaseUrl = officeBase;
-        if (upd.preferOfficeLan == null) upd.preferOfficeLan = true;
-        writeJson(updatePath, upd);
-        changed.push('app-update.json');
+    const localPath = path.join(appRoot, LOCAL_UPDATE_FILE);
+    const local = readJson(localPath) || {};
+    if (String(local.officeWebBaseUrl || '').trim() !== officeBase || local.preferOfficeLan == null) {
+        local.officeWebBaseUrl = officeBase;
+        if (local.preferOfficeLan == null) local.preferOfficeLan = true;
+        writeJson(localPath, local);
+        changed.push(LOCAL_UPDATE_FILE);
     }
     return { ok: true, lanIp, officeBase, logistikUrl, changed };
 }
 
-module.exports = { DEFAULT_PORT, getLanIPv4, syncLiveOfficeUrls };
+module.exports = { DEFAULT_PORT, LOCAL_UPDATE_FILE, getLanIPv4, syncLiveOfficeUrls, readJson };

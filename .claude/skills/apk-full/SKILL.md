@@ -17,15 +17,18 @@ Kompletter APK-Zyklus: Assets sync → Gradle Build → ADB Install — ein Befe
 
 ## Implementation
 
-```bash
-ADB="C:/Users/Trusc/AppData/Local/Android/Sdk/platform-tools/adb.exe"
+Schritt 1 ist **`/sync-assets control`** — die Kopierliste steht dort und nur dort.
+Die Tablet-APK (`LogistikApp`) enthält das **Control Center** aus `control\`, nicht
+einen Ordner `logistik\` (den gibt es im Repo nicht). Gleiche Liste wie
+`copyLogistikWebAssets()` in `server.js`.
 
-# 1. Sync
-cp -r "C:/Users/Trusc/Desktop/Tresch-Apps/logistik/." \
-      "C:/Users/Trusc/AndroidStudioProjects/LogistikApp/app/src/main/assets/"
+```bash
+ADB="D:/Robert/Tresch-Firma/Android-SDK/platform-tools/adb.exe"
+
+# 1. Sync: /sync-assets control (PowerShell-Block aus jenem Skill ausführen)
 
 # 2. Build
-cd "C:/Users/Trusc/AndroidStudioProjects/LogistikApp"
+cd "D:/Robert/Tresch-Firma/AndroidStudioProjects/LogistikApp"
 ./gradlew assembleDebug
 
 # 3. Install

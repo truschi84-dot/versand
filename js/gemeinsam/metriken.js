@@ -275,22 +275,26 @@ function lieferantenAuswertungFuerDatum(db, datum) {
     }
 
     // Sortiert — Quelle: Rechner „Sortieren → Drucken“ (teamSortierBuchungen)
-    filterDeletedSortierBuchungen(db.teamSortierBuchungen || [], deletedKeys)
-        .filter((b) => buchungDatumPasst(b, datum))
-        .forEach((b) => {
-            const kg = parseFloat(b.gebuchtKg) || 0;
-            if (kg <= 0) return;
-            const row = ensure(String(b.lief || '').trim() || 'Unbekannt');
-            row.sortiertKg += kg;
-            row.gesamtKg += kg;
-            const fertigNr = fertigNrAusSorte(b.sorte, articles);
-            const marktTyp = artikelMarktTyp(fertigNr, b.sorte, artikelMarkt);
-            if (marktTyp === 'export') row.exportKg += kg;
-            else row.unsKg += kg;
-        });
+    // 2026-08-17 Geschwindigkeit: Der Bestand wurde pro Tag zweimal durchlaufen — einmal zum
+    // Summieren, einmal nur fuer die Frage „gibt es Buchungen?“. Jetzt ein Durchlauf, die
+    // Frage beantwortet die Laenge der bereits gefilterten Liste (gleiche Bedingung wie vorher:
+    // Buchung am Tag vorhanden, unabhaengig vom Gewicht).
+    const tagesBuchungen = filterDeletedSortierBuchungen(db.teamSortierBuchungen || [], deletedKeys)
+        .filter((b) => buchungDatumPasst(b, datum));
+    tagesBuchungen.forEach((b) => {
+        const kg = parseFloat(b.gebuchtKg) || 0;
+        if (kg <= 0) return;
+        const row = ensure(String(b.lief || '').trim() || 'Unbekannt');
+        row.sortiertKg += kg;
+        row.gesamtKg += kg;
+        const fertigNr = fertigNrAusSorte(b.sorte, articles);
+        const marktTyp = artikelMarktTyp(fertigNr, b.sorte, artikelMarkt);
+        if (marktTyp === 'export') row.exportKg += kg;
+        else row.unsKg += kg;
+    });
 
     // Fallback: Sortier-Deliveries wenn keine Buchungen (ältere Daten)
-    const hatBuchungen = filterDeletedSortierBuchungen(db.teamSortierBuchungen || [], deletedKeys).some((b) => buchungDatumPasst(b, datum));
+    const hatBuchungen = tagesBuchungen.length > 0;
     if (!hatBuchungen) {
         deliveries.filter((d) => d.date === datum && d.source === 'sortieren').forEach((d) => {
             const kg = parseFloat(d.kg) || 0;
@@ -455,8 +459,10 @@ function applyCloudSortierBuchungen(db, cloudBuchungen) {
     cloudBuchungen.forEach((raw) => {
         const b = normalizeSortierBuchungRecord(raw);
         if (!b || !(parseFloat(b.gebuchtKg) > 0)) return;
+        // 2026-08-17 Geschwindigkeit: entferneDeletedKeysFuerBuchung entfernt bereits genau
+        // den Schluessel "sessionKey|datum", den sortierLoeschenAufheben danach noch einmal
+        // gesucht hat -- die Loeschliste wurde also pro Cloud-Buchung zweimal durchlaufen.
         entferneDeletedKeysFuerBuchung(db, b);
-        sortierLoeschenAufheben(db, b.datum, b.sessionKey);
     });
     db.teamSortierBuchungen = mergeTeamSortierBuchungen(
         db.teamSortierBuchungen || [],
@@ -592,9 +598,23 @@ function sortierBuchungSitzungLoeschKey(b) {
     return s ? sortierBuchungMergeKey(b) + SITZUNG_LOESCH_TRENNER + s : '';
 }
 
+/**
+ * 2026-08-17 Geschwindigkeit: Die Loeschliste wird EINMAL in ein Set gelegt und
+ * weitergegeben. Vorher baute istSortierBuchungGeloescht pro Buchung ein neues Set --
+ * bei 49 Tagen x 3311 Buchungen hunderttausendfach. Set und Array bleiben beide
+ * erlaubt; alles was kein Array/Set ist, wirkt weiterhin wie "keine Loeschmarken".
+ */
+function deletedSortierKeysAlsSet(deletedKeys) {
+    if (deletedKeys instanceof Set) return deletedKeys;
+    if (Array.isArray(deletedKeys)) return new Set(deletedKeys);
+    // andere iterierbare Quellen (z.B. ein Set aus einem anderen Fenster) genau wie bisher
+    if (deletedKeys && typeof deletedKeys[Symbol.iterator] === 'function') return new Set(deletedKeys);
+    return new Set();   // alles andere wirkte auch vorher wie "keine Loeschmarken"
+}
+
 function istSortierBuchungGeloescht(b, deletedKeys) {
     if (!b || !deletedKeys) return false;
-    const set = deletedKeys instanceof Set ? deletedKeys : new Set(deletedKeys);
+    const set = deletedSortierKeysAlsSet(deletedKeys);
     if (set.has(sortierBuchungMergeKey(b))) return true;   // alte Marke: trifft alle Sitzungen des Tages
     const sk = sortierBuchungSitzungLoeschKey(b);
     return sk ? set.has(sk) : false;                        // neue Marke: trifft genau diese Sitzung
@@ -602,8 +622,9 @@ function istSortierBuchungGeloescht(b, deletedKeys) {
 
 function filterDeletedSortierBuchungen(buchungen, deletedKeys) {
     if (!Array.isArray(buchungen)) return [];
-    if (!deletedKeys || !deletedKeys.length) return buchungen;
-    return buchungen.filter((b) => !istSortierBuchungGeloescht(b, deletedKeys));
+    const delSet = deletedSortierKeysAlsSet(deletedKeys);
+    if (!delSet.size) return buchungen;
+    return buchungen.filter((b) => !istSortierBuchungGeloescht(b, delSet));
 }
 
 // 2026-08-05: sitzungId ist optional. Ohne sie verhaelt sich die Funktion wie bisher
@@ -1243,8 +1264,28 @@ function sammleAlleErfassungsDaten(db) {
     return [...dates].filter(Boolean).sort();
 }
 
+/**
+ * 2026-08-17 Geschwindigkeit: ensureDatenKonsistenz rechnet ueber alle Buchungstage x alle
+ * Buchungen. Im Statistik-Tab wurde sie pro Rendern fuenfmal ausgeloest. Diese Klappe wird
+ * NUR fuer die Dauer eines Renderdurchlaufs geschlossen (siehe renderTeamDashboard):
+ * die Pruefung laeuft einmal davor, waehrend des Renderns aendern sich die Daten nicht,
+ * weitere Durchlaeufe wuerden also dasselbe Ergebnis erzeugen. Alle bestehenden
+ * Aufrufstellen bleiben stehen und wirken ausserhalb des Renderns unveraendert.
+ */
+let _konsistenzKlappeZu = 0;
+
+function ohneWeitereKonsistenzPruefung(renderFn) {
+    _konsistenzKlappeZu++;
+    try {
+        return renderFn();
+    } finally {
+        _konsistenzKlappeZu--;   // auch bei Fehler wieder aufmachen
+    }
+}
+
 /** Sortier-Deliveries und teamTagesMengen mit Buchungen/Cloud abgleichen. */
 function ensureDatenKonsistenz(db) {
+    if (_konsistenzKlappeZu > 0) return;
     if (!db) return;
     if (!db.teamTagesMengen || typeof db.teamTagesMengen !== 'object') db.teamTagesMengen = {};
     if (!db.dailyStaff || typeof db.dailyStaff !== 'object') db.dailyStaff = {};

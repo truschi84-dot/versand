@@ -1,6 +1,7 @@
 deploy.config.json
 projekt/deploy.config.json
 app-secrets.json
+app-update.local.json
 node_modules/
 test-results/
 playwright-report/

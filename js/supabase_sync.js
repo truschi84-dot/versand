@@ -20,6 +20,62 @@ function getBackendBaseUrl() {
     return custom.replace(/\/+$/, ''); // nachlaufende Schraegstriche abfangen
 }
 
+// 2026-08-17: Jeder Datenabruf bekommt ein Zeitlimit. Vorher konnte ein haengender Server
+// die App endlos warten lassen (kein AbortController im ganzen Code). Lesen 20 s, Schreiben 30 s.
+const SUPABASE_LESE_LIMIT_MS = 20000;
+const SUPABASE_SCHREIB_LIMIT_MS = 30000;
+
+/**
+ * fetch mit Zeitlimit fuers Schreiben. Bei Ablauf wird ein klarer Fehler geworfen — genau
+ * wie bei einem Netzfehler heute. Eine echte Antwort kommt weiter als Response zurueck,
+ * der Aufrufer prueft res.ok selbst.
+ */
+async function fetchMitZeitlimit(url, options, limitMs, was) {
+    if (typeof AbortController === 'undefined') return fetch(url, options);
+    const abbruch = new AbortController();
+    const uhr = setTimeout(() => abbruch.abort(), limitMs);
+    try {
+        return await fetch(url, { ...(options || {}), signal: abbruch.signal });
+    } catch (e) {
+        if (e && (e.name === 'AbortError' || abbruch.signal.aborted)) {
+            throw new Error('Zeitlimit ' + Math.round(limitMs / 1000) + ' s ueberschritten (' + was + ') — Server antwortet nicht');
+        }
+        throw e;
+    } finally {
+        clearTimeout(uhr);
+    }
+}
+
+/**
+ * 2026-08-17: Lesen mit Zeitlimit — und zwar bis der Rumpf vollstaendig gelesen ist.
+ * Das bisherige Zeitlimit endete schon, sobald die Kopfzeilen da waren; das Lesen des
+ * Rumpfs (bei einer Vollkopie rund 2,8 MB) lief danach ohne Grenze weiter.
+ * Bei HTTP-Fehlerstatus wird geworfen: 401 nach einem Schluesselwechsel oder 500/503 darf
+ * NIE als "keine Daten" durchgehen — sonst schreiben die Zusammenfuehr-Stellen die ganze
+ * Sammelzeile mit einem fast leeren Objekt zu.
+ */
+async function holeJsonMitZeitlimit(url, options, limitMs, was) {
+    if (typeof AbortController === 'undefined') {
+        const res = await fetch(url, options);
+        if (!res.ok) throw new Error(was + ' fehlgeschlagen — Server-Status ' + res.status);
+        return res.json();
+    }
+    const abbruch = new AbortController();
+    const uhr = setTimeout(() => abbruch.abort(), limitMs);
+    try {
+        const res = await fetch(url, { ...(options || {}), signal: abbruch.signal });
+        if (!res.ok) throw new Error(was + ' fehlgeschlagen — Server-Status ' + res.status);
+        return await res.json();   // noch innerhalb des Zeitlimits
+    } catch (e) {
+        if (e && (e.name === 'AbortError' || abbruch.signal.aborted)) {
+            throw new Error('Zeitlimit ' + Math.round(limitMs / 1000) + ' s ueberschritten (' + was + ') — Server antwortet nicht');
+        }
+        throw e;
+    } finally {
+        clearTimeout(uhr);
+    }
+}
+
 const SupabaseSync = {
     _h() {
         return {
@@ -29,26 +85,41 @@ const SupabaseSync = {
         };
     },
 
+    /** null NUR wenn die Zeile nicht existiert. Bei HTTP-Fehler wird geworfen (siehe holeJsonMitZeitlimit). */
     async get(rowKey) {
-        const res = await fetch(
+        const rows = await holeJsonMitZeitlimit(
             getBackendBaseUrl() + '/rest/v1/cloud_backup?key=eq.' + encodeURIComponent(rowKey) + '&select=data',
-            { headers: this._h() }
+            { headers: this._h() },
+            SUPABASE_LESE_LIMIT_MS,
+            'Lesen ' + rowKey
         );
-        if (!res.ok) return null;
-        const rows = await res.json();
         return (rows && rows[0]) ? rows[0].data : null;
     },
 
     async upsert(rowKey, data) {
-        return fetch(getBackendBaseUrl() + '/rest/v1/cloud_backup', {
+        return fetchMitZeitlimit(getBackendBaseUrl() + '/rest/v1/cloud_backup', {
             method: 'POST',
             headers: { ...this._h(), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
             body: JSON.stringify({ key: rowKey, data, updated_at: new Date().toISOString() })
-        });
+        }, SUPABASE_SCHREIB_LIMIT_MS, 'Schreiben ' + rowKey);
+    },
+
+    /**
+     * Grundlage zum Zusammenfuehren: der vorhandene Stand der Sammelzeile.
+     * Zweite Sicherung gegen Datenverlust — geschrieben wird nur, wenn das Lesen
+     * geklappt hat. Schlaegt es fehl, wirft get() und der Aufrufer schreibt gar nichts.
+     */
+    async _basisZumZusammenfuehren(rowKey) {
+        const daten = await this.get(rowKey);
+        if (daten == null) return {};   // Zeile gibt es (noch) nicht — leere Grundlage ist richtig
+        if (typeof daten !== 'object' || Array.isArray(daten)) {
+            throw new Error('Cloud-Zeile "' + rowKey + '" hat unerwartete Form — Zusammenfuehren abgebrochen');
+        }
+        return daten;
     },
 
     async patch(rowKey, partial) {
-        const current = await this.get(rowKey) || {};
+        const current = await this._basisZumZusammenfuehren(rowKey);
         return this.upsert(rowKey, { ...current, ...partial });
     }
 };
@@ -82,7 +153,7 @@ async function supabaseCloudFetch(url, options) {
     // POST = neue Reklamation mit auto-generiertem Key (Firebase-kompatibel)
     if (method === 'POST') {
         const newKey = 'rek_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-        const current = await SupabaseSync.get(rowKey) || {};
+        const current = await SupabaseSync._basisZumZusammenfuehren(rowKey);
         current[newKey] = body;
         const res = await SupabaseSync.upsert(rowKey, current);
         return res.ok ? ok({ name: newKey }) : err(res.status);
@@ -105,7 +176,7 @@ async function supabaseCloudFetch(url, options) {
             return res.ok ? ok({}) : err(res.status);
         }
         if (rekSub) {
-            const current = await SupabaseSync.get(rowKey) || {};
+            const current = await SupabaseSync._basisZumZusammenfuehren(rowKey);
             current[rekSub[1]] = body;
             const res = await SupabaseSync.upsert(rowKey, current);
             return res.ok ? ok({}) : err(res.status);
@@ -116,7 +187,7 @@ async function supabaseCloudFetch(url, options) {
 
     if (method === 'DELETE') {
         if (rekSub) {
-            const current = await SupabaseSync.get(rowKey) || {};
+            const current = await SupabaseSync._basisZumZusammenfuehren(rowKey);
             delete current[rekSub[1]];
             const res = await SupabaseSync.upsert(rowKey, current);
             return res.ok ? ok({}) : err(res.status);
