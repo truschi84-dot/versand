@@ -8,7 +8,7 @@ Installs an APK on a connected Android device via ADB.
 `/adb-install --no-build` — install without rebuilding
 
 ## ADB Path
-`C:/Users/Trusc/AppData/Local/Android/Sdk/platform-tools/adb.exe`
+`D:/Robert/Tresch-Firma/Android-SDK/platform-tools/adb.exe`
 
 ## Steps
 
@@ -20,16 +20,16 @@ Installs an APK on a connected Android device via ADB.
 ## Implementation
 
 ```bash
-ADB="C:/Users/Trusc/AppData/Local/Android/Sdk/platform-tools/adb.exe"
+ADB="D:/Robert/Tresch-Firma/Android-SDK/platform-tools/adb.exe"
 
 # Check connected devices
 "$ADB" devices
 
 # Install Logistik
-"$ADB" install -r "C:/Users/Trusc/AndroidStudioProjects/LogistikApp/app/build/outputs/apk/debug/app-debug.apk"
+"$ADB" install -r "D:/Robert/Tresch-Firma/AndroidStudioProjects/LogistikApp/app/build/outputs/apk/debug/app-debug.apk"
 
 # Install Rechner
-"$ADB" install -r "C:/Users/Trusc/AndroidStudioProjects/Versand/app/build/outputs/apk/versand/debug/app-versand-debug.apk"
+"$ADB" install -r "D:/Robert/Tresch-Firma/AndroidStudioProjects/Versand/app/build/outputs/apk/debug/app-debug.apk"
 ```
 
 If device offline: ask user to check USB cable and enable "USB-Debugging" in Developer Options.

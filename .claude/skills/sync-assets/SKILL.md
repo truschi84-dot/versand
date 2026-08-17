@@ -10,8 +10,8 @@ Synchronisiert Web-Dateien aus Tresch-Apps nach Android assets/ — für USB-APK
 ## Source → Destination
 
 **Control (Tablet):**
-- Source: `C:\Users\Trusc\Desktop\Tresch-Apps\control\`
-- Dest: `C:\Users\Trusc\AndroidStudioProjects\LogistikApp\app\src\main\assets\`
+- Source: `D:\Robert\Tresch-Firma\Tresch-Apps\Tresch-Apps\control\`
+- Dest: `D:\Robert\Tresch-Firma\AndroidStudioProjects\LogistikApp\app\src\main\assets\`
 - `control\index.html` → `assets\index.html` (mit Pfad-Patch: `../js/` → `js/`)
 - `control\js\*.js` → `assets\js\*.js`
 - Root `js\druck_utils.js` → `assets\js\druck_utils.js`
@@ -20,8 +20,8 @@ Synchronisiert Web-Dateien aus Tresch-Apps nach Android assets/ — für USB-APK
 - Root `js\gemeinsam\` → `assets\js\gemeinsam\`
 
 **Rechner (Versand):**
-- Source: `C:\Users\Trusc\Desktop\Tresch-Apps\` (root)
-- Dest: `C:\Users\Trusc\AndroidStudioProjects\Versand\app\src\main\assets\`
+- Source: `D:\Robert\Tresch-Firma\Tresch-Apps\Tresch-Apps\` (root)
+- Dest: `D:\Robert\Tresch-Firma\AndroidStudioProjects\Versand\app\src\main\assets\`
 - `index.html`, `js\`, `css\`, `icons\`
 
 ## Implementation — Control
@@ -29,8 +29,8 @@ Synchronisiert Web-Dateien aus Tresch-Apps nach Android assets/ — für USB-APK
 Führe diese PowerShell-Befehle aus (NICHT als Bash):
 
 ```powershell
-$SRC  = "C:\Users\Trusc\Desktop\Tresch-Apps"
-$DST  = "C:\Users\Trusc\AndroidStudioProjects\LogistikApp\app\src\main\assets"
+$SRC  = "D:\Robert\Tresch-Firma\Tresch-Apps\Tresch-Apps"
+$DST  = "D:\Robert\Tresch-Firma\AndroidStudioProjects\LogistikApp\app\src\main\assets"
 
 # 1. assets\js\ anlegen
 New-Item -ItemType Directory -Force "$DST\js" | Out-Null
@@ -50,14 +50,17 @@ Copy-Item "$SRC\js\supabase_sync.js"  "$DST\js\" -Force
 Copy-Item "$SRC\js\cloud_auth.js"     "$DST\js\" -Force
 Copy-Item "$SRC\js\gemeinsam\*.js"    "$DST\js\gemeinsam\" -Force
 
+# 5. Alte Flach-Kopien entfernen (Stand 22.07., die gepatchte index.html laedt js/gemeinsam/)
+Remove-Item "$DST\js\datenbank.js", "$DST\js\metriken.js" -ErrorAction SilentlyContinue
+
 Write-Host "Control Assets synchronisiert"
 ```
 
 ## Implementation — Rechner
 
 ```powershell
-$SRC = "C:\Users\Trusc\Desktop\Tresch-Apps"
-$DST = "C:\Users\Trusc\AndroidStudioProjects\Versand\app\src\main\assets"
+$SRC = "D:\Robert\Tresch-Firma\Tresch-Apps\Tresch-Apps"
+$DST = "D:\Robert\Tresch-Firma\AndroidStudioProjects\Versand\app\src\main\assets"
 
 Copy-Item "$SRC\index.html" "$DST\" -Force
 Copy-Item "$SRC\js\"    "$DST\js\"    -Recurse -Force

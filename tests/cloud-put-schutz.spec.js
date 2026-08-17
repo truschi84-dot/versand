@@ -73,6 +73,42 @@ test.describe('Control Center - Schutz gegen zerstoerenden Cloud-PUT', () => {
     expect(protokoll).toContain('ABBRUCH');
   });
 
+  test('Smart Sync bricht mittendrin ab: kein Schreibzugriff, lokaler Stand bleibt gesichert', async ({ page }) => {
+    await blockCloud(page);
+    // Cloud antwortet erfolgreich, liefert aber fehlgeformte Daten: workers ist eine Zahl,
+    // cloudDb.workers.forEach() wirft also mitten im Smart Sync. Frueher stand der Merker
+    // cloudGelesen schon vor dem Block — der PUT lief dann mit einem HALB zusammengefuehrten
+    // Stand und loeschte entries, customers, dailyStaff, dailyAttendance, teamDayBrief,
+    // supplierLines. articles bleibt hier leer, sonst kaeme der Warndialog dazwischen und
+    // der Test waere aus dem falschen Grund gruen.
+    const schreibzugriffe = await cloudMitZaehler(page, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([{ data: { workers: 5, entries: [{ x: 1 }] } }])
+      })
+    );
+
+    page.on('dialog', (d) => d.dismiss().catch(() => {}));
+    const konsole = [];
+    page.on('console', (m) => konsole.push(m.text()));
+    await page.goto('/control/index.html');
+    await waitForAppReady(page);
+
+    schreibzugriffe.length = 0;
+    konsole.length = 0;
+    // Punkt 2: der lokale Stand muss auch beim Abbruch geschrieben werden.
+    await page.evaluate(() => localStorage.removeItem('logistik_offline_db'));
+    await page.evaluate(() => pushToCloud(true));
+
+    // Beleg, dass der Abbruch WIRKLICH aus dem Smart Sync kommt und nicht schon aus dem Lesen.
+    expect(konsole.join(' | ')).toContain('Smart Sync failed');
+    expect(schreibzugriffe).toEqual([]);
+    await expect(page.locator('#db-status')).toContainText('Cloud konnte nicht gelesen werden');
+    const lokalDa = await page.evaluate(() => localStorage.getItem('logistik_offline_db') !== null);
+    expect(lokalDa).toBe(true);
+  });
+
   test('Cloud-Zeile ist leer (Erstbefuellung): der PUT laeuft trotzdem', async ({ page }) => {
     await blockCloud(page);
     // PostgREST antwortet bei "Zeile existiert nicht" mit 200 und leerer Liste.

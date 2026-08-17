@@ -105,7 +105,7 @@ Gilt für alle Edit/Write-Operationen an Quellcode. Ausnahme: reine Leseoperatio
 | Logistik | `AndroidStudioProjects/LogistikApp` | `com.example.logistikapp` |
 | Rechner | `AndroidStudioProjects/Versand` | `com.example.versand` |
 
-ADB: `C:/Users/Trusc/AppData/Local/Android/Sdk/platform-tools/adb.exe`
+ADB: `D:/Robert/Tresch-Firma/Android-SDK/platform-tools/adb.exe`
 
 ## Deployment-Regel (PFLICHT)
 **Kein `git push` ohne explizite Absprache.**

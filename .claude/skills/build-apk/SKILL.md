@@ -17,10 +17,10 @@ Builds the Android APK for Logistik or Rechner (Versand) app using Gradle.
 
 ```bash
 # Logistik Debug APK
-cd "C:/Users/Trusc/AndroidStudioProjects/LogistikApp" && ./gradlew assembleDebug 2>&1 | tail -30
+cd "D:/Robert/Tresch-Firma/AndroidStudioProjects/LogistikApp" && ./gradlew assembleDebug 2>&1 | tail -30
 
 # Rechner Debug APK
-cd "C:/Users/Trusc/AndroidStudioProjects/Versand" && ./gradlew assembleDebug 2>&1 | tail -30
+cd "D:/Robert/Tresch-Firma/AndroidStudioProjects/Versand" && ./gradlew assembleDebug 2>&1 | tail -30
 ```
 
 APK output paths:

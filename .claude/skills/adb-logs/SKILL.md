@@ -10,12 +10,12 @@ Liest ADB Logcat vom verbundenen Android-Gerät — zeigt App-Fehler, JavaScript
 `/adb-logs live` — Live-Stream (5 Sekunden)
 
 ## ADB Path
-`C:/Users/Trusc/AppData/Local/Android/Sdk/platform-tools/adb.exe`
+`D:/Robert/Tresch-Firma/Android-SDK/platform-tools/adb.exe`
 
 ## Implementation
 
 ```bash
-ADB="C:/Users/Trusc/AppData/Local/Android/Sdk/platform-tools/adb.exe"
+ADB="D:/Robert/Tresch-Firma/Android-SDK/platform-tools/adb.exe"
 
 # Alle App-Logs (letzte 200 Zeilen, gefiltert auf relevante Tags)
 "$ADB" logcat -d -t 200 | grep -iE "logistik|versand|AndroidRuntime|FATAL|Exception|WebView|JavaScript|chromium" 

@@ -1654,7 +1654,16 @@ async function archiveOldData() {
         if (res.ok) { archiveDb = await res.json() || {}; }
         
         if (!archiveDb.deliveries) archiveDb.deliveries = [];
-        archiveDb.deliveries = archiveDb.deliveries.concat(toArchive);
+        // 2026-08-17: Ein zweiter Anlauf haengte dieselben Eintraege noch einmal an. Seit der
+        // Abbruch bei ungelesenem Cloud-Stand ausdruecklich zum erneuten Versuch auffordert,
+        // passiert das eher. Entdoppelt wird ueber d.id — derselbe Schluessel, den
+        // mergeLieferungen (js/gemeinsam/metriken.js:772) fuer Lieferungen verwendet.
+        const idsImArchiv = new Set(archiveDb.deliveries.map((d) => String(d && d.id)));
+        const nochNichtImArchiv = toArchive.filter((d) => {
+            if (!d || d.id == null) return true;   // ohne id: lieber anhaengen als verlieren
+            return !idsImArchiv.has(String(d.id));
+        });
+        archiveDb.deliveries = archiveDb.deliveries.concat(nochNichtImArchiv);
         
         await cloudFetch(archiveUrl + ".json", { method: 'PUT', body: JSON.stringify(archiveDb), headers: { 'Content-Type': 'application/json' } });
         
@@ -1729,12 +1738,12 @@ async function pushToCloud(skipConfirm) {
         if(res.ok) {
             const cloudDb = await res.json();
             cloudSnapshot = cloudDb;
-            cloudGelesen = true;
             if(cloudDb) {
                 // Schutzmechanismus: Verhindert, dass eine leere PC-Liste die volle Cloud-Liste löscht
                 if (db.articles.length === 0 && cloudDb.articles && cloudDb.articles.length > 0) {
                     if (!confirm("WARNUNG: Deine lokale 'Fertig'-Liste ist leer, aber in der Cloud gibt es " + cloudDb.articles.length + " fertige Artikel! Wenn du jetzt speicherst, werden diese in der Cloud GELÖSCHT. Wirklich überschreiben?")) {
                         document.getElementById('db-status').innerText = "Speichern abgebrochen.";
+                        speichereOffline(db);   // Trimmen + Einstellungen aus dem Formular nicht verlieren
                         return;
                     }
                 }
@@ -1802,6 +1811,13 @@ async function pushToCloud(skipConfirm) {
                     db.checklistMorningTemplate = cloudDb.checklistMorningTemplate;
                 }
             }
+            // 2026-08-17: Merker erst HIER, nach dem vollstaendigen Smart Sync. Stand er direkt
+            // hinter res.json(), galt der Stand schon als zusammengefuehrt, wenn mittendrin etwas
+            // warf (z. B. cloudDb.workers.forEach bei fehlgeformten Cloud-Daten) — der PUT lief
+            // dann mit einem halb zusammengefuehrten Stand und loeschte entries, workers,
+            // customers, dailyStaff, dailyAttendance, teamDayBrief, supplierLines.
+            // Deckt beide Erfolgswege ab: leere Cloud-Zeile (cloudDb null) und vollen Durchlauf.
+            cloudGelesen = true;
         }
     } catch(e) { console.warn("Smart Sync failed", e); }
 
@@ -1815,6 +1831,10 @@ async function pushToCloud(skipConfirm) {
         const stickyStatus = document.getElementById('sticky-status');
         if (stickyStatus) stickyStatus.textContent = '⚠️ Nicht in der Cloud gespeichert · ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
         addCloudLog('ABBRUCH: Cloud nicht gelesen — kein Upload (Datenverlust verhindert)');
+        // Bis hierher wurden applySettingsFromForm(), hydrateSortierBuchungenInDb() und die
+        // Trimm-Schleifen schon auf db angewandt. Ohne dieses Speichern waere eine gerade
+        // geaenderte Einstellung weg, wenn der Bediener das Fenster jetzt schliesst.
+        speichereOffline(db);
         alert('⚠️ ' + meldung);
         return;
     }
