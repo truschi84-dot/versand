@@ -248,6 +248,8 @@
                 <button onclick="exportWiegescheinExcel()" style="flex:1; background: #107c41; color: white; padding: 15px; border-radius: 8px; border: none; font-size: 15px; font-weight: bold; cursor: pointer;">📊 Excel</button>
             </div>
         </div>
+        <!-- Tageswechsel-Riegel: Weg zurueck zur beiseitegelegten Liste, gefuellt von renderSortUebertragHinweis() -->
+        <div id="sortier-uebertrag-hinweis" style="display:none;"></div>
         <div class="list-area" id="list-sort"></div>
     </div>
 
@@ -301,7 +303,7 @@
                 <div style="display:flex; gap:10px; margin-bottom:15px;">
                     <div class="field" style="flex:1;">
                         <label>Spedition / Kunde (Leergut)</label>
-                        <input list="kunde-datalist" id="lg-kunde" placeholder="Spedition / Kunde tippen...">
+                        <input list="kunde-datalist" id="lg-kunde" placeholder="Spedition / Kunde tippen..." onblur="saveLgZaehler()">
                         <datalist id="kunde-datalist"></datalist>
                     </div>
                 </div>
@@ -615,6 +617,32 @@
     </div>
 </div>
 
+<!-- Tageswechsel-Riegel Sortierung (2026-08-18): genau EINE Meldung beim Aufbau der Ansicht. -->
+<div id="sortier-tageswechsel-modal" class="modal" style="z-index: 9992;">
+    <div class="modal-content" style="max-width: 380px; text-align: center; padding: 25px;">
+        <h3 style="margin-top: 0; color: var(--primary);">Neuer Tag</h3>
+        <p id="sortier-tageswechsel-text" style="font-size: 16px; margin-bottom: 25px;"></p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button id="sortier-tageswechsel-ansehen-btn" style="background: #eee; color: #333; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Alte Liste ansehen</button>
+            <button id="sortier-tageswechsel-ok-btn" style="background: var(--primary); color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Verstanden</button>
+        </div>
+    </div>
+</div>
+
+<!-- Beiseitegelegte Sortierliste: ansehen und als Nachdruck drucken (ohne Buchung). -->
+<div id="sortier-uebertrag-modal" class="modal" style="z-index: 9990;">
+    <div class="modal-content" style="max-width: 460px; width: 92%; padding: 20px;">
+        <h3 style="margin-top: 0; color: var(--primary);">Alte Sortierliste</h3>
+        <p id="sortier-uebertrag-kopf" style="font-size: 13px; color: #664d03; background: #fff3cd; border-radius: 6px; padding: 8px; margin-bottom: 12px;"></p>
+        <div id="sortier-uebertrag-liste" style="max-height: 45vh; overflow-y: auto; margin-bottom: 15px;"></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button onclick="uebertragNachdruckDrucken()" style="background: #ff6b00; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Nachdruck</button>
+            <button onclick="sortierUebertragWegraeumen()" style="background: var(--danger); color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Wegr&auml;umen</button>
+        </div>
+        <button onclick="document.getElementById('sortier-uebertrag-modal').style.display='none'" style="width: 100%; margin-top: 10px; background: #eee; color: #333; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Schlie&szlig;en</button>
+    </div>
+</div>
+
 <div id="supplier-detail-modal" class="modal" style="z-index: 10004;">
     <div class="modal-content" style="border-radius: 16px; padding: 20px; max-width: 420px; width: 92%;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
@@ -744,17 +772,17 @@
 </div>
 
 <script src="js/druck_utils.js?v=141"></script>
-<script src="js/supabase_sync.js?v=141"></script>
+<script src="js/supabase_sync.js?v=142"></script>
 <script src="js/cloud_auth.js?v=141"></script>
 <script src="js/gemeinsam/datenbank.js?v=141"></script>
 <script src="js/gemeinsam/metriken.js?v=141"></script>
-<script src="js/script.js?v=141"></script>
-<script src="js/team_brief.js?v=141"></script>
-<script src="js/rechner.js?v=141"></script>
+<script src="js/script.js?v=142"></script>
+<script src="js/team_brief.js?v=142"></script>
+<script src="js/rechner.js?v=142"></script>
 <script src="js/rechner_scanner.js?v=141"></script>
-<script src="js/rechner_druck.js?v=141"></script>
+<script src="js/rechner_druck.js?v=142"></script>
 <script src="js/rechner_reklamation.js?v=141"></script>
-<script src="js/rechner_leergut.js?v=141"></script>
+<script src="js/rechner_leergut.js?v=142"></script>
 <!-- js/logistik.js gehoert NICHT auf die Rechner-Seite (Projektregel: Apps getrennt halten).
      Es deklarierte getLocalISO ein zweites Mal (auch in script.js) -> SyntaxError beim Laden,
      dadurch lief die Datei hier ohnehin nie. Entfernt am 2026-08-05. -->

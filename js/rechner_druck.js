@@ -148,8 +148,12 @@ function listeDrucken() {
     }, 100);
 }
 
-function sortierungDrucken() {
-    let daten = entriesSort; if(daten.length === 0) { showToast("Sortierungs-Liste leer!", "warning"); return; }
+/**
+ * Wiegeschein-Zeilen zusammenfassen: gleiche Lieferant/Sorte/Herkunft werden addiert.
+ * Genau die Rechnung wie bisher -- nur herausgezogen, damit der Nachdruck der alten
+ * Liste (siehe uebertragNachdruckDrucken) dieselbe Zusammenfassung benutzt.
+ */
+function aggregiereSortierDaten(daten) {
     let aggregatedDaten = [];
     daten.forEach(item => {
         let lgMap = item.leergut ? {...item.leergut} : {};
@@ -162,21 +166,22 @@ function sortierungDrucken() {
         if(item.eu) lgMap['Euro'] = item.eu;
 
         let existing = aggregatedDaten.find(x => x.lief === item.lief && x.sorte === item.sorte && x.herkunft === item.herkunft);
-        if(existing) { existing.netto += item.netto; existing.count += 1; for(let k in lgMap) { existing.leergut[k] = (existing.leergut[k]||0) + lgMap[k]; } } 
+        if(existing) { existing.netto += item.netto; existing.count += 1; for(let k in lgMap) { existing.leergut[k] = (existing.leergut[k]||0) + lgMap[k]; } }
         else { aggregatedDaten.push({ lief: item.lief, sorte: item.sorte, netto: item.netto, leergut: lgMap, count: 1, herkunft: item.herkunft }); }
     });
+    return aggregatedDaten;
+}
 
-    if (typeof bucheTeamSortierungBeimDruck === 'function') {
-        const sitzungId = typeof getSortierSitzungId === 'function' ? getSortierSitzungId() : 'default';
-        bucheTeamSortierungBeimDruck(aggregatedDaten, sitzungId);
-    } else if (typeof pushSortierNachDruckSilent === 'function') {
-        setTimeout(() => pushSortierNachDruckSilent(), 800);
-    }
-
+/**
+ * Druckbild des Palettenwiege-Scheins. datumText steht im Datums-Feld des Kopfes.
+ * hinweis wird -- falls gesetzt -- auf JEDER Seite gross unter die Ueberschrift gesetzt;
+ * damit traegt der Nachdruck der alten Liste seine Kennzeichnung auf jedem Blatt.
+ */
+function baueWiegescheinHtml(aggregatedDaten, datumText, hinweis) {
     let lieferantenGruppen = {}; aggregatedDaten.forEach(item => { if(!lieferantenGruppen[item.lief]) lieferantenGruppen[item.lief] = []; lieferantenGruppen[item.lief].push(item); });
-    
+
     let printHtml = `<style>table { width: 100%; border-collapse: collapse; table-layout: fixed; } td, th { border: 2px solid black; padding: 6px 10px; font-family: Arial, sans-serif; font-size: 15px; text-align: left; color: black; } .center-text { text-align: center !important; }</style>`;
-    let heute = new Date().toLocaleDateString('de-DE'); let lieferantenKeys = Object.keys(lieferantenGruppen); const MAX_ROWS = 12; 
+    let lieferantenKeys = Object.keys(lieferantenGruppen); const MAX_ROWS = 12;
     let printJobs = [];
     lieferantenKeys.forEach(lief => {
         let artikelListe = lieferantenGruppen[lief]; let pagesForLief = [];
@@ -184,17 +189,21 @@ function sortierungDrucken() {
         if (pagesForLief.length === 0) pagesForLief.push([]); printJobs.push({ lief: lief, pages: pagesForLief });
     });
 
+    const hinweisHtml = hinweis
+        ? `<div style="font-family: Arial, sans-serif; color: black; border: 3px solid black; padding: 8px 12px; margin: 0 0 15px 0; font-size: 18px; font-weight: bold;">${hinweis}</div>`
+        : '';
+
     printJobs.forEach((job, jobIndex) => {
         job.pages.forEach((pageItems, pageIndex) => {
             let isVeryLastPage = (jobIndex === printJobs.length - 1) && (pageIndex === job.pages.length - 1);
             let breakStyle = isVeryLastPage ? "" : "page-break-after: always;";
             const _supNr = (AppStorage.get('kombi_logistik_db', {}).supplierNumbers || {})[job.lief] || '';
             const _supNrHtml = _supNr ? ` <span style="font-size:16px; font-weight:normal; color:#555;">(${_supNr})</span>` : '';
-            printHtml += `<div style="width: 100%; padding: 10mm; padding-top: 60mm; box-sizing: border-box; ${breakStyle}"><h1 style="font-family: Arial, sans-serif; color: black; margin: 0 0 15px 0; font-size: 26px; text-align: left;">Palettenwiege-Schein</h1><table><tr><td colspan="2" style="width: 65%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Lieferant:</span><br><span style="font-size: 28px; font-weight: bold;">${job.lief}</span>${_supNrHtml}</td><td style="width: 17.5%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Datum:</span><br><span style="font-size: 16px;">${heute}</span></td><td style="width: 17.5%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Seite:</span><br><span style="font-size: 16px;">${pageIndex + 1} / ${job.pages.length}</span></td></tr><tr style="background-color: #f2f2f2;"><td colspan="2" style="font-weight: bold; font-size: 15px;">Artikel Bezeichnung:</td><td style="font-weight: bold; font-size: 15px;" class="center-text">Gewicht:</td><td style="font-weight: bold; font-size: 15px;" class="center-text">Kisten:</td></tr>`;
+            printHtml += `<div style="width: 100%; padding: 10mm; padding-top: 60mm; box-sizing: border-box; ${breakStyle}"><h1 style="font-family: Arial, sans-serif; color: black; margin: 0 0 15px 0; font-size: 26px; text-align: left;">Palettenwiege-Schein</h1>${hinweisHtml}<table><tr><td colspan="2" style="width: 65%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Lieferant:</span><br><span style="font-size: 28px; font-weight: bold;">${job.lief}</span>${_supNrHtml}</td><td style="width: 17.5%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Datum:</span><br><span style="font-size: 16px;">${datumText}</span></td><td style="width: 17.5%; vertical-align: top;"><span style="font-size: 12px; font-weight: bold; color: #555;">Seite:</span><br><span style="font-size: 16px;">${pageIndex + 1} / ${job.pages.length}</span></td></tr><tr style="background-color: #f2f2f2;"><td colspan="2" style="font-weight: bold; font-size: 15px;">Artikel Bezeichnung:</td><td style="font-weight: bold; font-size: 15px;" class="center-text">Gewicht:</td><td style="font-weight: bold; font-size: 15px;" class="center-text">Kisten:</td></tr>`;
             pageItems.forEach(item => {
                 let kistenArr = []; for(let k in item.leergut) { if(item.leergut[k] > 0) kistenArr.push(`${item.leergut[k]} ${k}`); }
-                let kistenStr = kistenArr.length > 0 ? kistenArr.join(", ") : "-"; 
-                let saubererName = item.sorte.replace(' (UNS)', '').replace(' (EX)', ''); 
+                let kistenStr = kistenArr.length > 0 ? kistenArr.join(", ") : "-";
+                let saubererName = item.sorte.replace(' (UNS)', '').replace(' (EX)', '');
                 if (item.herkunft && item.herkunft.trim() !== "") { saubererName += ` <span style="font-size:12px; color:#555;">(Von: ${item.herkunft})</span>`; }
                 let palettenHinweis = item.count > 1 ? ` <span style="font-weight:bold;">(${item.count} Pal.)</span>` : "";
                 printHtml += `<tr><td colspan="2" style="height: 30px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px;">${saubererName}${palettenHinweis}</td><td class="center-text" style="font-size: 15px;">${item.netto.toFixed(2).replace('.',',')} kg</td><td class="center-text" style="font-size: 15px;">${kistenStr}</td></tr>`;
@@ -203,15 +212,77 @@ function sortierungDrucken() {
             printHtml += `</table></div>`;
         });
     });
+    return printHtml;
+}
+
+function sortierungDrucken() {
+    let alleDaten = entriesSort; if(alleDaten.length === 0) { showToast("Sortierungs-Liste leer!", "warning"); return; }
+
+    // 2026-08-18: Zweiter Riegel gegen die Doppelbuchung am Folgetag -- bewusst UNABHAENGIG
+    // vom Beiseitelegen in der Ansicht (pruefeTageswechselSortierung). Was nicht von heute
+    // ist, wird gar nicht erst zusammengefasst und kann damit auch nicht gebucht werden.
+    // Greift also auch dann, wenn Schritt 2 aus irgendeinem Grund nicht gelaufen ist.
+    let daten = typeof istSortierEintragVonHeute === 'function'
+        ? alleDaten.filter(e => istSortierEintragVonHeute(e))
+        : alleDaten;
+    const zurueckgehalten = alleDaten.length - daten.length;
+    if (zurueckgehalten > 0) showToast(zurueckgehalten + " Eintr\u00e4ge fr\u00fcherer Tage werden nicht gebucht", "warning");
+    if (daten.length === 0) { showToast("Keine heutigen Eintr\u00e4ge zum Drucken!", "warning"); return; }
+
+    let aggregatedDaten = aggregiereSortierDaten(daten);
+
+    if (typeof bucheTeamSortierungBeimDruck === 'function') {
+        const sitzungId = typeof getSortierSitzungId === 'function' ? getSortierSitzungId() : 'default';
+        bucheTeamSortierungBeimDruck(aggregatedDaten, sitzungId);
+    } else if (typeof pushSortierNachDruckSilent === 'function') {
+        setTimeout(() => pushSortierNachDruckSilent(), 800);
+    }
+
+    let heute = new Date().toLocaleDateString('de-DE');
+    let printHtml = baueWiegescheinHtml(aggregatedDaten, heute, '');
+
     setTimeout(() => {
         if (typeof forcePrint === 'function') {
             forcePrint('Paletten_Wiegeschein', printHtml);
         } else if (typeof printCleanDocument === 'function') {
-            printCleanDocument({ title: 'Palettenwiege-Schein', subtitle: 'Tresch & Sohn · ' + heute, bodyHtml: printHtml });
+            printCleanDocument({ title: 'Palettenwiege-Schein', subtitle: 'Tresch & Sohn \u00b7 ' + heute, bodyHtml: printHtml });
         }
         setTimeout(() => {
             if (typeof pushSortierNachDruckSilent === 'function') pushSortierNachDruckSilent();
         }, 1500);
+    }, 100);
+}
+
+/**
+ * Nachdruck der beiseitegelegten Liste (db.entriesSortUebertrag).
+ * Erzeugt einen normalen Wiegeschein, aber OHNE jede Buchung -- bucheTeamSortierungBeimDruck
+ * wird hier bewusst nicht aufgerufen. Damit auf dem Papier niemand die Summe mit der
+ * Auswertung verwechselt, traegt jedes Blatt die Kennzeichnung "nicht gebucht".
+ */
+function uebertragNachdruckDrucken() {
+    const uebertrag = typeof ladeSortierUebertrag === 'function' ? ladeSortierUebertrag() : [];
+    if (uebertrag.length === 0) { showToast("Kein \u00dcbertrag vorhanden!", "warning"); return; }
+
+    const aggregatedDaten = aggregiereSortierDaten(uebertrag);
+
+    // Datum der Eintraege, nicht das von heute -- der Zettel gehoert zum alten Tag.
+    const tage = [];
+    uebertrag.forEach(e => {
+        const d = typeof datumVonSortierEintrag === 'function' ? datumVonSortierEintrag(e) : null;
+        const txt = d ? d.split('-').reverse().join('.') : 'unbekannt';
+        if (tage.indexOf(txt) === -1) tage.push(txt);
+    });
+    const datumText = tage.join(', ');
+    const hinweis = 'Nachdruck vom ' + datumText + ' \u2014 nicht gebucht';
+
+    const printHtml = baueWiegescheinHtml(aggregatedDaten, datumText, hinweis);
+
+    setTimeout(() => {
+        if (typeof forcePrint === 'function') {
+            forcePrint('Paletten_Wiegeschein_Nachdruck', printHtml);
+        } else if (typeof printCleanDocument === 'function') {
+            printCleanDocument({ title: 'Palettenwiege-Schein (Nachdruck)', subtitle: hinweis, bodyHtml: printHtml });
+        }
     }, 100);
 }
 

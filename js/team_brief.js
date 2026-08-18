@@ -150,7 +150,9 @@ function toggleTeamDayTask(taskId) {
     setTeamDayBrief(brief);
     renderTeamDayBanner();
     openTeamDayPanel();
-    if (typeof triggerAutoSync === 'function') triggerAutoSync('logistik');
+    // 2026-08-18: NICHT mehr ueber triggerAutoSync('logistik') — das schickte das volle
+    // Logistik-Payload hoch und konnte Stammdaten ueberschreiben. Es geht nur der Haken raus.
+    if (typeof silentPushTeamDayBriefToCloud === 'function') silentPushTeamDayBriefToCloud();
 }
 
 function initTeamDayBrief() {

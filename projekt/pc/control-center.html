@@ -998,7 +998,7 @@
     </div>
 
     <script>
-        let ADMIN_PIN = "110784";
+        let ADMIN_PIN = "0000";
         let isAdminUnlocked = false;
         let pendingTabId = null;
         let pendingTabElement = null;
@@ -1098,7 +1098,7 @@
                 printerIp: "192.168.211.40", 
                 notificationUrl: "https://formspree.io/f/xrejnkgq", 
                 logistikPin: "3132", 
-                adminPin: "110784",
+                adminPin: "0000",
                 pinVersion: 1,
                 inactivityTimeout: 0,
                 noelkeDefaultArtNr: "NÖLKE" },
@@ -1699,13 +1699,13 @@
             db.later = (db.later||[]).filter(a => a && a.fertigNr && a.name !== undefined && isNotAssigned(a));
             db.hidden = (db.hidden||[]).filter(a => a && a.fertigNr && a.name !== undefined && isNotAssigned(a));
             
-            if(!db.settings) db.settings = { printerIp: "192.168.211.40", notificationUrl: "https://formspree.io/f/xrejnkgq", logistikPin: "3132", adminPin: "110784", pinVersion: 1, inactivityTimeout: 0, noelkeDefaultArtNr: "NÖLKE" };
+            if(!db.settings) db.settings = { printerIp: "192.168.211.40", notificationUrl: "https://formspree.io/f/xrejnkgq", logistikPin: "3132", adminPin: "0000", pinVersion: 1, inactivityTimeout: 0, noelkeDefaultArtNr: "NÖLKE" };
             if (db.settings.pinVersion == null) db.settings.pinVersion = 1;
             if(!db.workers) db.workers = [];
             if(!db.workerColors) db.workerColors = {};
             (db.workers || []).forEach(w => { if (!db.workerColors[w]) db.workerColors[w] = nextWorkerColor(); });
             if(!db.company) db.company = { name: "Tresch & Sohn", color: "#004b93", modules: { lkw: true, sort: true, noelke: true }, leergut: "E2:2.0, Herta:2.5, H1:18.0, Euro:21.0" };
-            ADMIN_PIN = db.settings.adminPin || "110784";
+            ADMIN_PIN = db.settings.adminPin || "0000";
             
             document.getElementById('set-printer-ip').value = db.settings.printerIp || "";
             document.getElementById('set-notification-url').value = db.settings.notificationUrl || "";

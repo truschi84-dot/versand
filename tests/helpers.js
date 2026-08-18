@@ -11,10 +11,12 @@ const CLOUD_HOST_PATTERN = '**://*.supabase.co/**';
 const DEPLOY_API_PATTERN = '**/api/deploy**';
 
 const RECHNER_PIN = '3132';
-const RECHNER_ADMIN_PIN = '061283';
-// 2026-08-05: Die echte Admin-PIN stand als Fallback im Quelltext -- und der liegt
-// oeffentlich auf GitHub Pages. Ersetzt durch DEFAULT_ADMIN_PIN in control-center-core.js.
-// Die Tests blocken die Cloud (blockCloud), also greift hier immer der Fallback.
+// 2026-08-18: Hier stand die ECHTE Admin-PIN. tests/ wird auf GitHub Pages als ganz
+// normales Verzeichnis mit ausgeliefert -- damit lag sie oeffentlich im Netz. Beide Werte
+// sind jetzt reine Testwerte: die Tests blocken die Cloud (blockCloud) und setzen die
+// Einstellungen, gegen die geprueft wird, ohnehin selbst.
+// Es gehoert KEINE echte PIN in diese Datei zurueck.
+const RECHNER_ADMIN_PIN = '999999';
 const CONTROL_ADMIN_PIN = '0000';
 
 /**

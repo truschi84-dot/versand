@@ -1,6 +1,13 @@
 # Einstellungen (PIN) direkt in Firebase Cloud schreiben
+#
+# 2026-08-18: Hier standen zwei echte PINs im Klartext -- als Vorgabewert fuer $LogistikPin
+# und als Rueckfall fuer adminPin. Die Datei liegt in Git und wurde damit mit ausgeliefert.
+# Beide Werte kommen jetzt beim Aufruf herein: nach $LogistikPin fragt PowerShell, wenn er
+# fehlt; $AdminPin ist optional. Es gehoert KEINE echte PIN in diese Datei zurueck.
 param(
-    [string]$LogistikPin = "061283",
+    [Parameter(Mandatory = $true)]
+    [string]$LogistikPin,
+    [string]$AdminPin = "",
     [string]$SecretsPath = ""
 )
 
@@ -33,7 +40,11 @@ if ($LogistikPin -and $LogistikPin -ne $oldPin) { $pinVersion++ }
 
 $settings.logistikPin = $LogistikPin
 $settings.pinVersion = $pinVersion
-if (-not $settings.adminPin) { $settings.adminPin = "110784" }
+# adminPin nur setzen, wenn er beim Aufruf uebergeben wurde -- nie ein fester Wert von hier.
+if (-not $settings.adminPin) {
+    if ($AdminPin) { $settings.adminPin = $AdminPin }
+    else { Write-Host "HINWEIS: adminPin fehlt in der Cloud und wurde nicht uebergeben (-AdminPin) - bleibt unveraendert." }
+}
 
 $body = $settings | ConvertTo-Json -Depth 10 -Compress
 Invoke-RestMethod -Method Put -Uri $settingsUrl -ContentType "application/json" -Body $body | Out-Null

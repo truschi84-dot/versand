@@ -18,6 +18,46 @@ function setLgMode(mode) {
 }
 
 let lgZaehlerState = {};
+
+// Eigener lokaler Schluessel -- bewusst NICHT in der Rechner-DB, sonst wuerde
+// saveRechnerDB() den Zaehlzettel per triggerAutoSync('rechner') in die Cloud schieben.
+const LG_ZAEHLER_KEY = 'rechner_leergut_zaehler';
+
+/** Zaehlstand lokal sichern (Handy-Sperre / Neuladen / App-Neustart duerfen nichts kosten). */
+function saveLgZaehler() {
+    if(typeof AppStorage === 'undefined') return;
+    // Solange initLgZaehler() nicht lief, ist der State leer -- dann nichts schreiben,
+    // sonst wuerde ein Tippen im Kundenfeld einen gesicherten Stand ueberbuegeln.
+    if(Object.keys(lgZaehlerState).length === 0) return;
+    const kundeFeld = document.getElementById('lg-kunde');
+    AppStorage.set(LG_ZAEHLER_KEY, {
+        date: getLocalISO(),
+        kunde: kundeFeld ? kundeFeld.value.trim() : '',
+        state: lgZaehlerState
+    });
+}
+
+/** Gesicherten Zaehlstand holen -- oder null, wenn alt, fremd oder unbrauchbar. */
+function loadLgZaehler() {
+    if(typeof AppStorage === 'undefined') return null;
+    const saved = AppStorage.get(LG_ZAEHLER_KEY, null);
+    if(!saved || typeof saved !== 'object' || !saved.state || typeof saved.state !== 'object') {
+        AppStorage.remove(LG_ZAEHLER_KEY);
+        return null;
+    }
+    // Tageswechsel: ein Zaehlstand von gestern gehoert nicht auf den heutigen Beleg.
+    if(saved.date !== getLocalISO()) {
+        AppStorage.remove(LG_ZAEHLER_KEY);
+        return null;
+    }
+    // Kundenwechsel: steht schon ein anderer Kunde im Feld, gehoert der Stand nicht dazu.
+    const kundeFeld = document.getElementById('lg-kunde');
+    const aktuellerKunde = kundeFeld ? kundeFeld.value.trim() : '';
+    const gespeicherterKunde = typeof saved.kunde === 'string' ? saved.kunde : '';
+    if(aktuellerKunde && aktuellerKunde.toLowerCase() !== gespeicherterKunde.toLowerCase()) return null;
+    return saved;
+}
+
 function initLgZaehler() {
     const config = getLeergutConfig().filter(lg => !lg.name.toLowerCase().includes('herta'));
     const container = document.getElementById('lg-zaehler-container');
@@ -67,6 +107,22 @@ function initLgZaehler() {
         </div>`;
     });
     container.innerHTML = html;
+
+    // Gesicherten Zaehlstand zurueckholen -- IMMER in State UND Eingabefeld,
+    // sonst zeigt der Bildschirm 0 waehrend im Speicher noch 120 Kisten stehen.
+    const gespeichert = loadLgZaehler();
+    if(!gespeichert) return;
+    const kundeFeld = document.getElementById('lg-kunde');
+    if(kundeFeld && !kundeFeld.value.trim() && gespeichert.kunde) kundeFeld.value = gespeichert.kunde;
+    config.forEach(lg => {
+        const werte = gespeichert.state[lg.id];
+        if(!werte || typeof werte !== 'object') return;
+        const entladen = parseInt(werte.entladen) || 0;
+        const geladen = parseInt(werte.geladen) || 0;
+        lgZaehlerState[lg.id] = { entladen: entladen, geladen: geladen };
+        let inputE = document.getElementById('zaehler_entladen_' + lg.id); if(inputE) inputE.value = entladen;
+        let inputG = document.getElementById('zaehler_geladen_' + lg.id); if(inputG) inputG.value = geladen;
+    });
 }
 
 function quickAddMenge(id, type) {
@@ -88,6 +144,7 @@ function changeLgZaehler(id, type, amount) {
     input.value = val;
     if(!lgZaehlerState[id]) lgZaehlerState[id] = {entladen:0, geladen:0};
     lgZaehlerState[id][type] = val;
+    saveLgZaehler();
 }
 
 function updateLgZaehlerState(id, type) {
@@ -95,6 +152,7 @@ function updateLgZaehlerState(id, type) {
     if(input) {
         if(!lgZaehlerState[id]) lgZaehlerState[id] = {entladen:0, geladen:0};
         lgZaehlerState[id][type] = parseInt(input.value) || 0;
+        saveLgZaehler();
     }
 }
 
@@ -106,6 +164,8 @@ function resetLgZaehler() {
         let inputE = document.getElementById('zaehler_entladen_' + id); if(inputE) inputE.value = 0;
         let inputG = document.getElementById('zaehler_geladen_' + id); if(inputG) inputG.value = 0;
     }
+    // Nur hier wird geleert -- nach dem Drucken NICHT, da oft noch korrigiert und neu gedruckt wird.
+    if(typeof AppStorage !== 'undefined') AppStorage.remove(LG_ZAEHLER_KEY);
 }
 
 function printLgZaehler() {
@@ -215,6 +275,7 @@ function importFromLKW() {
             if(input) input.value = sumLeergut[key];
         }
     }
+    saveLgZaehler();
     showToast("Entladenes Leergut aus LKW-Liste übernommen!", "success");
 }
 
@@ -236,6 +297,7 @@ function importFromLadeplan() {
     if(h1Obj) { lgZaehlerState[h1Obj.id].geladen = totalH1; let input = document.getElementById('zaehler_geladen_' + h1Obj.id); if(input) input.value = totalH1; }
     if(euObj) { lgZaehlerState[euObj.id].geladen = lpData.euNeed; let input = document.getElementById('zaehler_geladen_' + euObj.id); if(input) input.value = lpData.euNeed; }
     
+    saveLgZaehler();
     showToast("Geladenes Leergut aus Ladeplan übernommen!", "success");
 }
 

@@ -30,6 +30,10 @@ function loadRechnerData() {
         if(typeof buildAppUI === 'function') buildAppUI();
         if(typeof updateLiefDropdowns === 'function') updateLiefDropdowns();
 
+        // Tageswechsel-Riegel VOR dem ersten Rendern: die Ansicht zeigt danach nur noch heutige
+        // Eintraege, alles aeltere liegt im Uebertrag (siehe pruefeTageswechselSortierung).
+        pruefeTageswechselSortierung();
+
         if(typeof renderLKW === 'function') { renderLKW(); renderSort(); renderNoelke(); loadBrandenburgData(); }
     } catch(e) { console.error("Fehler in loadRechnerData", e); }
 }
@@ -399,7 +403,7 @@ function filterResults() {
             html = res.map(t => {
                 let mhdParam = gs1Data && gs1Data.mhd ? `'${gs1Data.mhd}'` : 'null';
                 let liefStr = t.lief ? ` | Von: ${t.lief}` : '';
-                return `<div class="result-item" style="display:flex; justify-content:space-between; align-items:center;" onclick="selectResult('${t.id}', ${mhdParam})"><div><b style="color:var(--primary);">${t.name}</b> <br><small style="color:#777;">EAN: ${t.ean || '-'}${liefStr}</small></div><div onclick="deleteSonderTemplate(event, '${t.id}')" style="color:var(--danger); font-size:20px; padding:10px;">🗑️</div></div>`;
+                return `<div class="result-item" style="display:flex; justify-content:space-between; align-items:center;" onclick="selectResult('${t.id}', ${mhdParam})"><div><b style="color:var(--primary);">${t.name}</b> <br><small style="color:#777;">EAN: ${t.ean || '-'}${liefStr}</small></div></div>`;
             }).join('');
             
         } else {
@@ -420,10 +424,10 @@ function filterResults() {
     } catch(e) { console.error("Fehler in filterResults", e); }
 }
 
-function deleteSonderTemplate(e, id) {
-    e.stopPropagation();
-    if(confirm("Vorlage wirklich löschen?")) { sonderTemplates = sonderTemplates.filter(t => t.id !== id); saveRechnerDB(); filterResults(); }
-}
+// 2026-08-18: deleteSonderTemplate() und der Papierkorb in der Trefferliste sind entfallen.
+// Anlegen duerfen die Handys weiter (saveSonderTplFromModal), Aendern und Loeschen macht nur
+// das Buero im Control Center (adminDeleteSonderTpl). Vorher loeschte ein Fehlgriff am Handy
+// die Vorlage fuer alle, und zurueckholen liess sie sich nicht.
 
 // ======================= APP / UI LOGIK =======================
 
@@ -654,7 +658,7 @@ function addSort() {
         let leergutData = {}; if(ek > 0) { try { const config = getLeergutConfig(); let primaryLgName = config.length > 0 ? config[0].name : "E2"; leergutData[primaryLgName] = ek; } catch(err) { leergutData['E2'] = ek; } }
         let sorteName = document.getElementById('selected-sonder-tpl-sort').innerText; if(sorteName === "Vorlage wählen / scannen...") sorteName = "Sonderposten";
         
-        entriesSort.push({ id: Date.now().toString(), lief: document.getElementById('lief-sort').value, sorte: sorteName, netto: netto, leergut: leergutData, e2: ek, kart: kart, mhd: mhd, herkunft: herkunft, type: 'sonder' });
+        entriesSort.push({ id: Date.now().toString(), datum: getLocalISO(), lief: document.getElementById('lief-sort').value, sorte: sorteName, netto: netto, leergut: leergutData, e2: ek, kart: kart, mhd: mhd, herkunft: herkunft, type: 'sonder' });
         
         toggleSonderModeSort();
         ["s-brutto-sort","s-reihe-sort","s-reihen-sort","s-krtlage-sort","s-lagen-sort","s-einzel-sort","s-e2kisten-sort","s-stke2-sort","s-stk-sort","s-kg-sort","s-res-sort","s-mhd-sort","s-herkunft-sort"].forEach(id => { if(document.getElementById(id)) document.getElementById(id).value = ""; });
@@ -679,7 +683,7 @@ function addSort() {
     });
     
     let netto = parseFloat((b - tare).toFixed(2));
-    entriesSort.push({ id: Date.now().toString(), lief: document.getElementById('lief-sort').value, sorte: selectedSorte, netto, leergut: leergutData });
+    entriesSort.push({ id: Date.now().toString(), datum: getLocalISO(), lief: document.getElementById('lief-sort').value, sorte: selectedSorte, netto, leergut: leergutData });
     saveRechnerDB(); renderSort();
     document.getElementById("bru-sort").value = "";
     resetSorteSelection();
@@ -697,9 +701,196 @@ function updateControlCenter() {
     } catch(e) { console.error("Fehler im updateControlCenter", e); }
 }
 
+// ======================= TAGESWECHSEL-RIEGEL SORTIERUNG =======================
+// 2026-08-18: Sortierlisten blieben ueber Nacht stehen. Gebucht wird beim Drucken mit dem
+// Datum des Druck-Klicks -- wer die Liste am Folgetag noch einmal gedruckt hat, hat die
+// Mengen von gestern ein zweites Mal gebucht. Die Auswertung fuer die Geschaeftsfuehrung
+// war dadurch zu hoch.
+//
+// Eintraege frueherer Tage werden beim Aufbau der Ansicht beiseitegelegt -- in
+// db.entriesSortUebertrag. NICHTS wird geloescht: dort steht die Arbeit eines ganzen
+// Tages, sie bleibt ansehbar und als Nachdruck druckbar (ohne Buchung).
+
+/**
+ * Datum eines Sortier-Eintrags im Format von getLocalISO().
+ * Nirgends e.datum direkt lesen -- Altbestand hat das Feld noch nicht.
+ * Rueckgabe null heisst "kein erkennbares Datum" und gilt als ALT, nie als heute.
+ */
+function datumVonSortierEintrag(e) {
+    if (!e) return null;
+    if (e.datum) return e.datum;
+    // Altbestand ohne datum-Feld: die id ist ein Millisekunden-Zeitstempel (Date.now()).
+    // Daraus laesst sich das Datum exakt rekonstruieren -- keine Datenwanderung noetig
+    // und kein Stichtag, an dem einmal alles falsch waere.
+    const id = String(e.id || '');
+    if (/^\d{13}$/.test(id)) {
+        const d = new Date(Number(id));
+        if (!isNaN(d.getTime())) {
+            return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+        }
+    }
+    return null;
+}
+
+/** true nur wenn der Eintrag nachweislich von heute ist. Im Zweifel false (bewusst streng). */
+function istSortierEintragVonHeute(e) {
+    const datum = datumVonSortierEintrag(e);
+    if (!datum) return false;
+    return datum === getLocalISO();
+}
+
+/** Beiseitegelegte Liste aus der Rechner-DB. Immer ein Array. */
+function ladeSortierUebertrag() {
+    try {
+        const db = ladeRechnerDb();
+        return Array.isArray(db.entriesSortUebertrag) ? db.entriesSortUebertrag : [];
+    } catch (e) { console.error("Fehler in ladeSortierUebertrag", e); return []; }
+}
+
+/** "17.08." bzw. "16.08., 17.08." -- die Tage, von denen die Eintraege stammen. */
+function sortierDatumsListe(liste) {
+    const gesehen = [];
+    (liste || []).forEach(e => {
+        const d = datumVonSortierEintrag(e);
+        const txt = d ? d.split('-').reverse().slice(0, 2).join('.') + '.' : 'unbekanntem Tag';
+        if (gesehen.indexOf(txt) === -1) gesehen.push(txt);
+    });
+    return gesehen.join(', ');
+}
+
+/**
+ * Schritt 2 des Riegels: Eintraege, die nicht von heute sind, aus entriesSort herausnehmen
+ * und in db.entriesSortUebertrag legen. Laeuft bei jedem Aufbau der Sortier-Ansicht --
+ * also auch mitten am Tag, wenn loadRechnerData() ueber Sync, LKW Empfangen oder Entsperren
+ * erneut durchlaeuft.
+ *
+ * Zwei Tage nicht geleert: ein bereits vorhandener Uebertrag wird NICHT ersetzt, sondern
+ * ergaenzt -- sonst waere die aeltere Liste weg. Doppelte Eintraege koennen dabei nicht
+ * entstehen, weil ueber die id abgeglichen wird (loadRechnerData laeuft mehrfach).
+ *
+ * Gibt true zurueck, wenn etwas beiseitegelegt wurde.
+ */
+function pruefeTageswechselSortierung() {
+    try {
+        if (!Array.isArray(entriesSort) || entriesSort.length === 0) return false;
+        const alte = entriesSort.filter(e => !istSortierEintragVonHeute(e));
+        if (alte.length === 0) return false;
+        const heutige = entriesSort.filter(e => istSortierEintragVonHeute(e));
+
+        const db = ladeRechnerDb();
+        const bisher = Array.isArray(db.entriesSortUebertrag) ? db.entriesSortUebertrag : [];
+        const bekannteIds = bisher.map(e => String(e && e.id));
+        const nachzutragen = alte.filter(e => bekannteIds.indexOf(String(e && e.id)) === -1);
+        db.entriesSortUebertrag = bisher.concat(nachzutragen);
+        speichereRechnerDb(db);
+
+        // Erst nach dem gesicherten Uebertrag die Arbeitsliste kuerzen. saveRechnerDB()
+        // liest die DB frisch ein, der eben geschriebene Uebertrag bleibt dadurch stehen.
+        entriesSort = heutige;
+        // Neue Sitzung NUR, wenn nach dem Beiseitelegen gar nichts Heutiges mehr dasteht.
+        //
+        // Die Sitzungs-ID ist der Schluessel, an dem bucheTeamSortierungBeimDruck()
+        // (gemeinsam/metriken.js) erkennt, wie viel fuer eine Sorte an diesem Tag schon
+        // gebucht wurde -- gebucht wird nur die Differenz. Eine neue Sitzungs-ID setzt diesen
+        // Zaehler auf 0 zurueck. Passiert das mitten am Tag, bucht der naechste Druck die
+        // bereits gebuchte Menge ein ZWEITES Mal.
+        //
+        // Und dieser Zweig laeuft nicht nur einmal frueh am Morgen: loadRechnerData() ist an
+        // sechs Stellen mitten am Tag aufrufbar (Sync-Knopf, Auto-Sync, LKW Empfangen,
+        // Logistik "Aus Cloud laden", Notfall-Wiederherstellung, Entsperren). Die Bedingung
+        // oben bleibt wahr, solange ueberhaupt ein alter Eintrag in entriesSort liegt --
+        // sortierungDrucken() raeumt entriesSort nicht auf, sondern filtert nur eine Kopie.
+        // Alltagsfall: morgens erfassen, drucken (500 kg gebucht), Sync-Knopf druecken, weiter
+        // erfassen, nochmal drucken -> die 500 kg standen doppelt in der Auswertung.
+        //
+        // Stehen heutige Eintraege da, wird der Uebertrag trotzdem beiseitegelegt; nur die
+        // Sitzungs-ID bleibt unveraendert. Diese Bedingung bitte nicht "aufraeumen".
+        if (heutige.length === 0) neueSortierSitzung();
+        saveRechnerDB();
+
+        meldeTageswechselSortierung(alte);
+        return true;
+    } catch (e) { console.error("Fehler in pruefeTageswechselSortierung", e); return false; }
+}
+
+/** Genau EINE Meldung -- kein Meldungs-Gewitter. Zwei Wege: verstanden / alte Liste ansehen. */
+function meldeTageswechselSortierung(alte) {
+    const anzahl = alte.length;
+    const text = anzahl + (anzahl === 1 ? ' Eintrag vom ' : ' Einträge vom ') + sortierDatumsListe(alte)
+        + ' wurden beiseitegelegt. Sie werden NICHT noch einmal gebucht.';
+    const modal = document.getElementById('sortier-tageswechsel-modal');
+    const textEl = document.getElementById('sortier-tageswechsel-text');
+    if (!modal || !textEl) { if (typeof showToast === 'function') showToast(text, 'warning'); return; }
+    textEl.innerText = text;
+    document.getElementById('sortier-tageswechsel-ok-btn').onclick = () => { modal.style.display = 'none'; };
+    document.getElementById('sortier-tageswechsel-ansehen-btn').onclick = () => {
+        modal.style.display = 'none';
+        zeigeSortierUebertrag();
+    };
+    modal.style.display = 'flex';
+}
+
+/** Beiseitegelegte Liste ansehen. Jederzeit erreichbar ueber den Hinweis im Sortier-Tab. */
+function zeigeSortierUebertrag() {
+    const uebertrag = ladeSortierUebertrag();
+    const modal = document.getElementById('sortier-uebertrag-modal');
+    const listeEl = document.getElementById('sortier-uebertrag-liste');
+    if (!modal || !listeEl) return;
+    if (uebertrag.length === 0) {
+        if (typeof showToast === 'function') showToast('Kein Übertrag vorhanden', 'warning');
+        return;
+    }
+    const kopf = document.getElementById('sortier-uebertrag-kopf');
+    if (kopf) kopf.innerText = uebertrag.length + ' Einträge vom ' + sortierDatumsListe(uebertrag) + ' — nicht gebucht';
+    listeEl.innerHTML = uebertrag.map(e => {
+        const datum = datumVonSortierEintrag(e);
+        const datumTxt = datum ? datum.split('-').reverse().join('.') : 'ohne Datum';
+        const netto = (parseFloat(e.netto) || 0).toFixed(2).replace('.', ',');
+        return `<div class="palette-card" style="border-left-color:#888; margin:0 0 8px 0;">
+            <div style="flex:1">
+                <b style="font-size:14px;">${e.type === 'sonder' ? '📦 ' : ''}${e.sorte || '-'}</b>
+                <div class="entry-sub" style="font-size:11px; margin-top:4px;">${e.lief || '-'} &nbsp;|&nbsp; ${datumTxt}</div>
+            </div>
+            <span style="font-weight:bold; font-size:15px;">${netto} kg</span>
+        </div>`;
+    }).join('');
+    modal.style.display = 'flex';
+}
+
+/** Uebertrag endgueltig wegraeumen, wenn er erledigt ist. Nur mit Rueckfrage. */
+function sortierUebertragWegraeumen() {
+    const uebertrag = ladeSortierUebertrag();
+    if (uebertrag.length === 0) return;
+    customConfirm('Alte Liste (' + uebertrag.length + ' Einträge) endgültig wegräumen?', () => {
+        try {
+            const db = ladeRechnerDb();
+            db.entriesSortUebertrag = [];
+            speichereRechnerDb(db);
+            const modal = document.getElementById('sortier-uebertrag-modal');
+            if (modal) modal.style.display = 'none';
+            renderSort();
+            if (typeof showToast === 'function') showToast('Alte Liste weggeräumt', 'success');
+        } catch (e) { console.error("Fehler in sortierUebertragWegraeumen", e); }
+    });
+}
+
+/** Hinweiszeile im Sortier-Tab, solange ein Uebertrag vorliegt -- der Weg zurueck zur Ansicht. */
+function renderSortUebertragHinweis() {
+    const box = document.getElementById('sortier-uebertrag-hinweis');
+    if (!box) return;
+    const uebertrag = ladeSortierUebertrag();
+    if (uebertrag.length === 0) { box.innerHTML = ''; box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    box.innerHTML = `<div style="margin:0 10px 8px 10px; background:#fff3cd; border:1px solid #ffc107; border-radius:8px; padding:10px; display:flex; align-items:center; gap:10px;">
+        <span style="flex:1; font-size:13px; color:#664d03;"><b>Alte Liste:</b> ${uebertrag.length} Einträge vom ${sortierDatumsListe(uebertrag)} — nicht gebucht</span>
+        <button onclick="zeigeSortierUebertrag()" style="background:#ffc107; color:#000; border:none; padding:8px 12px; border-radius:6px; font-weight:bold; cursor:pointer;">Ansehen</button>
+    </div>`;
+}
+
 function renderSort() { 
     try {
         updateControlCenter(); 
+        renderSortUebertragHinweis();
         let listContainer = document.getElementById('list-sort');
         if (!listContainer || typeof entriesSort === 'undefined') return;
 

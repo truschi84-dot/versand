@@ -17,3 +17,16 @@ projekt/sicherungen-lokal/*
 
 # Streuner: Firebase-Anmeldedatei mit verstuemmeltem Windows-Pfad als Namen (2026-08-17)
 *fb_auth*
+
+# 2026-08-18: PINs im Klartext. Die Datei wurde ueber GitHub Pages oeffentlich
+# ausgeliefert (nachgemessen), von der App aber nie gelesen: der Code fragt
+# origin + '/app-settings-public.json' ab, die App liegt jedoch unter /versand/.
+# Reine Preisgabe ohne Funktion -> nicht mehr mit ausliefern.
+app-settings-public.json
+
+# Sicherungskopien neben den Quelldateien gehoeren nicht in die Auslieferung
+*.sicherung_*
+
+# Lokale Claude-Einstellungen: enthalten Pfade und MCP-Kennungen,
+# und .nojekyll wuerde sie oeffentlich ausliefern
+.claude/settings.local.json

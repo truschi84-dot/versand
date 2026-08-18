@@ -34,4 +34,4 @@ Liste was funktioniert ✅ und was nicht ❌.
 
 ## Bekannte PINs (nur für Tests)
 - Firmen-PIN: 3132
-- Admin-PIN: 110784
+- Admin-PIN: steht nur in den Cloud-Einstellungen (Control Center → Einstellungen) — bewusst nicht im Repo

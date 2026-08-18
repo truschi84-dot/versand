@@ -16,7 +16,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 141;
+const WEB_BUILD_VERSION = 142;
 /** Fallback nur wenn app-update.json nicht geladen werden kann — echte URL kommt aus Config. */
 const OFFICE_LAN_URL = '';
 let pendingOtaUpdate = null;
@@ -1600,7 +1600,16 @@ function getLogistikFullCloudPayload() {
     delete safeSettings.adminPin;
     delete safeSettings.pinVersion;
     const payload = {
-        suppliers: (lData.suppliers || []).filter(s => !(lData.deletedSuppliers || []).includes(String(s).trim())),
+        // 2026-08-18: suppliers, supplierLines, supplierLinesCleared, supplierNumbers und
+        // deletedSuppliers sind hier raus -- aus demselben Grund wie in
+        // getRechnerStammdatenCloudPayload(). Dieser zweite PATCH-Weg
+        // (silentPushLogistikToCloud, backupToCloud, manualCloudPush) hat sie weiter
+        // hochgeschickt, mergeLogistikPayloadMitCloud() schuetzt sie nicht. Ein Geraet mit
+        // altem Stand ueberschrieb damit sogar die Grabsteinliste deletedSuppliers in der
+        // Cloud mit seiner eigenen, kuerzeren: ein im Buero geloeschter Lieferant war zurueck
+        // UND der Loeschmerker weg. Am Handy gibt es fuer Lieferanten keine Oberflaeche
+        // (index.html kennt kein Feld newSup), gelesen werden sie unveraendert weiter ueber
+        // applyLogistikFullFromCloud / applyRechnerStammdatenFromCloud.
         customers: lData.customers || [],
         articles: lData.articles || [],
         lose: lData.lose || [],
@@ -1614,10 +1623,6 @@ function getLogistikFullCloudPayload() {
         workerColors: lData.workerColors || {},
         checklistMorningTemplate: lData.checklistMorningTemplate || [],
         teamDayBrief: lData.teamDayBrief || null,
-        deletedSuppliers: lData.deletedSuppliers || [],
-        supplierLines: lData.supplierLines || {},
-        supplierLinesCleared: lData.supplierLinesCleared || [],
-        supplierNumbers: lData.supplierNumbers || {},
         artikelMarkt: lData.artikelMarkt || {},
         teamTagesMengen: lData.teamTagesMengen || {},
         teamSortierBuchungen: lData.teamSortierBuchungen || [],
@@ -1633,21 +1638,37 @@ function getLogistikFullCloudPayload() {
 }
 
 function getRechnerStammdatenCloudPayload() {
-    const lData = AppStorage.get('kombi_logistik_db', {});
     const rData = AppStorage.get('kombi_rechner_db', {});
     return {
-        suppliers: lData.suppliers || [],
-        supplierLines: lData.supplierLines || {},
-        supplierLinesCleared: lData.supplierLinesCleared || [],
-        supplierNumbers: lData.supplierNumbers || {},
-        deletedSuppliers: lData.deletedSuppliers || [],
         // 2026-08-18: articles und savedProdukteRaw sind hier raus. Beide werden am Handy nur
         // gelesen; dieser PATCH lief bei fast jeder Aktion und schrieb den womoeglich alten
         // Stand blind in die Cloud zurueck — im Control Center Geloeschtes tauchte wieder auf.
         // Gepflegt werden sie im Control Center, das Handy bekommt sie ueber
         // applyRechnerStammdatenFromCloud (Sync-Knopf) bzw. applyLogistikFullFromCloud.
+        // 2026-08-18: Aus demselben Grund sind jetzt auch suppliers, supplierLines,
+        // supplierLinesCleared, supplierNumbers und deletedSuppliers raus — die Lieferantenlisten
+        // liest das Handy nur (Auswahl, Warenlinien), hochgeschickt hat es damit nur seinen
+        // womoeglich alten Stand, und ein im Buero geloeschter Lieferant stand wieder in der Liste.
+        // Empfangen werden sie unveraendert weiter, siehe die beiden apply...-Funktionen unten.
+        // deletedSonderTemplates gehoert bewusst NICHT hierher: Vorlagen loeschen darf nur das Buero.
         sonderTemplates: rData.sonderTemplates || []
     };
+}
+
+/**
+ * Vorlagen aus der Cloud mit den lokalen zusammenfuehren, statt sie hart zu ersetzen.
+ * 2026-08-18: Vorher stand an beiden Sync-Stellen "rDb.sonderTemplates = data.sonderTemplates" —
+ * eine gerade am Handy angelegte, noch nicht hochgeladene Vorlage war damit beim naechsten Sync
+ * weg. Jetzt gewinnt bei gleicher id die Cloud (gepflegt wird im Control Center), lokal
+ * angelegte Vorlagen mit unbekannter id bleiben stehen. Ausnahme: ids aus deletedSonderTemplates
+ * fliegen raus — sonst kaeme eine im Buero geloeschte Vorlage von jedem Handy zurueck.
+ */
+function mergeSonderTemplatesFromCloud(lokal, cloud, geloescht) {
+    const weg = new Set((geloescht || []).map(id => String(id)).filter(Boolean));
+    const tplById = new Map();
+    (lokal || []).forEach(t => { if (t && t.id) tplById.set(String(t.id), t); });
+    (cloud || []).forEach(t => { if (t && t.id) tplById.set(String(t.id), t); });
+    return Array.from(tplById.values()).filter(t => !weg.has(String(t.id)));
 }
 
 function applyLogistikFullFromCloud(data) {
@@ -1751,9 +1772,10 @@ function applyLogistikFullFromCloud(data) {
         AppStorage.set('kombi_rechner_db', rDb);
         changed = true;
     }
-    if (Array.isArray(data.sonderTemplates)) {
+    if (Array.isArray(data.sonderTemplates) || Array.isArray(data.deletedSonderTemplates)) {
         const rDb = AppStorage.get('kombi_rechner_db', {});
-        rDb.sonderTemplates = data.sonderTemplates;
+        if (Array.isArray(data.deletedSonderTemplates)) rDb.deletedSonderTemplates = data.deletedSonderTemplates;
+        rDb.sonderTemplates = mergeSonderTemplatesFromCloud(rDb.sonderTemplates, data.sonderTemplates, rDb.deletedSonderTemplates);
         AppStorage.set('kombi_rechner_db', rDb);
         changed = true;
     }
@@ -1802,7 +1824,11 @@ function applyRechnerStammdatenFromCloud(data) {
     // Ohne diese Zeile blieb "Angenommen von" in der Reklamation nach einer APK-Neuinstallation leer.
     if (Array.isArray(data.workers)) { lDb.workers = data.workers; changed = true; }
     if (Array.isArray(data.savedProdukteRaw)) { rDb.savedProdukteRaw = data.savedProdukteRaw; changed = true; }
-    if (Array.isArray(data.sonderTemplates)) { rDb.sonderTemplates = data.sonderTemplates; changed = true; }
+    if (Array.isArray(data.deletedSonderTemplates)) { rDb.deletedSonderTemplates = data.deletedSonderTemplates; changed = true; }
+    if (Array.isArray(data.sonderTemplates) || Array.isArray(data.deletedSonderTemplates)) {
+        rDb.sonderTemplates = mergeSonderTemplatesFromCloud(rDb.sonderTemplates, data.sonderTemplates, rDb.deletedSonderTemplates);
+        changed = true;
+    }
     if (Array.isArray(data.checklistMorningTemplate)) { lDb.checklistMorningTemplate = data.checklistMorningTemplate; changed = true; }
     if (data.teamDayBrief && typeof data.teamDayBrief === 'object') { lDb.teamDayBrief = data.teamDayBrief; changed = true; }
     if (changed) {
@@ -1955,11 +1981,75 @@ function silentPushRechnerStammdatenToCloud() {
         headers: { 'Content-Type': 'application/json' }
     })
     .then(res => {
+        // 2026-08-18: Hat der Leerlisten-Riegel abgebrochen, sieht die Antwort fuer uns wie ein
+        // Erfolg aus (ok:true) — geschrieben wurde aber nichts. Ein "[OK]" waere hier schlicht
+        // falsch und stuende im absteigend sortierten Protokoll UEBER dem Abbruch: wer nur die
+        // erste Zeile liest, haelt es fuer erledigt. Der Riegel hat seinen eigenen Eintrag
+        // bereits geschrieben, eine zweite Zeile braucht es nicht — sie wuerde bei jedem
+        // saveRechnerDB() feuern und echte Fehlermeldungen aus dem Ringpuffer draengen.
+        if (res.uebersprungen === true) return;
         if (res.ok && typeof addAppCloudLog === 'function') addAppCloudLog("AUTO-SYNC: Rechner-Stammdaten hochgeladen [OK]");
     })
     .catch(() => {
         if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Stammdaten-Upload fehlgeschlagen");
     });
+}
+
+/**
+ * 2026-08-18: Ein Haken an einer Tagesaufgabe darf niemals Stammdaten anfassen. Vorher lief
+ * das ueber triggerAutoSync('logistik') -> silentPushLogistikToCloud() und damit ueber das
+ * volle Logistik-Payload (25 Felder). Hier geht ausschliesslich teamDayBrief hoch.
+ * Die Aufgaben-Texte kommen aus dem Buero und duerfen vom Handy nicht ueberschrieben werden:
+ * Grundlage ist die Cloud-Fassung der Aufgabenliste, uebernommen wird je Aufgabe (Zuordnung
+ * ueber id) nur der Erledigt-Haken.
+ */
+async function silentPushTeamDayBriefToCloud() {
+    if (!navigator.onLine || !isAppAuthenticated()) return;
+    const lokal = (AppStorage.get('kombi_logistik_db', {}) || {}).teamDayBrief;
+    if (!lokal || typeof lokal !== 'object') return;
+
+    let cloudBrief = null;
+    try {
+        const res = await cloudFetch(APP_CONFIG.CLOUD_URL + ".json?t=" + Date.now());
+        if (!res.ok) {
+            if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Tagesaufgaben-Haken nicht hochgeladen - Cloud nicht lesbar");
+            return;
+        }
+        const cloud = await res.json();
+        cloudBrief = cloud ? cloud.teamDayBrief : null;
+    } catch (e) {
+        if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Tagesaufgaben-Haken nicht hochgeladen - Cloud nicht lesbar");
+        return;
+    }
+
+    // Anderes Datum in der Cloud: das Buero hat laengst ein neues Briefing gesetzt. Unsere
+    // Haken gehoeren dann zu einer anderen Liste — nichts schicken.
+    if (!cloudBrief || typeof cloudBrief !== 'object' || cloudBrief.date !== lokal.date) {
+        if (typeof addAppCloudLog === 'function') addAppCloudLog("ABBRUCH: Tagesaufgaben-Haken nicht gesendet (anderes Datum in der Cloud)");
+        return;
+    }
+
+    const lokalDone = new Map((Array.isArray(lokal.tasks) ? lokal.tasks : []).map(t => [t.id, !!t.done]));
+    const brief = {
+        ...cloudBrief,
+        tasks: (Array.isArray(cloudBrief.tasks) ? cloudBrief.tasks : [])
+            .map(t => (t && lokalDone.has(t.id)) ? { ...t, done: lokalDone.get(t.id) } : t)
+    };
+
+    try {
+        const res = await cloudFetch(APP_CONFIG.CLOUD_URL + ".json", {
+            method: 'PATCH',
+            body: JSON.stringify({ teamDayBrief: brief }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+            if (typeof addAppCloudLog === 'function') addAppCloudLog("AUTO-SYNC: Tagesaufgaben-Haken hochgeladen [OK]");
+        } else if (typeof addAppCloudLog === 'function') {
+            addAppCloudLog("FEHLER: Tagesaufgaben-Haken nicht hochgeladen - Status " + res.status);
+        }
+    } catch (e) {
+        if (typeof addAppCloudLog === 'function') addAppCloudLog("FEHLER: Tagesaufgaben-Haken nicht hochgeladen");
+    }
 }
 
 function silentPushToCloud() { silentPushLogistikToCloud(); }

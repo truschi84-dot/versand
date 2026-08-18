@@ -76,6 +76,81 @@ async function holeJsonMitZeitlimit(url, options, limitMs, was) {
     }
 }
 
+// =========================================================================
+// 2026-08-18: Leerlisten-Riegel fuer PATCH
+// Eine Liste, die auf DIESEM Geraet leer ist, darf den Cloud-Bestand nicht loeschen —
+// frisch installierte APK, geleerter Browser-Speicher, abgebrochener Download.
+// Betrifft ausschliesslich SupabaseSync.patch(). upsert()/PUT (Control Center) bleibt
+// unveraendert: dort hat der Bediener eigene Rueckfragen davor.
+//
+// deletedSortierBuchungen gehoert BEWUSST NICHT in die Liste und darf auch spaeter nicht
+// nachgetragen werden: das ist eine Loeschmerker-Liste. Wuerde sie festgehalten, blieben
+// geloeschte Sortier-Buchungen dauerhaft in der Auswertung stehen.
+// =========================================================================
+const SUPABASE_LEER_SCHUTZ_KEYS = [
+    'suppliers',
+    'supplierLines',
+    'supplierLinesCleared',
+    'supplierNumbers',
+    'deletedSuppliers',
+    'sonderTemplates',
+    'articles',
+    'savedProdukteRaw',
+    'workers',
+    'customers',
+    'checklistMorningTemplate'
+];
+
+/** Leere Sammlung = leeres Array oder Objekt ohne Schluessel. Alles andere ist keine Liste. */
+function istLeereSammlung(wert) {
+    if (Array.isArray(wert)) return wert.length === 0;
+    if (wert && typeof wert === 'object') return Object.keys(wert).length === 0;
+    return false;
+}
+
+/** Gefuellte Sammlung = Array mit Eintraegen oder Objekt mit Schluesseln. */
+function istGefuellteSammlung(wert) {
+    if (Array.isArray(wert)) return wert.length > 0;
+    if (wert && typeof wert === 'object') return Object.keys(wert).length > 0;
+    return false;
+}
+
+/**
+ * Reines Rechnen, KEIN Netzzugriff — current ist der bereits gelesene Cloud-Stand.
+ * Gibt { daten, entfernt } zurueck: daten ist die bereinigte Teilmenge, entfernt die Namen
+ * der geschuetzten Schluessel. partial und current werden nicht veraendert.
+ */
+function entferneLeereListenGegenCloud(partial, current) {
+    const daten = { ...(partial || {}) };
+    const cloud = current || {};
+    const entfernt = [];
+    SUPABASE_LEER_SCHUTZ_KEYS.forEach(key => {
+        if (!Object.prototype.hasOwnProperty.call(daten, key)) return;
+        // null zaehlt wie "leer": ein absichtlich auf null gesetzter Schluessel loescht den
+        // gefuellten Cloud-Wert genauso wie eine leere Liste. Heute schreiben alle Payload-Bauer
+        // "|| []" bzw. "|| {}", aber teamDayBrief steht schon mit "|| null" im Code — der
+        // Naechste, der einen geschuetzten Schluessel so baut, soll den Riegel nicht aufreissen.
+        // undefined bleibt bewusst aussen vor: ein fehlender Schluessel ist oben ueber
+        // hasOwnProperty schon raus und ist etwas anderes als ein gesetzter Leerwert.
+        if (daten[key] !== null && !istLeereSammlung(daten[key])) return;
+        if (!istGefuellteSammlung(cloud[key])) return;   // in der Cloud auch nichts — nichts zu schuetzen
+        delete daten[key];
+        entfernt.push(key);
+    });
+    return { daten, entfernt };
+}
+
+/**
+ * Ohne Protokoll ist der Schutz unsichtbar und niemand merkt, wenn er zu streng ist.
+ * Es wird NICHT gefragt: das sind stille Hintergrund-Uploads, eine Rueckfrage, die niemand
+ * ausgeloest hat, wird reflexhaft weggeklickt.
+ */
+function meldeLeerSchutz(entfernt) {
+    const text = 'ABBRUCH: leere Liste nicht hochgeladen (' + entfernt.join(', ') + ')';
+    if (typeof addAppCloudLog === 'function') addAppCloudLog(text);
+    else console.warn(text);
+}
+
 const SupabaseSync = {
     _h() {
         return {
@@ -120,7 +195,17 @@ const SupabaseSync = {
 
     async patch(rowKey, partial) {
         const current = await this._basisZumZusammenfuehren(rowKey);
-        return this.upsert(rowKey, { ...current, ...partial });
+        // 2026-08-18: Leerlisten-Riegel. Kostet KEINEN zusaetzlichen Netzzugriff — der
+        // Cloud-Stand (current) ist eine Zeile darueber ohnehin schon gelesen.
+        const geprueft = entferneLeereListenGegenCloud(partial, current);
+        if (geprueft.entfernt.length) meldeLeerSchutz(geprueft.entfernt);
+        if (Object.keys(geprueft.daten).length === 0) {
+            // Nach dem Riegel bleibt nichts uebrig — gar nicht erst schreiben. Antwort sieht
+            // fuer den Aufrufer aus wie ein Erfolg, weil auch nichts schiefgegangen ist;
+            // sichtbar wird der Abbruch ueber den Protokolleintrag oben.
+            return { ok: true, status: 200, uebersprungen: true, json: () => Promise.resolve({}), text: () => Promise.resolve('{}') };
+        }
+        return this.upsert(rowKey, { ...current, ...geprueft.daten });
     }
 };
 
@@ -140,6 +225,10 @@ async function supabaseCloudFetch(url, options) {
 
     const ok  = (d) => ({ ok: true,  status: 200, json: () => Promise.resolve(d),        text: () => Promise.resolve(JSON.stringify(d)) });
     const err = (s) => ({ ok: false, status: s,   json: () => Promise.resolve(null),     text: () => Promise.resolve('') });
+    // 2026-08-18: Hat der Leerlisten-Riegel abgebrochen, traegt die Antwort von
+    // SupabaseSync.patch() ein uebersprungen:true. Ohne dieses Durchreichen ginge der Merker
+    // hier verloren und der Aufrufer haette den Abbruch als erfolgreichen Upload protokolliert.
+    const okPatch = (res) => (res && res.uebersprungen === true) ? { ...ok({}), uebersprungen: true } : ok({});
 
     if (method === 'GET') {
         const data = await SupabaseSync.get(rowKey);
@@ -163,17 +252,17 @@ async function supabaseCloudFetch(url, options) {
         // Settings-PATCH: nur settings-Unterkey aktualisieren, nicht ganzen Row überschreiben
         if (isSettings) {
             const res = await SupabaseSync.patch(rowKey, { settings: body });
-            return res.ok ? ok({}) : err(res.status);
+            return res.ok ? okPatch(res) : err(res.status);
         }
         const res = await SupabaseSync.patch(rowKey, body);
-        return res.ok ? ok({}) : err(res.status);
+        return res.ok ? okPatch(res) : err(res.status);
     }
 
     if (method === 'PUT') {
         // Settings-PUT: nur settings-Unterkey schreiben, nicht ganzen Row überschreiben
         if (isSettings) {
             const res = await SupabaseSync.patch(rowKey, { settings: body });
-            return res.ok ? ok({}) : err(res.status);
+            return res.ok ? okPatch(res) : err(res.status);
         }
         if (rekSub) {
             const current = await SupabaseSync._basisZumZusammenfuehren(rowKey);

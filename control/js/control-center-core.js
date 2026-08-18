@@ -130,7 +130,8 @@ let db = {
     artikelMarkt: {},
     tierartZuordnung: {},
     teamTagesMengen: {},
-    deletedSortierBuchungen: []
+    deletedSortierBuchungen: [],
+    deletedSonderTemplates: []
 };
 
 let activeV10Tab = 'todo';
@@ -224,7 +225,7 @@ function hydrateFromKombiIfNeeded() {
         const l = localStorage.getItem('kombi_logistik_db');
         if (l) {
             const lDb = JSON.parse(l);
-            ['suppliers', 'customers', 'articles', 'todo', 'lose', 'later', 'hidden', 'workers', 'deliveries', 'dailyStaff', 'dailyAttendance', 'workerColors', 'settings', 'company', 'deletedSuppliers', 'supplierLines', 'supplierLinesCleared', 'artikelMarkt', 'tierartZuordnung', 'teamTagesMengen', 'teamSortierBuchungen', 'deletedSortierBuchungen'].forEach(k => {
+            ['suppliers', 'customers', 'articles', 'todo', 'lose', 'later', 'hidden', 'workers', 'deliveries', 'dailyStaff', 'dailyAttendance', 'workerColors', 'settings', 'company', 'deletedSuppliers', 'supplierLines', 'supplierLinesCleared', 'artikelMarkt', 'tierartZuordnung', 'teamTagesMengen', 'teamSortierBuchungen', 'deletedSortierBuchungen', 'deletedSonderTemplates'].forEach(k => {
                 if (lDb[k] !== undefined && lDb[k] !== null) db[k] = lDb[k];
             });
         }
@@ -391,6 +392,7 @@ function renderAll() {
 
     db.savedProdukteRaw = db.savedProdukteRaw || [];
     db.sonderTemplates = db.sonderTemplates || [];
+    db.deletedSonderTemplates = db.deletedSonderTemplates || [];
     ensureSupplierMeta();
     db.suppliers = mergeSuppliersList(db.suppliers, []);
 
@@ -1364,7 +1366,24 @@ function adminSaveSonderTpl() {
 
 function adminDeleteSonderTpl() {
     const id = document.getElementById('admin-tpl-id').value; if(!id) { closeAdminSonderTpl(); return; }
-    if(confirm("Diese Vorlage wirklich löschen?")) { db.sonderTemplates = db.sonderTemplates.filter(t => t.id !== id); renderAll(); closeAdminSonderTpl(); }
+    if(confirm("Diese Vorlage wirklich löschen?\n\nHinweis: Nach dem Löschen bitte „In Cloud speichern“, damit sie nicht wieder aus der Cloud kommt.")) {
+        db.sonderTemplates = db.sonderTemplates.filter(t => t.id !== id);
+        // 2026-08-18: id als Grabstein merken. Ohne diese Zeile kam die geloeschte Vorlage beim
+        // naechsten Sync von jedem Handy zurueck — die Handys schicken ihre Vorlagen weiter hoch.
+        if (!Array.isArray(db.deletedSonderTemplates)) db.deletedSonderTemplates = [];
+        if (!db.deletedSonderTemplates.includes(id)) db.deletedSonderTemplates.push(id);
+        renderAll(); closeAdminSonderTpl();
+    }
+}
+
+/** Grabstein-Liste der Vorlagen zusammenfuehren; geloeschte Vorlagen fliegen aus db.sonderTemplates. */
+function mergeDeletedSonderTemplatesFromCloud(cloudDeleted) {
+    if (!Array.isArray(db.deletedSonderTemplates)) db.deletedSonderTemplates = [];
+    if (!Array.isArray(cloudDeleted)) return;
+    const set = new Set(db.deletedSonderTemplates.map(id => String(id)).filter(Boolean));
+    cloudDeleted.forEach(id => { const t = String(id || ''); if (t) set.add(t); });
+    db.deletedSonderTemplates = [...set];
+    db.sonderTemplates = (db.sonderTemplates || []).filter(t => !(t && set.has(String(t.id))));
 }
 
 function saveNoelkeItem() { const val = document.getElementById('new-noelke-val').value.trim(); if(val) { db.savedProdukteRaw.push(val); document.getElementById('new-noelke-val').value = ''; renderAll(); } }
@@ -1421,6 +1440,7 @@ async function pullFromCloud() {
             // und workers weiter unten. Eine leere Cloud-Liste ueberschreibt nie.
             if(cloudDb.savedProdukteRaw && cloudDb.savedProdukteRaw.length > 0) db.savedProdukteRaw = cloudDb.savedProdukteRaw;
             mergeDeletedSuppliersFromCloud(cloudDb.deletedSuppliers);
+            mergeDeletedSonderTemplatesFromCloud(cloudDb.deletedSonderTemplates);
             mergeSupplierLinesClearedFromCloud(cloudDb.supplierLinesCleared);
             mergeSupplierLinesFromCloud(cloudDb.supplierLines);
             if(cloudDb.suppliers && cloudDb.suppliers.length > 0) db.suppliers = mergeSuppliersList(db.suppliers, cloudDb.suppliers);
@@ -1467,7 +1487,10 @@ async function pullFromCloud() {
                 // Fassung stehen; aus der Cloud kommen nur Vorlagen dazu, die es hier noch nicht
                 // gibt (die legen die Handys beim Scannen an).
                 cloudDb.sonderTemplates.forEach(t => { if (t && t.id && !tplById.has(t.id)) tplById.set(t.id, t); });
-                db.sonderTemplates = Array.from(tplById.values());
+                // 2026-08-18: Was hier geloescht wurde, bleibt geloescht — die ids stehen in
+                // deletedSonderTemplates und duerfen nicht ueber die Cloud zurueckkommen.
+                const wegTpl = new Set((db.deletedSonderTemplates || []).map(id => String(id)));
+                db.sonderTemplates = Array.from(tplById.values()).filter(t => !wegTpl.has(String(t.id)));
             }
             db.settings = cloudDb.settings || db.settings;
             db.company = cloudDb.company || db.company;
@@ -1865,6 +1888,34 @@ function pruefeFremdeAenderung(cloudDb, still) {
 }
 
 /**
+ * Sonderfall Sonder-Vorlagen: die einzige geschuetzte Liste mit eigener Grabstein-Liste
+ * (db.deletedSonderTemplates).
+ *
+ * Gibt es genau EINE Vorlage und das Buero loescht sie, ist db.sonderTemplates leer und die
+ * Cloud gefuellt -- der Leerlisten-Riegel schlug dann an, obwohl die Leerung genau so gewollt
+ * war. Wer die Rueckfrage abbrach (der Text "werden in der Cloud GELOESCHT" legt das nahe),
+ * lud auch den Grabstein nicht hoch: die Vorlage war im Buero weg und blieb auf allen Handys
+ * fuer immer stehen. Beim stillen Push wurde kommentarlos abgebrochen.
+ *
+ * Gewollt ist die Leerung nur, wenn JEDE id, die in der Cloud steht und lokal fehlt, im
+ * Grabstein vermerkt ist. Fehlt auch nur eine id, greift der Riegel wie bisher.
+ *
+ * Gilt ausdruecklich NUR fuer sonderTemplates. Die anderen geschuetzten Listen haben keine
+ * Grabstein-Liste -- dort muss der Riegel unveraendert scharf bleiben.
+ */
+function sonderTemplateLeerungIstGewollt(cloudTemplates) {
+    if (!Array.isArray(cloudTemplates) || cloudTemplates.length === 0) return false;
+    const ids = cloudTemplates.map(t => (t && t.id != null) ? String(t.id) : '');
+    // Ohne id laesst sich kein Grabstein zuordnen -> im Zweifel bleibt der Riegel scharf.
+    if (ids.some(id => !id)) return false;
+    const lokal = new Set((db.sonderTemplates || []).map(t => String(t && t.id)));
+    const grabsteine = new Set((db.deletedSonderTemplates || []).map(id => String(id)));
+    const fehlend = ids.filter(id => !lokal.has(id));
+    if (fehlend.length === 0) return false;
+    return fehlend.every(id => grabsteine.has(id));
+}
+
+/**
  * Schutz vor jedem Voll-PUT: Listen, die unveraendert hochgehen, duerfen den Cloud-Bestand
  * nicht loeschen, nur weil sie auf diesem PC leer sind (frisch aufgesetzt, Browser-Speicher
  * geleert). Gibt true zurueck, wenn hochgeladen werden darf.
@@ -1873,18 +1924,28 @@ function pruefeFremdeAenderung(cloudDb, still) {
  * wird reflexhaft weggeklickt — und genau dann waeren die Listen in der Cloud weg.
  */
 function pruefeLeereListenGegenCloud(cloudDb, still) {
+    const cloud = cloudDb || {};
+    // 2026-08-18: Vorlagen zuerst gesondert pruefen -- ist ihre Leerung im Grabstein belegt,
+    // faellt die Zeile aus der Pruefung heraus (siehe Funktion darueber).
+    const vorlagenLeer = (db.sonderTemplates || []).length === 0
+        && Array.isArray(cloud.sonderTemplates) && cloud.sonderTemplates.length > 0;
+    const vorlagenLeerungGewollt = vorlagenLeer && sonderTemplateLeerungIstGewollt(cloud.sonderTemplates);
+    if (vorlagenLeerungGewollt) {
+        addCloudLog('Sonder-Vorlagen: letzte Vorlage im Büro gelöscht (Grabstein vorhanden) — Leerlisten-Riegel greift bewusst nicht');
+    }
     const listen = [
         { key: 'articles', name: 'Fertig-Artikel' },
         { key: 'savedProdukteRaw', name: 'Nölke-Produkte' },
         { key: 'workers', name: 'Mitarbeiter' },
         { key: 'sonderTemplates', name: 'Sonder-Vorlagen' }
-    ].filter(l => (db[l.key] || []).length === 0 && Array.isArray((cloudDb || {})[l.key]) && cloudDb[l.key].length > 0);
+    ].filter(l => (db[l.key] || []).length === 0 && Array.isArray(cloud[l.key]) && cloud[l.key].length > 0)
+     .filter(l => !(l.key === 'sonderTemplates' && vorlagenLeerungGewollt));
     if (!listen.length) return true;
     if (still) {
         addCloudLog('ABBRUCH: stiller Upload wegen leerer Listen ausgelassen (' + listen.map(l => l.name).join(', ') + ')');
         return false;
     }
-    const uebersicht = listen.map(l => '• ' + l.name + ': hier 0, in der Cloud ' + cloudDb[l.key].length).join('\n');
+    const uebersicht = listen.map(l => '• ' + l.name + ': hier 0, in der Cloud ' + cloud[l.key].length).join('\n');
     return confirm("WARNUNG: Diese Listen sind auf diesem PC leer, in der Cloud stehen aber Einträge:\n\n" + uebersicht
         + "\n\nWenn du jetzt speicherst, werden sie in der Cloud GELÖSCHT. Wirklich überschreiben?");
 }
@@ -1975,6 +2036,7 @@ async function pushToCloud(skipConfirm) {
                 // alte Fassung einer Korrektur lag zusaetzlich in der Liste. Der lokale Katalog geht
                 // jetzt unveraendert hoch (Leer-Schutz siehe oben).
                 mergeDeletedSuppliersFromCloud(cloudDb.deletedSuppliers);
+                mergeDeletedSonderTemplatesFromCloud(cloudDb.deletedSonderTemplates);
                 mergeSupplierLinesClearedFromCloud(cloudDb.supplierLinesCleared);
                 mergeSupplierLinesFromCloud(cloudDb.supplierLines);
                 if(cloudDb.suppliers) db.suppliers = mergeSuppliersList(db.suppliers, cloudDb.suppliers);

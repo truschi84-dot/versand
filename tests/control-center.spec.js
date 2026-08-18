@@ -50,7 +50,10 @@ test.describe('Control Center - Grundgeruest', () => {
     await expect(page.locator('#tab-home h1')).toHaveText('Übersicht');
 
     // Sidebar-Hauptpunkte vorhanden.
-    await expect(page.locator('.sidebar-header .brand')).toHaveText('Tresch Control Center');
+    // Build 142: der Kopf steht seit dem neuen Design zweizeilig - .brand "Tresch", .sub
+    // "Control Center". Vorher stand beides zusammen in .brand.
+    await expect(page.locator('.sidebar-header .brand')).toHaveText('Tresch');
+    await expect(page.locator('.sidebar-header .sub')).toHaveText('Control Center');
     await expect(page.locator('.nav-item', { hasText: 'Übersicht' })).toBeVisible();
     await expect(page.locator('#group-verwaltung .nav-group-header')).toContainText('Verwaltung');
     await expect(page.locator('#nav-briefing')).toContainText('Tages-Briefing');
