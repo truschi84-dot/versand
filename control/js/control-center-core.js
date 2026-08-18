@@ -881,6 +881,11 @@ async function pushSettingsToCloud() {
         headers: { 'Content-Type': 'application/json' }
     });
     if (!res.ok) throw new Error("Cloud-Status " + res.status);
+    // 2026-08-18: Dieser PUT ersetzt settings in der HAUPTZEILE (supabaseCloudFetch: isSettings
+    // -> patch('main', { settings })). settings ist ein Schutzfeld — ohne Nachzug haelt der
+    // Schreibschutz die eigene Aenderung von eben fuer eine fremde und blockiert das naechste
+    // Speichern.
+    merkeCloudFeld('settings', db.settings);
     addCloudLog("UPLOAD: Einstellungen (PIN etc.) in Cloud gespeichert [OK]");
 }
 
@@ -1478,6 +1483,7 @@ async function pullFromCloud() {
 
             renderAll(); renderV10Table(); 
             document.getElementById('db-status').innerText = "Mit Cloud synchronisiert."; alert("✅ Daten geladen und Leerzeichen gesäubert!"); 
+            merkeCloudStand(cloudDb);   // ab jetzt ist DAS der bekannte Cloud-Stand
             addCloudLog("DOWNLOAD: System-Daten geladen [OK]");
         }
     } catch(e) {
@@ -1705,6 +1711,11 @@ async function archiveOldData() {
         // pushToCloud gehoert deshalb hierher. Ohne ihn haette ein Control Center mit leeren
         // Listen sie beim Archivieren aus der Cloud geloescht. Archiviert wird auf Knopfdruck,
         // also wird gefragt (nicht "still").
+        // 2026-08-18: Auch hier der Schreibschutz — dieser PUT ersetzt die Hauptzeile genauso.
+        if (!pruefeFremdeAenderung(archivCloudStand, false)) {
+            db.deliveries = deliveriesVorher;
+            throw new Error('Abgebrochen — der Stand wurde an einem anderen Gerät geändert. Die alten Einträge liegen jetzt zusätzlich im Archiv, lokal ist alles unverändert. Bitte "Abrufen" drücken und dann erneut archivieren.');
+        }
         if (!pruefeLeereListenGegenCloud(archivCloudStand, false)) {
             db.deliveries = deliveriesVorher;
             throw new Error('Abgebrochen — Listen auf diesem PC leer, in der Cloud gefüllt. Die alten Einträge liegen jetzt zusätzlich im Archiv, lokal ist alles unverändert. Bitte erst "Abrufen" drücken und dann erneut archivieren.');
@@ -1713,6 +1724,7 @@ async function archiveOldData() {
         await cloudFetch(cloudTargetUrl('backup') + ".json", { method: 'PUT', body: JSON.stringify(uploadDb), headers: { 'Content-Type': 'application/json' } });
         
         renderAll();
+        merkeCloudStand(uploadDb);   // genau das steht jetzt in der Cloud
         addCloudLog("ARCHIV: " + toArchive.length + " Einträge verschoben [OK]");
         alert("✅ Erfolgreich " + toArchive.length + " alte Einträge ins Archiv verschoben! Das System ist jetzt wieder rank und schlank.");
     } catch(e) {
@@ -1740,6 +1752,116 @@ function createManualSnapshot() {
         alert("📸 Snapshot erfolgreich in der Cloud gespeichert!");
     })
     .catch(e => { addCloudLog("FEHLER: Snapshot fehlgeschlagen - " + e.message); alert("❌ Fehler beim Snapshot: " + e.message); });
+}
+
+// --- Schreibschutz: erkennt, wenn ein anderes Geraet zwischendurch geschrieben hat ---------
+// Uebergangsloesung bis zum Datenumbau (dann hat jeder Datensatz eine eigene Zeile und die
+// Geraete koennen sich gar nicht mehr ueberschreiben). Diese Felder gehen beim Voll-PUT so
+// hoch, wie sie hier liegen — aendert sie jemand anders zwischendurch, waere seine Aenderung
+// ohne Meldung weg. Vor dem Schreiben wird deshalb verglichen, ob der Cloud-Stand noch der
+// ist, den dieser PC zuletzt gesehen hat.
+// customers steht bewusst NICHT in der Liste: die Liste wird zusammengefuehrt, nicht ersetzt.
+const SCHUTZ_FELDER = [
+    { key: 'articles', name: 'Sorten / Fertig-Artikel' },
+    { key: 'settings', name: 'Einstellungen (PINs, Drucker)' },
+    { key: 'company', name: 'Firmendaten' },
+    { key: 'artikelMarkt', name: 'Export/Uns-Zuordnung' },
+    { key: 'tierartZuordnung', name: 'Tierart-Zuordnung' },
+    { key: 'supplierNumbers', name: 'Lieferantennummern' },
+    { key: 'todo', name: 'Aufgaben' },
+    { key: 'lose', name: 'Lose-Pool' },
+    { key: 'later', name: 'Später-Liste' },
+    { key: 'hidden', name: 'Ausgeblendete' },
+    { key: 'savedProdukteRaw', name: 'Nölke-Produkte' },
+    { key: 'workers', name: 'Mitarbeiter' },
+    { key: 'sonderTemplates', name: 'Sonder-Vorlagen' }
+];
+const SCHUTZ_SPEICHER_KEY = 'cloud_stand_fingerabdruck';
+
+/**
+ * Stabiler Text zu einem Wert: Objektschluessel sortiert, Zahlen ueber den JS-Wert.
+ * Wichtig gegen Fehlalarm — die Datenbank gibt jsonb-Schluessel in eigener Reihenfolge
+ * zurueck, und 1.50 kommt als 1.5 wieder. Beides darf nicht als Aenderung gelten.
+ */
+function stabilerText(wert) {
+    if (wert === null || wert === undefined) return 'null';
+    if (typeof wert === 'number') return Number.isFinite(wert) ? String(wert) : 'null';
+    if (typeof wert !== 'object') return JSON.stringify(wert);
+    if (Array.isArray(wert)) return '[' + wert.map(stabilerText).join(',') + ']';
+    return '{' + Object.keys(wert).sort().map(k => JSON.stringify(k) + ':' + stabilerText(wert[k])).join(',') + '}';
+}
+
+/** Kurzer Zahlenwert zu einem Text (FNV-1a). Reicht fuer "hat sich etwas geaendert?" und
+ *  haelt den Merker klein — der ganze Inhalt im localStorage waere eine zweite Datenbank. */
+function kurzHash(text) {
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(36);
+}
+
+function standFingerabdruck(stand) {
+    const s = stand || {};
+    const fa = {};
+    SCHUTZ_FELDER.forEach(f => { fa[f.key] = kurzHash(stabilerText(s[f.key] === undefined ? null : s[f.key])); });
+    return fa;
+}
+
+/** Merkt sich, welchen Cloud-Stand dieser PC kennt. Nach jedem erfolgreichen Lesen und
+ *  Schreiben aufrufen — danach ist genau dieser Stand der bekannte. */
+function merkeCloudStand(stand) {
+    try { localStorage.setItem(SCHUTZ_SPEICHER_KEY, JSON.stringify(standFingerabdruck(stand))); } catch (e) { /* Speicher voll: dann eben ohne Merker */ }
+}
+
+/**
+ * Einzelnes Schutzfeld im Merker nachziehen — fuer Schreibwege, die nur EIN Feld der
+ * Hauptzeile ersetzen und den Cloud-Stand dabei gar nicht lesen (pushSettingsToCloud).
+ * Ohne das meldet der Schreibschutz beim naechsten Speichern eine "fremde" Aenderung, die
+ * in Wahrheit von diesem PC kam — und der Bediener haette keinen Weg nach vorn ausser
+ * "Aus Cloud laden", was ihm ungespeicherte Arbeit kostet.
+ */
+function merkeCloudFeld(feldKey, wert) {
+    try {
+        const gemerkt = JSON.parse(localStorage.getItem(SCHUTZ_SPEICHER_KEY) || 'null');
+        if (!gemerkt || typeof gemerkt !== 'object') return;   // ohne Merker gibt es nichts nachzuziehen
+        gemerkt[feldKey] = kurzHash(stabilerText(wert === undefined ? null : wert));
+        localStorage.setItem(SCHUTZ_SPEICHER_KEY, JSON.stringify(gemerkt));
+    } catch (e) { /* Speicher voll: dann eben ohne Merker */ }
+}
+
+/**
+ * Gibt die Felder zurueck, die sich seit dem zuletzt bekannten Stand geaendert haben.
+ * null = dieser PC kennt noch keinen Cloud-Stand (erstes Speichern) -> kein Vergleich moeglich.
+ * Leere Liste = unveraendert, es darf geschrieben werden.
+ */
+function geaenderteSchutzFelder(cloudStand) {
+    let gemerkt = null;
+    try { gemerkt = JSON.parse(localStorage.getItem(SCHUTZ_SPEICHER_KEY) || 'null'); } catch (e) { gemerkt = null; }
+    if (!gemerkt || typeof gemerkt !== 'object') return null;
+    const jetzt = standFingerabdruck(cloudStand);
+    return SCHUTZ_FELDER.filter(f => gemerkt[f.key] !== undefined && gemerkt[f.key] !== jetzt[f.key]).map(f => f.name);
+}
+
+/**
+ * Vor jedem Voll-PUT: hat zwischendurch ein anderes Geraet geschrieben? Dann NICHT schreiben.
+ * Gibt true zurueck, wenn hochgeladen werden darf.
+ * still = Aufruf ohne Zutun des Bedieners (deleteSortierBuchung): keine Rueckfrage, nur
+ * Protokoll und Statuszeile — wie bei der Leer-Schutzklappe.
+ * Eine leere Cloud-Zeile laesst den Upload durch: da ist nichts, was ueberschrieben werden
+ * koennte (Erstbefuellung, frisch aufgesetzte Datenbank).
+ */
+function pruefeFremdeAenderung(cloudDb, still) {
+    if (!cloudDb) return true;
+    const geaendert = geaenderteSchutzFelder(cloudDb);
+    if (geaendert === null || geaendert.length === 0) return true;
+    const liste = geaendert.map(n => '• ' + n).join('\n');
+    addCloudLog('ABBRUCH: Cloud-Stand von anderem Gerät geändert (' + geaendert.join(', ') + ') — nicht überschrieben');
+    if (!still) {
+        alert('⚠️ NICHT GESPEICHERT\n\nDer Stand wurde zwischenzeitlich an einem anderen Gerät geändert:\n\n'
+            + liste
+            + '\n\nBitte "Aus Cloud laden" drücken und deine Änderung danach wiederholen.\n\n'
+            + 'Dein Stand auf diesem PC bleibt so lange erhalten.');
+    }
+    return false;
 }
 
 /**
@@ -1786,6 +1908,16 @@ async function pushToCloud(skipConfirm) {
             const cloudDb = await res.json();
             cloudSnapshot = cloudDb;
             if(cloudDb) {
+                // 2026-08-18: Schreibschutz — und zwar VOR dem Smart Sync. Hat zwischendurch ein
+                // anderes Geraet geschrieben, wird gar nicht erst zusammengefuehrt.
+                if (!pruefeFremdeAenderung(cloudDb, !!skipConfirm)) {
+                    document.getElementById('db-status').innerText = "Nicht gespeichert — an einem anderen Gerät geändert. Bitte 'Aus Cloud laden' und erneut versuchen.";
+                    const stickyFremd = document.getElementById('sticky-status');
+                    if (stickyFremd) stickyFremd.textContent = '⚠️ Nicht in der Cloud gespeichert · ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                    speichereOffline(db);   // der lokale Stand darf dabei nicht verlorengehen
+                    return;
+                }
+
                 // Schutzmechanismus: Verhindert, dass eine leere PC-Liste die volle Cloud-Liste löscht.
                 // 2026-08-18: gilt jetzt fuer alle Listen, die unveraendert hochgehen — und beim
                 // stillen Speichern wird abgebrochen statt gefragt (siehe Funktion oben).
@@ -1931,6 +2063,7 @@ async function pushToCloud(skipConfirm) {
         .then(() => { 
             mirrorToKombiStorage();
             renderAll(); document.getElementById('db-status').innerText = "Mit Cloud synchronisiert."; 
+            merkeCloudStand(payload);   // genau das steht jetzt in der Cloud
             addCloudLog("UPLOAD: System in der Cloud gespeichert [OK]"); 
             if (!skipConfirm) alert("✅ Sauber in der Cloud gespeichert!"); 
             else {
