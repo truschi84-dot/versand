@@ -75,17 +75,21 @@ test.describe('Control Center - Schutz gegen zerstoerenden Cloud-PUT', () => {
 
   test('Smart Sync bricht mittendrin ab: kein Schreibzugriff, lokaler Stand bleibt gesichert', async ({ page }) => {
     await blockCloud(page);
-    // Cloud antwortet erfolgreich, liefert aber fehlgeformte Daten: workers ist eine Zahl,
-    // cloudDb.workers.forEach() wirft also mitten im Smart Sync. Frueher stand der Merker
+    // Cloud antwortet erfolgreich, liefert aber fehlgeformte Daten: suppliers ist eine Zahl,
+    // mergeSuppliersList() wirft also mitten im Smart Sync. Frueher stand der Merker
     // cloudGelesen schon vor dem Block — der PUT lief dann mit einem HALB zusammengefuehrten
     // Stand und loeschte entries, customers, dailyStaff, dailyAttendance, teamDayBrief,
     // supplierLines. articles bleibt hier leer, sonst kaeme der Warndialog dazwischen und
     // der Test waere aus dem falschen Grund gruen.
+    // 2026-08-18: Vorher stand hier workers: 5 (cloudDb.workers.forEach warf). Diese Schleife
+    // gibt es nicht mehr — Mitarbeiter werden beim Speichern nicht mehr aus der Cloud
+    // aufgefuellt (siehe stammdaten-lokal-gewinnt.spec.js). Der Abbruch mitten im Smart Sync
+    // wird deshalb jetzt ueber suppliers ausgeloest; geprueft wird unveraendert dasselbe.
     const schreibzugriffe = await cloudMitZaehler(page, (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([{ data: { workers: 5, entries: [{ x: 1 }] } }])
+        body: JSON.stringify([{ data: { suppliers: 5, entries: [{ x: 1 }] } }])
       })
     );
 

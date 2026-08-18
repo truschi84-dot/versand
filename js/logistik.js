@@ -411,7 +411,9 @@ function openEditCustModal(name) {
         }
     }
 }
-function addCustomer() { const n = document.getElementById('newCust').value; if(n){ customers.push(n); saveLocalDB(); document.getElementById('newCust').value=""; showToast("Kunde gespeichert", "success"); } }
+// 2026-08-18: Kunde geht sofort hoch — wie addWorker daneben. Vorher lag ein neuer Kunde bis
+// zum naechsten Logistik-Upload nur lokal; in dieser Zeit konnte ihn ein Speichern am PC ueberholen.
+function addCustomer() { const n = document.getElementById('newCust').value; if(n){ customers.push(n); saveLocalDB(); document.getElementById('newCust').value=""; showToast("Kunde gespeichert", "success"); if(typeof silentPushToCloud === 'function') silentPushToCloud(); } }
 function deleteCustomer(name) { if (confirm(`Kunden "${name}" wirklich löschen?`)) { customers = customers.filter(c => c !== name); saveLocalDB(); showToast("Kunde gelöscht!", "success"); } }
 
 function saveDelivery() {

@@ -1410,11 +1410,19 @@ async function pullFromCloud() {
         if(!res.ok) throw new Error("Server Fehler");
         const cloudDb = await res.json();
         if(cloudDb) { 
-            if(cloudDb.savedProdukteRaw && cloudDb.savedProdukteRaw.length > 0) { const localSet = new Set(db.savedProdukteRaw || []); cloudDb.savedProdukteRaw.forEach(item => { if(!localSet.has(item)) db.savedProdukteRaw.push(item); }); }
+            // 2026-08-18: Frueher wurde angehaengt, was in der Cloud stand und lokal fehlte.
+            // Damit kam jeder geloeschte Noelke-Eintrag beim Abrufen zurueck und jede Korrektur
+            // lag doppelt in der Liste. "Aus Cloud laden" ersetzt die Liste jetzt — wie articles
+            // und workers weiter unten. Eine leere Cloud-Liste ueberschreibt nie.
+            if(cloudDb.savedProdukteRaw && cloudDb.savedProdukteRaw.length > 0) db.savedProdukteRaw = cloudDb.savedProdukteRaw;
             mergeDeletedSuppliersFromCloud(cloudDb.deletedSuppliers);
             mergeSupplierLinesClearedFromCloud(cloudDb.supplierLinesCleared);
             mergeSupplierLinesFromCloud(cloudDb.supplierLines);
             if(cloudDb.suppliers && cloudDb.suppliers.length > 0) db.suppliers = mergeSuppliersList(db.suppliers, cloudDb.suppliers);
+            // 2026-08-18: Kunden bleiben bewusst zusammengefuehrt. Anders als Noelke-Produkte und
+            // Mitarbeiter gibt es hier KEINE Kundenpflege — angelegt werden sie am Tablet
+            // (js/logistik.js addCustomer). Wuerde das Control Center die Liste ersetzen, waere ein
+            // dort neu angelegter Kunde nach dem naechsten Speichern ueberall weg.
             if(cloudDb.customers && cloudDb.customers.length > 0) { const custSet = new Set(db.customers || []); cloudDb.customers.forEach(c => { if(!custSet.has(c.trim())) db.customers.push(c.trim()); }); }
             db.articles = cloudDb.articles || db.articles; db.todo = cloudDb.todo || db.todo; db.lose = cloudDb.lose || db.lose; db.later = cloudDb.later || db.later; db.hidden = cloudDb.hidden || db.hidden; db.workers = cloudDb.workers || db.workers; db.workerColors = cloudDb.workerColors || db.workerColors; db.dailyStaff = cloudDb.dailyStaff || db.dailyStaff; db.dailyAttendance = cloudDb.dailyAttendance || db.dailyAttendance;
             if (cloudDb.teamTagesMengen && typeof cloudDb.teamTagesMengen === 'object') {
@@ -1449,7 +1457,11 @@ async function pullFromCloud() {
             if (cloudDb.sonderTemplates && cloudDb.sonderTemplates.length > 0) {
                 if (!db.sonderTemplates) db.sonderTemplates = [];
                 const tplById = new Map(db.sonderTemplates.filter(t => t && t.id).map(t => [t.id, t]));
-                cloudDb.sonderTemplates.forEach(t => { if (t && t.id) tplById.set(t.id, t); });
+                // 2026-08-18: Vorher gewann die Cloud pro id — eine gerade im Control Center
+                // gemachte Umbenennung war nach dem Abrufen wieder weg. Jetzt bleibt die lokale
+                // Fassung stehen; aus der Cloud kommen nur Vorlagen dazu, die es hier noch nicht
+                // gibt (die legen die Handys beim Scannen an).
+                cloudDb.sonderTemplates.forEach(t => { if (t && t.id && !tplById.has(t.id)) tplById.set(t.id, t); });
                 db.sonderTemplates = Array.from(tplById.values());
             }
             db.settings = cloudDb.settings || db.settings;
@@ -1671,12 +1683,14 @@ async function archiveOldData() {
         db.deliveries = toKeep;
         let uploadDb = prepareDbForCloudUpload(db);
         let snapGelesen = false;
+        let archivCloudStand = null;
         try {
             // 2026-08-05: Hauptdatensatz jetzt explizit ueber cloudTargetUrl, damit Archiv und Haupt sauber getrennt sind
             const snapRes = await cloudFetch(cloudTargetUrl('backup') + ".json?t=" + Date.now());
             if (snapRes.ok) {
                 const snap = await snapRes.json();
                 snapGelesen = true;
+                archivCloudStand = snap;
                 if (typeof finalizeCloudPutPayload === 'function') uploadDb = finalizeCloudPutPayload(uploadDb, snap);
             }
         } catch (e) { console.warn('Archiv: Cloud-Stand nicht gelesen', e); }
@@ -1686,6 +1700,14 @@ async function archiveOldData() {
         if (!snapGelesen) {
             db.deliveries = deliveriesVorher;
             throw new Error('Cloud konnte nicht gelesen werden — es wurde nichts überschrieben. Die alten Einträge liegen jetzt zusätzlich im Archiv, lokal ist alles unverändert. Bitte später erneut archivieren.');
+        }
+        // 2026-08-18: Auch dieser PUT ersetzt die ganze Hauptzeile — der Leer-Schutz aus
+        // pushToCloud gehoert deshalb hierher. Ohne ihn haette ein Control Center mit leeren
+        // Listen sie beim Archivieren aus der Cloud geloescht. Archiviert wird auf Knopfdruck,
+        // also wird gefragt (nicht "still").
+        if (!pruefeLeereListenGegenCloud(archivCloudStand, false)) {
+            db.deliveries = deliveriesVorher;
+            throw new Error('Abgebrochen — Listen auf diesem PC leer, in der Cloud gefüllt. Die alten Einträge liegen jetzt zusätzlich im Archiv, lokal ist alles unverändert. Bitte erst "Abrufen" drücken und dann erneut archivieren.');
         }
         db.supplierLines = uploadDb.supplierLines;
         await cloudFetch(cloudTargetUrl('backup') + ".json", { method: 'PUT', body: JSON.stringify(uploadDb), headers: { 'Content-Type': 'application/json' } });
@@ -1720,6 +1742,31 @@ function createManualSnapshot() {
     .catch(e => { addCloudLog("FEHLER: Snapshot fehlgeschlagen - " + e.message); alert("❌ Fehler beim Snapshot: " + e.message); });
 }
 
+/**
+ * Schutz vor jedem Voll-PUT: Listen, die unveraendert hochgehen, duerfen den Cloud-Bestand
+ * nicht loeschen, nur weil sie auf diesem PC leer sind (frisch aufgesetzt, Browser-Speicher
+ * geleert). Gibt true zurueck, wenn hochgeladen werden darf.
+ * still = Aufruf ohne Zutun des Bedieners (deleteSortierBuchung ruft pushToCloud(true)).
+ * Dann wird NICHT gefragt, sondern abgebrochen: eine Rueckfrage, die niemand ausgeloest hat,
+ * wird reflexhaft weggeklickt — und genau dann waeren die Listen in der Cloud weg.
+ */
+function pruefeLeereListenGegenCloud(cloudDb, still) {
+    const listen = [
+        { key: 'articles', name: 'Fertig-Artikel' },
+        { key: 'savedProdukteRaw', name: 'Nölke-Produkte' },
+        { key: 'workers', name: 'Mitarbeiter' },
+        { key: 'sonderTemplates', name: 'Sonder-Vorlagen' }
+    ].filter(l => (db[l.key] || []).length === 0 && Array.isArray((cloudDb || {})[l.key]) && cloudDb[l.key].length > 0);
+    if (!listen.length) return true;
+    if (still) {
+        addCloudLog('ABBRUCH: stiller Upload wegen leerer Listen ausgelassen (' + listen.map(l => l.name).join(', ') + ')');
+        return false;
+    }
+    const uebersicht = listen.map(l => '• ' + l.name + ': hier 0, in der Cloud ' + cloudDb[l.key].length).join('\n');
+    return confirm("WARNUNG: Diese Listen sind auf diesem PC leer, in der Cloud stehen aber Einträge:\n\n" + uebersicht
+        + "\n\nWenn du jetzt speicherst, werden sie in der Cloud GELÖSCHT. Wirklich überschreiben?");
+}
+
 async function pushToCloud(skipConfirm) {
     if(!skipConfirm && !confirm("System in der Cloud speichern?")) return;
     applySettingsFromForm();
@@ -1739,28 +1786,36 @@ async function pushToCloud(skipConfirm) {
             const cloudDb = await res.json();
             cloudSnapshot = cloudDb;
             if(cloudDb) {
-                // Schutzmechanismus: Verhindert, dass eine leere PC-Liste die volle Cloud-Liste löscht
-                if (db.articles.length === 0 && cloudDb.articles && cloudDb.articles.length > 0) {
-                    if (!confirm("WARNUNG: Deine lokale 'Fertig'-Liste ist leer, aber in der Cloud gibt es " + cloudDb.articles.length + " fertige Artikel! Wenn du jetzt speicherst, werden diese in der Cloud GELÖSCHT. Wirklich überschreiben?")) {
-                        document.getElementById('db-status').innerText = "Speichern abgebrochen.";
-                        speichereOffline(db);   // Trimmen + Einstellungen aus dem Formular nicht verlieren
-                        return;
-                    }
+                // Schutzmechanismus: Verhindert, dass eine leere PC-Liste die volle Cloud-Liste löscht.
+                // 2026-08-18: gilt jetzt fuer alle Listen, die unveraendert hochgehen — und beim
+                // stillen Speichern wird abgebrochen statt gefragt (siehe Funktion oben).
+                if (!pruefeLeereListenGegenCloud(cloudDb, !!skipConfirm)) {
+                    const meldung = skipConfirm
+                        ? "Nicht in der Cloud gespeichert — Listen auf diesem PC leer, Cloud-Bestand geschützt."
+                        : "Speichern abgebrochen.";
+                    document.getElementById('db-status').innerText = meldung;
+                    const stickyLeer = document.getElementById('sticky-status');
+                    if (stickyLeer) stickyLeer.textContent = '⚠️ Nicht in der Cloud gespeichert · ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                    speichereOffline(db);   // Trimmen + Einstellungen aus dem Formular nicht verlieren
+                    return;
                 }
-                
+
                 // === SMART SYNC: VERHINDERT DATENVERLUST VON TABLET-EINGABEN ===
                 // 1. Rechner Entries (LKW-Liste - wird nur am Tablet genutzt)
                 if (cloudDb.entries) db.entries = cloudDb.entries;
                 
-                // 2. Mitarbeiter & Kunden (werden auf Tablets gemanagt)
-                if(cloudDb.workers) { 
-                    if(!db.workers) db.workers = [];
-                    const wSet = new Set(db.workers); cloudDb.workers.forEach(w => { if(!wSet.has(w)) db.workers.push(w); }); 
-                }
+                // 2. Mitarbeiter: werden im Control Center gepflegt (Tab "Mitarbeiter"), der lokale
+                //    Stand geht unveraendert hoch. Vorher wurde angehaengt, was in der Cloud stand und
+                //    lokal fehlte — ein geloeschter Mitarbeiter kam dadurch immer zurueck. Namen, die
+                //    am Tablet neu angelegt wurden, holt "Abrufen" (pullFromCloud) herein.
+                //    Die Farben bleiben zusammengefuehrt — die vergibt nur das Control Center.
                 if(cloudDb.workerColors) db.workerColors = { ...cloudDb.workerColors, ...(db.workerColors || {}) };
-                if(cloudDb.customers) { 
+                //    Kunden dagegen bleiben zusammengefuehrt: dafuer gibt es hier keine Oberflaeche,
+                //    angelegt werden sie am Tablet. Wer eine Liste nicht pflegen kann, darf sie auch
+                //    nicht ueberschreiben — sonst ist ein neuer Kunde nach dem Speichern ueberall weg.
+                if(cloudDb.customers) {
                     if(!db.customers) db.customers = [];
-                    const cSet = new Set(db.customers); cloudDb.customers.forEach(c => { if(!cSet.has(c)) db.customers.push(c); }); 
+                    const cSet = new Set(db.customers); cloudDb.customers.forEach(c => { if(!cSet.has(c)) db.customers.push(c); });
                 }
                 
                 // 3. Anwesenheiten (Tablets)
@@ -1783,7 +1838,10 @@ async function pushToCloud(skipConfirm) {
                 syncDailyStaffAusTeam(db.teamTagesMengen, db.dailyStaff);
                 
                 // 4. Kataloge mergen
-                if(cloudDb.savedProdukteRaw) { const localSet = new Set(db.savedProdukteRaw || []); cloudDb.savedProdukteRaw.forEach(item => { if(!localSet.has(item)) db.savedProdukteRaw.push(item); }); }
+                // 2026-08-18: savedProdukteRaw wird NICHT mehr aus der Cloud aufgefuellt. Genau das
+                // machte Loeschen und Bearbeiten unmoeglich: der geloeschte Eintrag kam zurueck, die
+                // alte Fassung einer Korrektur lag zusaetzlich in der Liste. Der lokale Katalog geht
+                // jetzt unveraendert hoch (Leer-Schutz siehe oben).
                 mergeDeletedSuppliersFromCloud(cloudDb.deletedSuppliers);
                 mergeSupplierLinesClearedFromCloud(cloudDb.supplierLinesCleared);
                 mergeSupplierLinesFromCloud(cloudDb.supplierLines);

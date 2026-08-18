@@ -16,7 +16,7 @@ const APP_CONFIG = {
 
 const APP_VERSION = "7.2";
 /** Muss mit app-version.json webVersion übereinstimmen (publish-ota.ps1). */
-const WEB_BUILD_VERSION = 139;
+const WEB_BUILD_VERSION = 140;
 /** Fallback nur wenn app-update.json nicht geladen werden kann — echte URL kommt aus Config. */
 const OFFICE_LAN_URL = '';
 let pendingOtaUpdate = null;
@@ -1622,7 +1622,9 @@ function getLogistikFullCloudPayload() {
         teamTagesMengen: lData.teamTagesMengen || {},
         teamSortierBuchungen: lData.teamSortierBuchungen || [],
         deletedSortierBuchungen: lData.deletedSortierBuchungen || [],
-        savedProdukteRaw: rData.savedProdukteRaw || [],
+        // 2026-08-18: savedProdukteRaw wird hier nicht mehr mitgeschickt. Die Handys lesen den
+        // Noelke-Katalog nur (Scanner, Auswahllisten) — hochgeladen hat dieser Weg nur den alten
+        // Stand zurueck in die Cloud und machte damit jedes Loeschen im Control Center rueckgaengig.
         sonderTemplates: rData.sonderTemplates || []
     };
     if (Object.keys(safeSettings).length) payload.settings = safeSettings;
@@ -1639,8 +1641,11 @@ function getRechnerStammdatenCloudPayload() {
         supplierLinesCleared: lData.supplierLinesCleared || [],
         supplierNumbers: lData.supplierNumbers || {},
         deletedSuppliers: lData.deletedSuppliers || [],
-        articles: lData.articles || [],
-        savedProdukteRaw: rData.savedProdukteRaw || [],
+        // 2026-08-18: articles und savedProdukteRaw sind hier raus. Beide werden am Handy nur
+        // gelesen; dieser PATCH lief bei fast jeder Aktion und schrieb den womoeglich alten
+        // Stand blind in die Cloud zurueck — im Control Center Geloeschtes tauchte wieder auf.
+        // Gepflegt werden sie im Control Center, das Handy bekommt sie ueber
+        // applyRechnerStammdatenFromCloud (Sync-Knopf) bzw. applyLogistikFullFromCloud.
         sonderTemplates: rData.sonderTemplates || []
     };
 }
