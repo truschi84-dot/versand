@@ -155,7 +155,16 @@ function deleteArticle(id, poolType) {
     let pool = poolType === 'todo' ? db.todo : poolType === 'later' ? db.later : poolType === 'hidden' ? db.hidden : db.lose;
     if (pool) {
         const idx = pool.findIndex(a => a.fertigNr === id);
-        if (idx !== -1) { pool.splice(idx, 1); renderAll(); renderV10Table(); if(poolType === 'lose') renderLosePool(); }
+        if (idx !== -1) {
+            pool.splice(idx, 1);
+            // 2026-08-20: Grabstein setzen. Ohne ihn wuerde die Nie-Schrumpfen-Regel
+            // den Artikel beim naechsten Speichern aus der Cloud zurueckholen --
+            // genau der Fehler, der den Noelke-Katalog immer wieder aufgefuellt hat.
+            if (!Array.isArray(db.deletedArticles)) db.deletedArticles = [];
+            const grab = String(id || '');
+            if (grab && !db.deletedArticles.includes(grab)) db.deletedArticles.push(grab);
+            renderAll(); renderV10Table(); if(poolType === 'lose') renderLosePool();
+        }
     }
 }
 

@@ -114,23 +114,107 @@ function sortierenSummeFuerDatum(buchungen, teamTagesMengen, datum, deletedKeys,
 }
 
 /** kg pro Lieferant aus Sortier-Buchungen (für Tages-Erfassung Anzeige). */
+// =========================================================================
+// 2026-08-20 GESCHWINDIGKEIT — der teuerste Weg im Control Center
+//
+// renderAdminDeliveries() ruft getHandySortierEntriesFuerDatum() fuer JEDEN
+// Sortier-Tag einmal auf. Diese Funktion ging bisher jedes Mal komplett durch
+// ALLE Buchungen. Bei 84 Tagen und 3.669 Buchungen sind das ueber 300.000
+// Durchlaeufe -- fuer EINEN Klick. Gemessen am 20.08.2026: 2,7 von 3,2
+// Sekunden Wartezeit pro Aenderung. Es wird schlimmer, weil Tage UND
+// Buchungen gleichzeitig wachsen.
+//
+// Loesung: die Aufbereitung passiert einmal je Zeichendurchlauf, nach Datum
+// abgelegt. Danach ist jeder Tag ein Nachschlagen statt einer Suche.
+//
+// WICHTIG -- warum das ein "Durchlauf" ist und kein dauerhafter Speicher:
+// Diese Datei laeuft auch in der Rechner-App auf den Handys. Ein Speicher,
+// der zu lange haelt, wuerde dort veraltete Mengen anzeigen. Deshalb ist der
+// Zwischenspeicher standardmaessig AUS. Nur wer ausdruecklich
+// sortierPassOeffnen() aufruft, bekommt ihn -- und schliesst ihn im finally
+// wieder. Ausserhalb dieser Klammer verhaelt sich alles exakt wie vorher.
+// =========================================================================
+let _sortierPass = null;
+
+/** Oeffnet den Zwischenspeicher fuer einen Zeichendurchlauf. Immer mit finally schliessen. */
+function sortierPassOeffnen(db) {
+    _sortierPass = { db: db, buchungenNachDatum: null, deliveryNachId: null, sortierNachDatum: null };
+}
+
+function sortierPassSchliessen() {
+    _sortierPass = null;
+}
+
+/** Nur gueltig, wenn ein Pass fuer GENAU diese db offen ist. */
+function _passFuer(db) {
+    return (_sortierPass && _sortierPass.db === db) ? _sortierPass : null;
+}
+
+/** Alle Buchungen einmal nach Datum sortiert (Loeschmarken schon angewandt). */
+function _buchungenNachDatum(db) {
+    const pass = _passFuer(db);
+    if (pass && pass.buchungenNachDatum) return pass.buchungenNachDatum;
+    const alle = typeof sortierBuchungenMitCloudCache === 'function'
+        ? sortierBuchungenMitCloudCache(db)
+        : (db.teamSortierBuchungen || []);
+    const map = new Map();
+    filterDeletedSortierBuchungen(alle, db.deletedSortierBuchungen).forEach((b) => {
+        const d = normalizeDatumIso(b && b.datum);
+        if (!d) return;
+        if (!map.has(d)) map.set(d, []);
+        map.get(d).push(b);
+    });
+    if (pass) pass.buchungenNachDatum = map;
+    return map;
+}
+
+/** db.deliveries einmal nach id abgelegt. */
+function _deliveryNachId(db) {
+    const pass = _passFuer(db);
+    if (pass && pass.deliveryNachId) return pass.deliveryNachId;
+    const map = new Map();
+    (db.deliveries || []).forEach((d) => { if (d && d.id != null) map.set(d.id, d); });
+    if (pass) pass.deliveryNachId = map;
+    return map;
+}
+
+/** Die Sortier-Lieferungen einmal nach Datum abgelegt. */
+function _sortierDeliveriesNachDatum(db) {
+    const pass = _passFuer(db);
+    if (pass && pass.sortierNachDatum) return pass.sortierNachDatum;
+    const map = new Map();
+    (db.deliveries || []).forEach((x) => {
+        if (!x || (x.source !== 'sortieren' && x.source !== 'sortieren_tag')) return;
+        const d = normalizeDatumIso(x.date);
+        if (!d) return;
+        if (!map.has(d)) map.set(d, []);
+        map.get(d).push(x);
+    });
+    if (pass) pass.sortierNachDatum = map;
+    return map;
+}
+
 /** Handy-Einträge für Erfassung: Buchungen + Zuweisungen aus deliveries. */
 function getHandySortierEntriesFuerDatum(db, datum) {
     if (!db || !datum) return [];
     datum = normalizeDatumIso(datum);
-    if (typeof hydrateSortierBuchungenInDb === 'function') hydrateSortierBuchungenInDb(db);
-    const alleBuch = typeof sortierBuchungenMitCloudCache === 'function'
-        ? sortierBuchungenMitCloudCache(db)
-        : (db.teamSortierBuchungen || []);
+    // hydrate schreibt nur Loeschmarken zusammen und ist innerhalb eines
+    // Durchlaufs nach dem ersten Mal wirkungslos -- deshalb nur einmal je Pass.
+    const pass = _passFuer(db);
+    if (typeof hydrateSortierBuchungenInDb === 'function' && !(pass && pass._hydriert)) {
+        hydrateSortierBuchungenInDb(db);
+        if (pass) pass._hydriert = true;
+    }
     const byName = new Map();
-    sortierenLieferantenFuerDatum(alleBuch, datum, db.deletedSortierBuchungen).forEach(({ name, kg }) => {
+    const delNachId = _deliveryNachId(db);
+    sortierenLieferantenAusListe(_buchungenNachDatum(db).get(datum) || []).forEach(({ name, kg }) => {
         const n = String(name || '').trim() || 'Unbekannt';
         const id = sortierenLieferantDeliveryId(datum, n);
-        const existingDel = (db.deliveries || []).find(d => d.id === id);
+        const existingDel = delNachId.get(id);
         const entryDate = existingDel?.date || datum;
         byName.set(n, { id, date: entryDate, name: n, kg, source: 'sortieren', workerShares: [] });
     });
-    (db.deliveries || []).filter((x) => normalizeDatumIso(x.date) === datum && (x.source === 'sortieren' || x.source === 'sortieren_tag')).forEach((d) => {
+    (_sortierDeliveriesNachDatum(db).get(datum) || []).forEach((d) => {
         const n = d.source === 'sortieren_tag'
             ? '__gesamt__'
             : (String(d.name || '').trim() || 'Unbekannt');
@@ -206,15 +290,25 @@ function resolveSortierDeliveryInDb(db, id) {
 }
 
 function sortierenLieferantenFuerDatum(buchungen, datum, deletedKeys) {
+    return sortierenLieferantenAusListe(
+        filterDeletedSortierBuchungen(buchungen || [], deletedKeys)
+            .filter((b) => buchungDatumPasst(b, datum)));
+}
+
+/**
+ * Der zweite Teil von sortierenLieferantenFuerDatum, herausgeloest: fasst eine
+ * BEREITS auf Datum und Loeschmarken gefilterte Buchungsliste nach Lieferant
+ * zusammen. Verhalten unveraendert -- nur so aufteilbar, dass das Filtern
+ * einmal fuer alle Tage passieren kann statt einmal pro Tag.
+ */
+function sortierenLieferantenAusListe(buchungen) {
     const map = {};
-    filterDeletedSortierBuchungen(buchungen || [], deletedKeys)
-        .filter((b) => buchungDatumPasst(b, datum))
-        .forEach((b) => {
-            const kg = parseFloat(b.gebuchtKg) || 0;
-            if (kg <= 0) return;
-            const name = String(b.lief || '').trim() || 'Unbekannt';
-            map[name] = (map[name] || 0) + kg;
-        });
+    (buchungen || []).forEach((b) => {
+        const kg = parseFloat(b.gebuchtKg) || 0;
+        if (kg <= 0) return;
+        const name = String(b.lief || '').trim() || 'Unbekannt';
+        map[name] = (map[name] || 0) + kg;
+    });
     return Object.keys(map)
         .sort((a, b) => map[b] - map[a] || a.localeCompare(b, 'de'))
         .map((name) => ({ name, kg: map[name] }));

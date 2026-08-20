@@ -107,6 +107,9 @@ const rawData = [
 
 let db = {
     suppliers: [], customers: [], articles: [], savedProdukteRaw: [], noelkeArtNr: {},
+    // Grabsteine: was hier drinsteht, wurde bewusst geloescht und darf nicht
+    // aus der Cloud zurueckkommen (siehe Nie-Schrumpfen-Regel weiter unten).
+    deletedArticles: [], deletedNoelke: [],
     deletedSuppliers: [], supplierLines: {}, supplierLinesCleared: [],
     todo: [], lose: [], later: [], hidden: [],
     workers: ["Ahmed","Dominik","Robert","Julian","Alex"], 
@@ -392,6 +395,8 @@ function renderAll() {
 
     db.savedProdukteRaw = db.savedProdukteRaw || [];
     db.noelkeArtNr = db.noelkeArtNr || {};
+    if (!Array.isArray(db.deletedArticles)) db.deletedArticles = [];
+    if (!Array.isArray(db.deletedNoelke)) db.deletedNoelke = [];
     db.sonderTemplates = db.sonderTemplates || [];
     db.deletedSonderTemplates = db.deletedSonderTemplates || [];
     ensureSupplierMeta();
@@ -1064,7 +1069,21 @@ async function refreshErfassungFromCloud(silent) {
     }
 }
 
+// 2026-08-20 Geschwindigkeit: Klammer um EINEN Zeichendurchlauf.
+// Innerhalb dieser Klammer bereitet metriken.js die Sortier-Buchungen einmal
+// nach Datum auf, statt sie fuer jeden der 84 Tage erneut zu durchsuchen.
+// Ausserhalb ist der Zwischenspeicher aus -- die Rechner-App auf den Handys
+// benutzt dieselbe Datei und bekommt davon nichts mit.
 function renderAdminDeliveries() {
+    if (typeof sortierPassOeffnen === 'function') sortierPassOeffnen(db);
+    try {
+        return renderAdminDeliveriesIntern();
+    } finally {
+        if (typeof sortierPassSchliessen === 'function') sortierPassSchliessen();
+    }
+}
+
+function renderAdminDeliveriesIntern() {
     // 2026-08-17: Stand vor den DOM-Pruefungen, damit der Abgleich auch dann genau einmal
     // laeuft, wenn die Erfassungs-Felder gerade nicht im Fenster sind (vorher rief renderAll()
     // ihn zusaetzlich selbst auf).
@@ -1682,7 +1701,13 @@ function setNoelkeArtNrStill(nr, wert) {
 
 function deleteNoelke(i) {
     if (!confirm("Löschen?")) return;
-    const nr = noelkeNrVon(db.savedProdukteRaw[i]);
+    const zeile = db.savedProdukteRaw[i];
+    // Grabstein setzen, sonst holt die Nie-Schrumpfen-Regel den Eintrag beim
+    // naechsten Speichern aus der Cloud zurueck.
+    if (!Array.isArray(db.deletedNoelke)) db.deletedNoelke = [];
+    const grab = noelkeGrabsteinKey(zeile);
+    if (grab && !db.deletedNoelke.includes(grab)) db.deletedNoelke.push(grab);
+    const nr = noelkeNrVon(zeile);
     db.savedProdukteRaw.splice(i, 1);
     // Die eigene Artikelnummer nur wegwerfen, wenn keine andere Zeile diese Nummer mehr traegt.
     if (nr !== null && !(db.savedProdukteRaw || []).some(z => noelkeNrVon(z) === nr) && db.noelkeArtNr) {
@@ -2083,6 +2108,8 @@ const SCHUTZ_FELDER = [
     { key: 'hidden', name: 'Ausgeblendete' },
     { key: 'savedProdukteRaw', name: 'Nölke-Produkte' },
     { key: 'noelkeArtNr', name: 'Nölke-Artikelnummern' },
+    { key: 'deletedArticles', name: 'Gelöschte Artikel (Grabsteine)' },
+    { key: 'deletedNoelke', name: 'Gelöschte Nölke-Einträge (Grabsteine)' },
     { key: 'workers', name: 'Mitarbeiter' },
     { key: 'sonderTemplates', name: 'Sonder-Vorlagen' }
 ];
@@ -2237,6 +2264,94 @@ function pruefeLeereListenGegenCloud(cloudDb, still) {
         + "\n\nWenn du jetzt speicherst, werden sie in der Cloud GELÖSCHT. Wirklich überschreiben?");
 }
 
+// =========================================================================
+// NIE-SCHRUMPFEN-REGEL  (2026-08-20)
+//
+// Am 20.08.2026 waren drei am Vormittag angelegte Artikel (80392, 80396,
+// 80397) nachmittags weg. Nicht weil jemand sie geloescht haette -- ein
+// anderes Fenster hat sein aelteres Gesamtpaket hochgeladen, und in dem
+// kamen sie nicht vor. Roberts Regel dazu, woertlich:
+//
+//     "Es ist Bloedsinn zu sagen: meine Version hat weniger als deine,
+//      deswegen schmeiss ich die raus."
+//
+// Ab jetzt gilt: was in der Cloud steht und hier fehlt, wird VOR dem
+// Hochladen wieder aufgenommen -- ausser es steht auf einer Loeschliste.
+// Fehlende Daten heissen "kenne ich nicht", nie "weg damit".
+//
+// WICHTIG, sonst waere es der alte Fehler von vorne: Am 18.08. wurde das
+// Anhaengen aus der Cloud abgeschafft, weil jeder geloeschte Noelke-Eintrag
+// dadurch zurueckkam. Der Unterschied ist die LOESCHLISTE (Grabsteine):
+// nur was NICHT bewusst geloescht wurde, kommt zurueck. Dasselbe Muster
+// benutzen Lieferanten (deletedSuppliers) und Sonder-Vorlagen
+// (deletedSonderTemplates) schon laenger.
+// =========================================================================
+
+/** Schluessel eines Noelke-Eintrags: die Nummer, sonst der Text selbst. */
+function noelkeGrabsteinKey(zeile) {
+    const nr = typeof noelkeNrVon === 'function' ? noelkeNrVon(zeile) : null;
+    return nr !== null ? 'nr:' + nr : 'text:' + String(zeile || '').trim();
+}
+
+/** Ist dieser Artikel in IRGENDEINER der fuenf Listen? */
+function artikelIstBekannt(fertigNr) {
+    const nr = String(fertigNr || '');
+    if (!nr) return true;   // ohne Nummer nicht zuzuordnen -> nicht anfassen
+    return ['articles', 'todo', 'lose', 'later', 'hidden']
+        .some(k => (db[k] || []).some(a => a && String(a.fertigNr || '') === nr));
+}
+
+/**
+ * Holt zurueck, was die Cloud kennt und dieser PC nicht -- ohne das, was
+ * bewusst geloescht wurde. Gibt zurueck, was zurueckgeholt wurde (fuer die
+ * Statuszeile und das Protokoll).
+ */
+function holeVermissteZurueck(cloudDb) {
+    if (!cloudDb) return [];
+    const zurueck = [];
+
+    // --- Artikel: fuenf Listen, ein Artikel gilt als bekannt, wenn er in
+    //     einer davon steht. Zurueck kommt er in die Liste, in der er in der
+    //     Cloud lag -- damit landet ein zugeteilter Artikel nicht im Pool.
+    const grabsteineArtikel = new Set((db.deletedArticles || []).map(String));
+    ['articles', 'todo', 'lose', 'later', 'hidden'].forEach(liste => {
+        const ausCloud = Array.isArray(cloudDb[liste]) ? cloudDb[liste] : [];
+        ausCloud.forEach(a => {
+            if (!a || !a.fertigNr) return;
+            const nr = String(a.fertigNr);
+            if (grabsteineArtikel.has(nr)) return;      // bewusst geloescht
+            if (artikelIstBekannt(nr)) return;          // kennen wir schon
+            if (!Array.isArray(db[liste])) db[liste] = [];
+            db[liste].push(a);
+            zurueck.push('Artikel ' + nr + ' (' + (a.name || '') + ')');
+        });
+    });
+
+    // --- Noelke-Katalog: Schluessel ist die Nummer, damit eine hier
+    //     bearbeitete Zeile nicht als "fehlt" gilt und doppelt zurueckkommt.
+    const grabsteineNoelke = new Set((db.deletedNoelke || []).map(String));
+    const cloudNoelke = Array.isArray(cloudDb.savedProdukteRaw) ? cloudDb.savedProdukteRaw : [];
+    if (cloudNoelke.length) {
+        if (!Array.isArray(db.savedProdukteRaw)) db.savedProdukteRaw = [];
+        const bekannt = new Set(db.savedProdukteRaw.map(noelkeGrabsteinKey));
+        cloudNoelke.forEach(zeile => {
+            const key = noelkeGrabsteinKey(zeile);
+            if (grabsteineNoelke.has(key)) return;
+            if (bekannt.has(key)) return;
+            db.savedProdukteRaw.push(zeile);
+            bekannt.add(key);
+            zurueck.push('Noelke ' + key.replace('nr:', 'Nr. '));
+        });
+    }
+
+    if (zurueck.length) {
+        addCloudLog('Nie-Schrumpfen-Regel: ' + zurueck.length
+            + ' Eintrag/Eintraege aus der Cloud zurueckgeholt (' + zurueck.slice(0, 6).join(', ')
+            + (zurueck.length > 6 ? ' …' : '') + ')');
+    }
+    return zurueck;
+}
+
 async function pushToCloud(skipConfirm) {
     if(!skipConfirm && !confirm("System in der Cloud speichern?")) return;
     applySettingsFromForm();
@@ -2278,6 +2393,17 @@ async function pushToCloud(skipConfirm) {
                     if (stickyLeer) stickyLeer.textContent = '⚠️ Nicht in der Cloud gespeichert · ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
                     speichereOffline(db);   // Trimmen + Einstellungen aus dem Formular nicht verlieren
                     return;
+                }
+
+                // 2026-08-20: Nie-Schrumpfen-Regel. Vor allem anderen zurueckholen,
+                // was die Cloud kennt und dieser PC nicht -- ohne das, was bewusst
+                // geloescht wurde. Damit kann ein Fenster mit aelterem Stand nichts
+                // mehr wegnehmen, was es nur nicht kennt.
+                const zurueckgeholt = holeVermissteZurueck(cloudDb);
+                if (zurueckgeholt.length) {
+                    const stickyZurueck = document.getElementById('sticky-status');
+                    if (stickyZurueck) stickyZurueck.textContent =
+                        'ℹ️ ' + zurueckgeholt.length + ' Eintrag/Einträge aus der Cloud übernommen, nichts überschrieben';
                 }
 
                 // === SMART SYNC: VERHINDERT DATENVERLUST VON TABLET-EINGABEN ===
