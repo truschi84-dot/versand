@@ -82,11 +82,14 @@ test.describe('Control Center - Stammdaten: lokaler Stand gewinnt beim Speichern
     // Tippfehler in der EAN korrigieren — genau der Fall, den Robert gemeldet hat.
     const alteFassung = NOELKE[0];
     const neueFassung = NOELKE[0].replace('4018905502350', '4018905502359');
-    await page.evaluate((neu) => {
+    // 2026-08-20: Der Noelke-Katalog wird nicht mehr als eine Textzeile bearbeitet,
+    // sondern in Einzelfeldern (die Nummer vergibt das Programm). Der Testfall bleibt
+    // derselbe -- nur die EAN wird jetzt im EAN-Feld korrigiert statt in der Rohzeile.
+    await page.evaluate(() => {
       openEditNoelkeModal(0);
-      document.getElementById('edit-noelke-val').value = neu;
+      document.getElementById('edit-noelke-ean').value = '4018905502359';
       saveEditNoelke();
-    }, neueFassung);
+    });
 
     geschrieben.length = 0;
     await page.evaluate(() => pushToCloud(true));

@@ -551,11 +551,11 @@
         .is-android-app .sticky-save-bar .btn { width: auto; min-height: 44px; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="../js/druck_utils.js?v=142"></script>
-    <script src="../js/supabase_sync.js?v=142"></script>
-    <script src="../js/cloud_auth.js?v=142"></script>
-    <script src="../js/gemeinsam/datenbank.js?v=142"></script>
-    <script src="../js/gemeinsam/metriken.js?v=142"></script>
+    <script src="../js/druck_utils.js?v=143"></script>
+    <script src="../js/supabase_sync.js?v=143"></script>
+    <script src="../js/cloud_auth.js?v=143"></script>
+    <script src="../js/gemeinsam/datenbank.js?v=143"></script>
+    <script src="../js/gemeinsam/metriken.js?v=143"></script>
 </head>
 <body>
 
@@ -625,8 +625,36 @@
             <div style="font-weight: bold; border-bottom: 2px solid var(--noelke); padding-bottom: 10px; font-size: 16px;">
                 ✏️ Nölke-Produkt bearbeiten
             </div>
-            <div style="margin-top: 15px;">
-                <label style="font-size: 11px; font-weight: bold; color: #444;">PRODUKTZEILE (wie in der App)</label>
+            <div id="edit-noelke-felder" style="margin-top: 15px;">
+                <div style="font-size:12px; color:#666; margin-bottom:10px;">
+                    Nummer: <b style="font-size:15px; color:#111;" id="edit-noelke-nr">–</b>
+                    <span style="margin-left:8px;">— bleibt so, damit im Katalog keine Nummer doppelt wird.</span>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px;">
+                    <div>
+                        <label style="font-size:11px; font-weight:600; color:#666;">Marke</label>
+                        <input type="text" id="edit-noelke-marke" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; font-weight:600; color:#666;">Produkt</label>
+                        <input type="text" id="edit-noelke-produkt" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; font-weight:600; color:#666;">Größe</label>
+                        <input type="text" id="edit-noelke-groesse" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; font-weight:600; color:#666;">EAN</label>
+                        <input type="text" id="edit-noelke-ean" inputmode="numeric" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; font-weight:600; color:#666;">Unsere Artikel-Nr.</label>
+                        <input type="text" id="edit-noelke-eigene-artnr" style="width:100%;">
+                    </div>
+                </div>
+            </div>
+            <div id="edit-noelke-freitext" style="margin-top: 15px; display:none;">
+                <label style="font-size: 11px; font-weight: bold; color: #444;">PRODUKTZEILE (Sondereintrag ohne Nummer)</label>
                 <textarea id="edit-noelke-val" rows="4" class="cc-wide-text" style="margin-top: 6px;"></textarea>
             </div>
             <div style="display: flex; gap: 10px; margin-top: 20px;">
@@ -1085,11 +1113,54 @@
         <div id="tab-noelke" class="tab-content">
             <h1>📝 Nölke-Produktkatalog</h1>
             <div class="card">
-                <label style="font-size:12px; font-weight:bold; color:#444;">Neues Produkt (komplette Zeile)</label>
-                <textarea id="new-noelke-val" rows="3" class="cc-wide-text" placeholder="z.B. [Nr. 1] aro - Geflügel Paprikalyoner (200g) | EAN: ..." style="margin-top:8px;"></textarea>
+                <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
+                    <label style="font-size:12px; font-weight:bold; color:#444;">Neues Produkt anlegen</label>
+                    <span style="font-size:12px; color:#666;">bekommt automatisch <b>Nr. <span id="noelke-naechste-nr">–</span></b></span>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-top:10px;">
+                    <div>
+                        <label style="font-size:11px; font-weight:600; color:#666;">Marke</label>
+                        <input type="text" id="new-noelke-marke" placeholder="z.B. Güldenhof" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; font-weight:600; color:#666;">Produkt</label>
+                        <input type="text" id="new-noelke-produkt" placeholder="z.B. Putenbrustfilet" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; font-weight:600; color:#666;">Größe</label>
+                        <input type="text" id="new-noelke-groesse" placeholder="z.B. 100g" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; font-weight:600; color:#666;">EAN</label>
+                        <input type="text" id="new-noelke-ean" inputmode="numeric" placeholder="13 Stellen" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; font-weight:600; color:#666;">Unsere Artikel-Nr.</label>
+                        <input type="text" id="new-noelke-eigene-artnr" placeholder="wenn schon bekannt" style="width:100%;">
+                    </div>
+                </div>
                 <button class="btn btn-success" onclick="saveNoelkeItem()" style="margin-top:15px;">+ Produkt hinzufügen</button>
+                <span id="noelke-status" style="margin-left:12px; font-size:13px; font-weight:600;"></span>
+                <details style="margin-top:15px;">
+                    <summary style="cursor:pointer; font-size:12px; color:#666;">Sondereintrag ohne Nummer (z.B. „Mischkiste")</summary>
+                    <textarea id="new-noelke-frei" rows="2" class="cc-wide-text" placeholder="z.B. Mischkiste" style="margin-top:8px;"></textarea>
+                    <button class="btn btn-black" onclick="saveNoelkeFreitext()" style="margin-top:10px;">+ Sondereintrag hinzufügen</button>
+                </details>
             </div>
-            <div class="card"><input type="text" id="noelke-search" placeholder="🔍 Im Katalog suchen..." oninput="renderNoelkeList()" style="margin-bottom:15px;"><table style="width:100%; border-collapse:collapse; text-align:left;"><tbody id="noelke-body"></tbody></table></div>
+            <div class="card">
+                <input type="text" id="noelke-search" placeholder="🔍 Im Katalog suchen..." oninput="renderNoelkeList()" style="margin-bottom:15px;">
+                <table style="width:100%; border-collapse:collapse; text-align:left;">
+                    <thead>
+                        <tr style="font-size:11px; text-transform:uppercase; color:#666; border-bottom:2px solid var(--noelke);">
+                            <th style="padding:8px 10px; width:60px;">Nr.</th>
+                            <th style="padding:8px 10px; width:140px;">Unsere Art-Nr.</th>
+                            <th style="padding:8px 10px;">Produkt</th>
+                            <th style="padding:8px 10px; width:80px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="noelke-body"></tbody>
+                </table>
+            </div>
         </div>
 
         <div id="tab-sonderposten" class="tab-content">
@@ -1560,13 +1631,13 @@
             <p>Sicherung herunterladen, Momentaufnahme, Archiv:<br><b>Einstellungen → Daten &amp; Sicherung</b></p>
         </div>
     </div>
-    <script src="js/control-center-tagesexport.js?v=142"></script>
-    <script src="js/control-center-core.js?v=142"></script>
-    <script src="js/control-center-lieferanten.js?v=142"></script>
-    <script src="js/control-center-mitarbeiter.js?v=142"></script>
-    <script src="js/control-center-artikel.js?v=142"></script>
-    <script src="js/control-center-stats.js?v=142"></script>
-    <script src="js/control-center-deploy.js?v=142"></script>
+    <script src="js/control-center-tagesexport.js?v=143"></script>
+    <script src="js/control-center-core.js?v=143"></script>
+    <script src="js/control-center-lieferanten.js?v=143"></script>
+    <script src="js/control-center-mitarbeiter.js?v=143"></script>
+    <script src="js/control-center-artikel.js?v=143"></script>
+    <script src="js/control-center-stats.js?v=143"></script>
+    <script src="js/control-center-deploy.js?v=143"></script>
     <script>
     function toggleMobileSidebar() {
         document.getElementById('main-sidebar').classList.toggle('mobile-open');

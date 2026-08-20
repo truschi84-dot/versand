@@ -105,8 +105,8 @@ const rawData = [
     {id:"80389", name:"Hähn Pap geb Sch/End Po EX"}, {id:"80390", name:"Kochschinken Olive Sch/End"}, {id:"80391", name:"Hähnch geb Sch/End Po EX"}, {id:"90100", name:"Gouda Scheiben 400g"}, {id:"90101", name:"Edamer Scheiben 400g"}, {id:"90102", name:"Tilsiter Scheiben 400g"}, {id:"90103", name:"Butterkåse Scheiben 400g"}
 ];
 
-let db = { 
-    suppliers: [], customers: [], articles: [], savedProdukteRaw: [],
+let db = {
+    suppliers: [], customers: [], articles: [], savedProdukteRaw: [], noelkeArtNr: {},
     deletedSuppliers: [], supplierLines: {}, supplierLinesCleared: [],
     todo: [], lose: [], later: [], hidden: [],
     workers: ["Ahmed","Dominik","Robert","Julian","Alex"], 
@@ -391,6 +391,7 @@ function renderAll() {
     if(document.getElementById('set-cloud-url')) document.getElementById('set-cloud-url').value = sanitizeCloudUrl(localStorage.getItem('custom_cloud_url') || "");
 
     db.savedProdukteRaw = db.savedProdukteRaw || [];
+    db.noelkeArtNr = db.noelkeArtNr || {};
     db.sonderTemplates = db.sonderTemplates || [];
     db.deletedSonderTemplates = db.deletedSonderTemplates || [];
     ensureSupplierMeta();
@@ -1305,11 +1306,191 @@ function adminDeleteDelivery() {
 
 // =========================================================================
 
+// =========================================================================
+// NÖLKE-KATALOG — Nummern, eigene Artikelnummern, Pruefungen
+//
+// 2026-08-20: Die Nummer wird nicht mehr von Hand getippt, sondern beim Anlegen
+// vergeben (hoechste vorhandene + 1). Grund: doppelte Nummern (62, 65, 84) und
+// kaputte Praefixe wie "[64]" statt "[Nr. 64]" kamen alle aus dem einen grossen
+// Freitextfeld, das es hier vorher gab.
+//
+// Das FORMAT der gespeicherten Zeile bleibt unveraendert:
+//     [Nr. X] Marke - Produkt (140g) | EAN: 1234567890123
+// Daran haengen Scanner (rechner_scanner.js), Zebra-Etikett (rechner_druck.js)
+// und die Auswahlliste "select-noelke" in der Rechner-App.
+//
+// Die EIGENE Artikelnummer steht deshalb bewusst NICHT in dieser Zeile, sondern
+// getrennt in db.noelkeArtNr (Schluessel = Nölke-Nummer als Text) — genau wie es
+// artikelMarkt und tierartZuordnung schon machen. Stuende sie in der Zeile,
+// wuerde rechner_druck.js sie als Teil des Produktnamens aufs Etikett drucken,
+// solange auf den Handys noch die alte APK laeuft.
+// =========================================================================
+
+const NOELKE_NR_RE = /^\[\s*Nr\.\s*(\d+)\s*\]/i;
+
+/** Nummer einer Katalogzeile, oder null wenn kein sauberes "[Nr. X]" davorsteht. */
+function noelkeNrVon(zeile) {
+    const m = String(zeile || '').match(NOELKE_NR_RE);
+    return m ? parseInt(m[1], 10) : null;
+}
+
+/** EAN einer Katalogzeile, oder "" wenn keine drinsteht. */
+function noelkeEanVon(zeile) {
+    const m = String(zeile || '').match(/\|\s*EAN:\s*(\d+)/i);
+    return m ? m[1] : '';
+}
+
+/** Naechste freie Nummer: hoechste vergebene + 1. */
+function naechsteNoelkeNr() {
+    let max = 0;
+    (db.savedProdukteRaw || []).forEach(zeile => {
+        const n = noelkeNrVon(zeile);
+        if (n !== null && n > max) max = n;
+    });
+    return max + 1;
+}
+
+/** Pruefziffer nach GS1, oder null wenn die Laenge gar nicht passt. */
+function noelkeEanPruefziffer(ean) {
+    const s = String(ean || '').trim();
+    if (!/^\d+$/.test(s) || (s.length !== 8 && s.length !== 13)) return null;
+    const z = s.split('').map(Number);
+    let summe = 0;
+    if (s.length === 13) { for (let i = 0; i < 12; i++) summe += z[i] * (i % 2 === 0 ? 1 : 3); }
+    else { for (let i = 0; i < 7; i++) summe += z[i] * (i % 2 === 0 ? 3 : 1); }
+    return (10 - summe % 10) % 10;
+}
+
+/** Klartext, was an der EAN nicht stimmt. Leerer Text = alles in Ordnung. */
+function noelkeEanProblem(ean) {
+    const s = String(ean || '').trim();
+    if (!s) return 'Für dieses Produkt ist keine EAN eingetragen. Der Scanner findet es dann nie.';
+    if (!/^\d+$/.test(s)) return 'Die EAN darf nur Ziffern enthalten.';
+    if (s.length !== 8 && s.length !== 13) return 'Die EAN hat ' + s.length + ' Stellen. Gültig sind 8 oder 13 — hier fehlt oder steht eine zu viel.';
+    const p = noelkeEanPruefziffer(s);
+    if (p !== Number(s.charAt(s.length - 1))) return 'Die Prüfziffer stimmt nicht (die letzte Stelle müsste ' + p + ' sein). Das ist fast immer ein Tippfehler.';
+    return '';
+}
+
+/** Alle Katalogzeilen mit derselben EAN — ohne die Zeile an Position ausser. */
+function noelkeEanDoppelt(ean, ausser) {
+    const s = String(ean || '').trim();
+    if (!s) return [];
+    return (db.savedProdukteRaw || [])
+        .map((zeile, i) => ({ zeile: zeile, i: i }))
+        .filter(o => o.i !== ausser && noelkeEanVon(o.zeile) === s)
+        .map(o => o.zeile);
+}
+
+/** Baut die Katalogzeile im festen Format zusammen. */
+function baueNoelkeZeile(nr, marke, produkt, groesse, ean) {
+    let text = '[Nr. ' + nr + '] ';
+    const m = String(marke || '').trim();
+    const p = String(produkt || '').trim();
+    text += m ? m + ' - ' + p : p;
+    const g = String(groesse || '').trim().replace(/\s+/g, '');
+    if (g) text += ' (' + (/g$/i.test(g) ? g : g + 'g') + ')';
+    const e = String(ean || '').trim();
+    if (e) text += ' | EAN: ' + e;
+    return text;
+}
+
+/** Zerlegt eine Katalogzeile wieder in ihre Einzelteile. */
+function zerlegeNoelkeZeile(zeile) {
+    let rest = String(zeile || '');
+    let nr = null;
+    const mNr = rest.match(/^\[\s*Nr\.\s*(\d+)\s*\]\s*/i);
+    if (mNr) { nr = parseInt(mNr[1], 10); rest = rest.slice(mNr[0].length); }
+    let ean = '';
+    const mEan = rest.match(/\s*\|\s*EAN:\s*(\d+)\s*$/i);
+    if (mEan) { ean = mEan[1]; rest = rest.slice(0, mEan.index); }
+    let groesse = '';
+    const mG = rest.match(/\s*\((\d+\s*g)\)\s*$/i);
+    if (mG) { groesse = mG[1].replace(/\s+/g, ''); rest = rest.slice(0, mG.index); }
+    let marke = '';
+    let produkt = rest.trim();
+    const trenn = produkt.indexOf(' - ');
+    if (trenn > -1) { marke = produkt.slice(0, trenn).trim(); produkt = produkt.slice(trenn + 3).trim(); }
+    return { nr: nr, marke: marke, produkt: produkt, groesse: groesse, ean: ean };
+}
+
+/** Unsere eigene Artikelnummer zu einer Nölke-Nummer. */
+function getNoelkeArtNr(nr) {
+    if (nr === null || nr === undefined || nr === '') return '';
+    return (db.noelkeArtNr || {})[String(nr)] || '';
+}
+
+/** Unsere eigene Artikelnummer setzen oder (bei leer) entfernen. */
+function setNoelkeArtNr(nr, wert) {
+    if (nr === null || nr === undefined || nr === '') return;
+    if (!db.noelkeArtNr) db.noelkeArtNr = {};
+    const schluessel = String(nr);
+    const v = String(wert || '').trim();
+    if (v) db.noelkeArtNr[schluessel] = v; else delete db.noelkeArtNr[schluessel];
+    renderAll();
+}
+
+function escNoelke(t) {
+    return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Zeigt an, was mit dem naechsten Knopfdruck vergeben wird. */
+function updateNoelkeNrVorschau() {
+    const feld = document.getElementById('noelke-naechste-nr');
+    if (feld) feld.innerText = naechsteNoelkeNr();
+}
+
 function renderNoelkeList() {
-    const q = document.getElementById('noelke-search').value.toLowerCase();
-    const noelkeNr = s => { const m = s.match(/^\[Nr\.\s*(\d+)\]/i); return m ? parseInt(m[1]) : Infinity; };
-    const sorted = db.savedProdukteRaw.map((p, i) => ({ p, i })).sort((a, b) => noelkeNr(a.p) - noelkeNr(b.p));
-    document.getElementById('noelke-body').innerHTML = sorted.map(({ p, i }) => p.toLowerCase().includes(q) ? `<tr><td class="noelke-cell-text" style="padding:15px; border-bottom:1px solid #eee;">${p}</td><td style="text-align:right; border-bottom:1px solid #eee; white-space:nowrap;"><button onclick="openEditNoelkeModal(${i})" style="border:none; background:none; color:#17a2b8; cursor:pointer; font-size:18px;" title="Bearbeiten">✏️</button><button onclick="deleteNoelke(${i})" style="border:none; background:none; color:red; cursor:pointer; font-size:18px;" title="Löschen">🗑️</button></td></tr>` : '').join('');
+    const suchfeld = document.getElementById('noelke-search');
+    if (!suchfeld) return;
+    const q = suchfeld.value.toLowerCase();
+    updateNoelkeNrVorschau();
+
+    const liste = (db.savedProdukteRaw || []).map((p, i) => ({ p: p, i: i, nr: noelkeNrVon(p) }));
+    const sorted = liste.slice().sort((a, b) => {
+        const na = a.nr === null ? Infinity : a.nr;
+        const nb = b.nr === null ? Infinity : b.nr;
+        return na === nb ? a.i - b.i : na - nb;
+    });
+
+    // Nummern, die mehr als einmal vergeben sind — die markieren wir sichtbar.
+    const nrZaehler = {};
+    liste.forEach(o => { if (o.nr !== null) nrZaehler[o.nr] = (nrZaehler[o.nr] || 0) + 1; });
+
+    const zeilen = sorted.filter(o => o.p.toLowerCase().includes(q)).map(o => {
+        const teile = zerlegeNoelkeZeile(o.p);
+        const artNr = getNoelkeArtNr(o.nr);
+        const hinweise = [];
+        if (o.nr === null) {
+            // Sondereintraege wie "Mischkiste" haben absichtlich weder Nummer noch EAN —
+            // da waere eine EAN-Warnung nur Dauerlaerm.
+            hinweise.push('ohne Nummer');
+        } else {
+            if (nrZaehler[o.nr] > 1) hinweise.push('Nummer ' + o.nr + ' doppelt vergeben');
+            const eanProblem = noelkeEanProblem(teile.ean);
+            if (eanProblem) hinweise.push(eanProblem);
+        }
+
+        const nrText = o.nr === null ? '—' : o.nr;
+        const artNrFeld = o.nr === null
+            ? '<span style="color:#999; font-size:12px;">erst mit Nummer</span>'
+            : `<input type="text" value="${escNoelke(artNr)}" placeholder="—" onchange="setNoelkeArtNr(${o.nr}, this.value)" style="width:100%; max-width:120px; padding:5px 6px; border:1px solid #ccc; border-radius:6px; font-size:13px;">`;
+        const warnung = hinweise.length
+            ? `<div style="margin-top:6px; font-size:12px; color:#b23c17;">⚠ ${escNoelke(hinweise.join(' · '))}</div>`
+            : '';
+
+        return `<tr>
+            <td style="padding:12px 10px; border-bottom:1px solid #eee; font-weight:bold; white-space:nowrap; ${nrZaehler[o.nr] > 1 || o.nr === null ? 'color:#b23c17;' : ''}">${nrText}</td>
+            <td style="padding:12px 10px; border-bottom:1px solid #eee;">${artNrFeld}</td>
+            <td class="noelke-cell-text" style="padding:12px 10px; border-bottom:1px solid #eee;">${escNoelke(o.p)}${warnung}</td>
+            <td style="text-align:right; border-bottom:1px solid #eee; white-space:nowrap;">
+                <button onclick="openEditNoelkeModal(${o.i})" style="border:none; background:none; color:#17a2b8; cursor:pointer; font-size:18px;" title="Bearbeiten">✏️</button>
+                <button onclick="deleteNoelke(${o.i})" style="border:none; background:none; color:red; cursor:pointer; font-size:18px;" title="Löschen">🗑️</button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('noelke-body').innerHTML = zeilen;
 }
 
 function renderAdminSonderTpl() {
@@ -1386,24 +1567,129 @@ function mergeDeletedSonderTemplatesFromCloud(cloudDeleted) {
     db.sonderTemplates = (db.sonderTemplates || []).filter(t => !(t && set.has(String(t.id))));
 }
 
-function saveNoelkeItem() { const val = document.getElementById('new-noelke-val').value.trim(); if(val) { db.savedProdukteRaw.push(val); document.getElementById('new-noelke-val').value = ''; renderAll(); } }
+function setNoelkeStatus(text, art) {
+    const feld = document.getElementById('noelke-status');
+    if (!feld) return;
+    feld.innerText = text || '';
+    feld.style.color = art === 'fehler' ? '#b23c17' : '#2E7D5B';
+}
+
+/** Neues Produkt anlegen. Die Nummer vergibt das Programm, nicht der Bediener. */
+function saveNoelkeItem() {
+    const marke = document.getElementById('new-noelke-marke').value.trim();
+    const produkt = document.getElementById('new-noelke-produkt').value.trim();
+    const groesse = document.getElementById('new-noelke-groesse').value.trim();
+    const ean = document.getElementById('new-noelke-ean').value.trim();
+    const artNr = document.getElementById('new-noelke-eigene-artnr').value.trim();
+
+    if (!produkt) { setNoelkeStatus('Bitte wenigstens das Produkt eintragen.', 'fehler'); return; }
+
+    const problem = noelkeEanProblem(ean);
+    if (problem && !confirm(problem + '\n\nTrotzdem so anlegen?')) return;
+
+    const doppelt = noelkeEanDoppelt(ean, -1);
+    if (doppelt.length && !confirm('Diese EAN steht schon im Katalog:\n\n' + doppelt.join('\n') + '\n\nDer Scanner meldet dann immer nur den ersten Treffer. Trotzdem anlegen?')) return;
+
+    const nr = naechsteNoelkeNr();
+    db.savedProdukteRaw.push(baueNoelkeZeile(nr, marke, produkt, groesse, ean));
+    if (artNr) { if (!db.noelkeArtNr) db.noelkeArtNr = {}; db.noelkeArtNr[String(nr)] = artNr; }
+
+    ['new-noelke-marke', 'new-noelke-produkt', 'new-noelke-groesse', 'new-noelke-ean', 'new-noelke-eigene-artnr']
+        .forEach(id => { const f = document.getElementById(id); if (f) f.value = ''; });
+    renderAll();
+    setNoelkeStatus('Angelegt als Nr. ' + nr + '.');
+}
+
+/** Sondereintrag ohne Nummer (z.B. "Mischkiste"). Bleibt bewusst Freitext. */
+function saveNoelkeFreitext() {
+    const feld = document.getElementById('new-noelke-frei');
+    const val = feld.value.trim();
+    if (!val) { setNoelkeStatus('Bitte einen Text eintragen.', 'fehler'); return; }
+    db.savedProdukteRaw.push(val);
+    feld.value = '';
+    renderAll();
+    setNoelkeStatus('Sondereintrag angelegt (ohne Nummer, steht am Listenende).');
+}
+
 function openEditNoelkeModal(i) {
     const p = db.savedProdukteRaw[i];
     if (p === undefined) return;
     editingNoelkeIdx = i;
+    const teile = zerlegeNoelkeZeile(p);
+    const hatNr = teile.nr !== null;
+
+    document.getElementById('edit-noelke-nr').innerText = hatNr ? teile.nr : '—';
+    document.getElementById('edit-noelke-marke').value = teile.marke;
+    document.getElementById('edit-noelke-produkt').value = teile.produkt;
+    document.getElementById('edit-noelke-groesse').value = teile.groesse;
+    document.getElementById('edit-noelke-ean').value = teile.ean;
+    document.getElementById('edit-noelke-eigene-artnr').value = hatNr ? getNoelkeArtNr(teile.nr) : '';
     document.getElementById('edit-noelke-val').value = p;
+
+    // Eintraege ohne "[Nr. X]" (Mischkisten, das alte "[64]") lassen sich nicht in
+    // die Felder zerlegen, ohne dass wir ihnen eine Nummer aufzwingen. Die werden
+    // deshalb weiter als Freitext bearbeitet.
+    document.getElementById('edit-noelke-felder').style.display = hatNr ? 'block' : 'none';
+    document.getElementById('edit-noelke-freitext').style.display = hatNr ? 'none' : 'block';
     document.getElementById('edit-noelke-overlay').style.display = 'flex';
 }
+
 function closeEditNoelkeModal() { document.getElementById('edit-noelke-overlay').style.display = 'none'; editingNoelkeIdx = null; }
+
 function saveEditNoelke() {
     if (editingNoelkeIdx === null) return;
-    const val = document.getElementById('edit-noelke-val').value.trim();
-    if (!val) return alert('Produktzeile darf nicht leer sein.');
-    db.savedProdukteRaw[editingNoelkeIdx] = val;
+    const alt = db.savedProdukteRaw[editingNoelkeIdx];
+    const teile = zerlegeNoelkeZeile(alt);
+
+    if (teile.nr === null) {
+        const val = document.getElementById('edit-noelke-val').value.trim();
+        if (!val) { alert('Produktzeile darf nicht leer sein.'); return; }
+        db.savedProdukteRaw[editingNoelkeIdx] = val;
+        closeEditNoelkeModal();
+        renderAll();
+        return;
+    }
+
+    const produkt = document.getElementById('edit-noelke-produkt').value.trim();
+    if (!produkt) { alert('Das Produkt darf nicht leer sein.'); return; }
+    const ean = document.getElementById('edit-noelke-ean').value.trim();
+
+    const problem = noelkeEanProblem(ean);
+    if (problem && !confirm(problem + '\n\nTrotzdem so speichern?')) return;
+    const doppelt = noelkeEanDoppelt(ean, editingNoelkeIdx);
+    if (doppelt.length && !confirm('Diese EAN steht schon im Katalog:\n\n' + doppelt.join('\n') + '\n\nTrotzdem speichern?')) return;
+
+    // Die Nummer bleibt, wie sie ist — sie wird nie von Hand geaendert.
+    db.savedProdukteRaw[editingNoelkeIdx] = baueNoelkeZeile(
+        teile.nr,
+        document.getElementById('edit-noelke-marke').value.trim(),
+        produkt,
+        document.getElementById('edit-noelke-groesse').value.trim(),
+        ean
+    );
+    setNoelkeArtNrStill(teile.nr, document.getElementById('edit-noelke-eigene-artnr').value);
     closeEditNoelkeModal();
     renderAll();
 }
-function deleteNoelke(i) { if(confirm("Löschen?")) { db.savedProdukteRaw.splice(i,1); renderAll(); } }
+
+/** Wie setNoelkeArtNr, aber ohne renderAll — fuer Aufrufer, die selbst neu zeichnen. */
+function setNoelkeArtNrStill(nr, wert) {
+    if (nr === null || nr === undefined || nr === '') return;
+    if (!db.noelkeArtNr) db.noelkeArtNr = {};
+    const v = String(wert || '').trim();
+    if (v) db.noelkeArtNr[String(nr)] = v; else delete db.noelkeArtNr[String(nr)];
+}
+
+function deleteNoelke(i) {
+    if (!confirm("Löschen?")) return;
+    const nr = noelkeNrVon(db.savedProdukteRaw[i]);
+    db.savedProdukteRaw.splice(i, 1);
+    // Die eigene Artikelnummer nur wegwerfen, wenn keine andere Zeile diese Nummer mehr traegt.
+    if (nr !== null && !(db.savedProdukteRaw || []).some(z => noelkeNrVon(z) === nr) && db.noelkeArtNr) {
+        delete db.noelkeArtNr[String(nr)];
+    }
+    renderAll();
+}
 
 function saveRawJson() { 
     try { 
@@ -1796,6 +2082,7 @@ const SCHUTZ_FELDER = [
     { key: 'later', name: 'Später-Liste' },
     { key: 'hidden', name: 'Ausgeblendete' },
     { key: 'savedProdukteRaw', name: 'Nölke-Produkte' },
+    { key: 'noelkeArtNr', name: 'Nölke-Artikelnummern' },
     { key: 'workers', name: 'Mitarbeiter' },
     { key: 'sonderTemplates', name: 'Sonder-Vorlagen' }
 ];
