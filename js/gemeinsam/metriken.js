@@ -75,28 +75,56 @@ function mergeLieferungenCloudMitLokalLkw(lokal, cloud) {
     return [...lkwLokal, ...sortMerged];
 }
 
-function sortiertKgAusDeliveries(deliveries, datum) {
-    if (!Array.isArray(deliveries) || !datum) return 0;
+/**
+ * 2026-08-20 Geschwindigkeit: optionales drittes Argument.
+ * nachDatum ist eine Map date -> kg, einmal gebaut statt je Tag neu gesucht
+ * (siehe sortierKgNachDatumBauen). Ohne das Argument verhaelt sich die
+ * Funktion exakt wie vorher.
+ */
+function sortiertKgAusDeliveries(deliveries, datum, nachDatum) {
+    if (!datum) return 0;
+    if (nachDatum instanceof Map) return nachDatum.get(datum) || 0;
+    if (!Array.isArray(deliveries)) return 0;
     return deliveries
         .filter((d) => d.date === datum && d.source === 'sortieren')
         .reduce((a, b) => a + (parseFloat(b.kg) || 0), 0);
 }
 
-function sortierenSummeFuerDatum(buchungen, teamTagesMengen, datum, deletedKeys, articles, artikelMarkt) {
+/**
+ * Baut genau die Summe, die sortiertKgAusDeliveries oben bildet -- einmal fuer
+ * alle Tage. Bewusst derselbe Vergleich (d.date roh, source === 'sortieren'),
+ * damit Zeile fuer Zeile dasselbe herauskommt wie beim Suchen je Tag.
+ */
+function sortierKgNachDatumBauen(deliveries) {
+    const map = new Map();
+    if (!Array.isArray(deliveries)) return map;
+    deliveries.forEach((d) => {
+        if (!d || d.source !== 'sortieren') return;
+        map.set(d.date, (map.get(d.date) || 0) + (parseFloat(d.kg) || 0));
+    });
+    return map;
+}
+
+/**
+ * 2026-08-20 Geschwindigkeit: Die eigentliche Rechnung steht jetzt hier und
+ * bekommt die Buchungen EINES Tages fertig gereicht. Wer schon nach Datum
+ * vorsortiert hat, spart sich damit den Durchlauf durch alle Buchungen.
+ * sortierenSummeFuerDatum darunter bleibt unveraendert nutzbar und rechnet
+ * ueber dieselbe Stelle -- es gibt weiterhin nur EINE Rechnung.
+ */
+function sortierenSummeAusListe(buchungenDesTages, teamTagesMengen, datum, articles, artikelMarkt) {
     let gesamtKg = 0;
     let exportKg = 0;
     let unsKg = 0;
-    filterDeletedSortierBuchungen(buchungen || [], deletedKeys)
-        .filter((b) => buchungDatumPasst(b, datum))
-        .forEach((b) => {
-            const kg = parseFloat(b.gebuchtKg) || 0;
-            if (kg <= 0) return;
-            gesamtKg += kg;
-            const fertigNr = fertigNrAusSorte(b.sorte, articles);
-            const marktTyp = artikelMarktTyp(fertigNr, b.sorte, artikelMarkt);
-            if (marktTyp === 'export') exportKg += kg;
-            else unsKg += kg;
-        });
+    (buchungenDesTages || []).forEach((b) => {
+        const kg = parseFloat(b.gebuchtKg) || 0;
+        if (kg <= 0) return;
+        gesamtKg += kg;
+        const fertigNr = fertigNrAusSorte(b.sorte, articles);
+        const marktTyp = artikelMarktTyp(fertigNr, b.sorte, artikelMarkt);
+        if (marktTyp === 'export') exportKg += kg;
+        else unsKg += kg;
+    });
     if (teamTagesMengen && teamTagesMengen[datum]) {
         const t = teamTagesMengen[datum];
         if (gesamtKg <= 0) {
@@ -111,6 +139,17 @@ function sortierenSummeFuerDatum(buchungen, teamTagesMengen, datum, deletedKeys,
         }
     }
     return { gesamtKg, exportKg, unsKg };
+}
+
+/**
+ * Unveraendert nutzbar wie bisher: sucht sich die Buchungen des Tages selbst
+ * heraus und rechnet dann ueber sortierenSummeAusListe. Alle bestehenden
+ * Aufrufstellen bleiben damit so, wie sie sind.
+ */
+function sortierenSummeFuerDatum(buchungen, teamTagesMengen, datum, deletedKeys, articles, artikelMarkt) {
+    const desTages = filterDeletedSortierBuchungen(buchungen || [], deletedKeys)
+        .filter((b) => buchungDatumPasst(b, datum));
+    return sortierenSummeAusListe(desTages, teamTagesMengen, datum, articles, artikelMarkt);
 }
 
 /** kg pro Lieferant aus Sortier-Buchungen (für Tages-Erfassung Anzeige). */
@@ -907,8 +946,15 @@ function ensureSortierenDeliveries(db) {
     bereinigeGeloeschteSortierDeliveries(db);
 }
 
-/** teamTagesMengen für ein Datum aus verbleibenden Wiegeschein-Buchungen neu berechnen. */
-function rebuildTeamTagesMengenFuerDatum(db, datum) {
+/**
+ * teamTagesMengen für ein Datum aus verbleibenden Wiegeschein-Buchungen neu berechnen.
+ *
+ * 2026-08-20 Geschwindigkeit: optionales drittes Argument buchungenDesTages.
+ * Wer schon nach Datum vorsortiert hat (siehe ensureDatenKonsistenz), reicht
+ * die Liste herein, statt sie hier aus allen Buchungen neu heraussuchen zu
+ * lassen. Ohne das Argument laeuft alles wie bisher.
+ */
+function rebuildTeamTagesMengenFuerDatum(db, datum, buchungenDesTages) {
     if (!db || !datum) return;
     if (!db.teamTagesMengen) db.teamTagesMengen = {};
     const prev = db.teamTagesMengen[datum] || leererTeamTagesEintrag();
@@ -917,8 +963,10 @@ function rebuildTeamTagesMengenFuerDatum(db, datum) {
     let gesamtKg = 0;
     let exportKg = 0;
     let unsKg = 0;
-    (filterDeletedSortierBuchungen(db.teamSortierBuchungen || [], db.deletedSortierBuchungen))
-        .filter((b) => buchungDatumPasst(b, datum)).forEach((b) => {
+    (Array.isArray(buchungenDesTages)
+        ? buchungenDesTages
+        : filterDeletedSortierBuchungen(db.teamSortierBuchungen || [], db.deletedSortierBuchungen)
+            .filter((b) => buchungDatumPasst(b, datum))).forEach((b) => {
         const kg = parseFloat(b.gebuchtKg) || 0;
         if (kg <= 0) return;
         gesamtKg += kg;
@@ -1388,13 +1436,50 @@ function ensureDatenKonsistenz(db) {
     if (!Array.isArray(db.deliveries)) db.deliveries = [];
     migriereTeamAusDailyStaff(db.teamTagesMengen, db.dailyStaff);
     if (typeof ensureSortierenDeliveries === 'function') ensureSortierenDeliveries(db);
+
+    // =====================================================================
+    // 2026-08-20 GESCHWINDIGKEIT — derselbe Rechenfehler wie bei
+    // renderAdminDeliveries, nur an anderer Stelle.
+    //
+    // Die Schleife unten lief fuer JEDEN Erfassungstag einmal komplett durch
+    // ALLE Buchungen -- und das gleich dreimal je Tag:
+    // rebuildTeamTagesMengenFuerDatum, sortierenSummeFuerDatum und
+    // sortiertKgAusDeliveries suchten sich jeweils selbst heraus, was zu dem
+    // Tag gehoert. Bei 84 Tagen und 3.669 Buchungen sind das ueber eine
+    // Million Durchlaeufe je Aufruf, und ensureDatenKonsistenz laeuft bei
+    // jedem Neuzeichnen. Es wird schlimmer, weil Tage UND Buchungen
+    // gleichzeitig wachsen.
+    //
+    // Jetzt wird EINMAL nach Datum vorsortiert, danach ist jeder Tag ein
+    // Nachschlagen statt einer Suche.
+    //
+    // Bewusst nicht ueber _buchungenNachDatum() aus dem Sortier-Pass weiter
+    // oben: der zieht seine Buchungen aus sortierBuchungenMitCloudCache(db)
+    // und damit aus einer anderen Quelle als diese Schleife. Hier wird genau
+    // die Quelle vorsortiert, die vorher auch benutzt wurde --
+    // db.teamSortierBuchungen mit angewandten Loeschmarken.
+    //
+    // Die Vorsortierung steht NACH ensureSortierenDeliveries(): das schreibt
+    // an db.deliveries, die Karte muss den Stand danach abbilden. An den
+    // Buchungen aendert die Schleife nichts, nur an teamTagesMengen.
+    // =====================================================================
+    const buchungenNachDatum = new Map();
+    filterDeletedSortierBuchungen(db.teamSortierBuchungen || [], db.deletedSortierBuchungen)
+        .forEach((b) => {
+            const d = normalizeDatumIso(b && b.datum);
+            if (!d) return;                       // ohne Datum passte die Buchung vorher zu keinem Tag
+            if (!buchungenNachDatum.has(d)) buchungenNachDatum.set(d, []);
+            buchungenNachDatum.get(d).push(b);
+        });
+    const kgNachDatum = sortierKgNachDatumBauen(db.deliveries);
+
     sammleAlleErfassungsDaten(db).forEach((datum) => {
-        rebuildTeamTagesMengenFuerDatum(db, datum);
-        const sort = sortierenSummeFuerDatum(
-            db.teamSortierBuchungen, db.teamTagesMengen, datum,
-            db.deletedSortierBuchungen, db.articles, db.artikelMarkt
+        const desTages = buchungenNachDatum.get(datum) || [];
+        rebuildTeamTagesMengenFuerDatum(db, datum, desTages);
+        const sort = sortierenSummeAusListe(
+            desTages, db.teamTagesMengen, datum, db.articles, db.artikelMarkt
         ).gesamtKg;
-        const kg = sort > 0 ? sort : sortiertKgAusDeliveries(db.deliveries, datum);
+        const kg = sort > 0 ? sort : sortiertKgAusDeliveries(db.deliveries, datum, kgNachDatum);
         if (kg > 0) {
             if (!db.teamTagesMengen[datum]) db.teamTagesMengen[datum] = leererTeamTagesEintrag();
             db.teamTagesMengen[datum].gesamtKg = kg;
