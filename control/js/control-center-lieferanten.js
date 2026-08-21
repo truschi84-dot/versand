@@ -135,8 +135,25 @@ function mergeDeletedSuppliersFromCloud(cloudDeleted) {
     ensureSupplierMeta();
     if (!Array.isArray(cloudDeleted)) return;
 
-    // Was hier steht, ist ausdruecklich gewollt und schlaegt jeden alten Zettel.
-    const wiederAngelegt = new Set((db.suppliers || []).map(s => String(s).trim()).filter(Boolean));
+    // 2026-08-21, KORREKTUR NOCH AM SELBEN TAG:
+    // Hier stand zuerst "wer in db.suppliers steht, schlaegt den Zettel". Das
+    // war zu weit gegriffen. db.suppliers heisst nicht "hier gerade wieder
+    // angelegt", sondern nur "hier vorhanden" -- und das ist auch der Fall bei
+    // einem PC, der die Loeschung nie mitbekommen hat:
+    //
+    //   PC A loescht "Metten"  ->  Zettel, hochgeladen
+    //   PC B hat Metten noch   ->  nimmt den Zettel ab, weil Metten dasteht
+    //   PC B speichert         ->  Loeschung global rueckgaengig
+    //
+    // Damit waere der Herta-Fehler ins Gegenteil gekippt: statt "laesst sich
+    // nicht anlegen" haetten wir "laesst sich nicht loeschen".
+    //
+    // Jetzt zaehlt nur der ausdrueckliche Akt: db.wiederAngelegteSuppliers
+    // fuellt ausschliesslich saveSupplier(). Wer loescht, nimmt den Namen dort
+    // wieder herunter -- so gewinnt immer die juengere Handlung, in beide
+    // Richtungen.
+    if (!Array.isArray(db.wiederAngelegteSuppliers)) db.wiederAngelegteSuppliers = [];
+    const wiederAngelegt = new Set(db.wiederAngelegteSuppliers.map(s => String(s).trim()).filter(Boolean));
 
     const set = new Set(db.deletedSuppliers.map(s => String(s).trim()).filter(Boolean));
     cloudDeleted.forEach(s => { const t = String(s || '').trim(); if (t) set.add(t); });
@@ -383,6 +400,11 @@ function saveSupplier() {
     // Lieferant beim naechsten Laden sofort wieder herausgeworfen -- genau das
     // ist mit "Herta" passiert. Siehe lieferantGrabsteinAufheben() unten.
     lieferantGrabsteinAufheben(n);
+    // Ausdruecklich festhalten, dass DIESER Name hier wieder angelegt wurde.
+    // Nur das schlaegt spaeter einen Zettel aus der Cloud -- nicht die blosse
+    // Tatsache, dass er in der Liste steht.
+    if (!Array.isArray(db.wiederAngelegteSuppliers)) db.wiederAngelegteSuppliers = [];
+    if (!db.wiederAngelegteSuppliers.includes(n)) db.wiederAngelegteSuppliers.push(n);
 
     db.suppliers.push(n);
     document.getElementById('new-sup-name').value = ''; 
@@ -394,6 +416,11 @@ function deleteSupplier(n) {
         ensureSupplierMeta();
         db.suppliers = db.suppliers.filter(s => s !== n); 
         if (!db.deletedSuppliers.includes(n)) db.deletedSuppliers.push(n);
+        // Gegenstueck: die Neuanlage ist damit widerrufen, sonst wuerde sie den
+        // Zettel auf ewig schlagen und Loeschen bliebe wirkungslos.
+        if (Array.isArray(db.wiederAngelegteSuppliers)) {
+            db.wiederAngelegteSuppliers = db.wiederAngelegteSuppliers.filter(x => String(x).trim() !== n);
+        }
         setSupplierLinesForName(n, []);
         if (db.supplierNumbers && db.supplierNumbers[n]) delete db.supplierNumbers[n];
         db.articles.forEach(art => { if(art.suppliers) art.suppliers = art.suppliers.filter(s => s !== n); });

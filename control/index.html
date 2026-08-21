@@ -551,11 +551,14 @@
         .is-android-app .sticky-save-bar .btn { width: auto; min-height: 44px; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="../js/druck_utils.js?v=145"></script>
-    <script src="../js/supabase_sync.js?v=145"></script>
-    <script src="../js/cloud_auth.js?v=145"></script>
-    <script src="../js/gemeinsam/datenbank.js?v=145"></script>
-    <script src="../js/gemeinsam/metriken.js?v=145"></script>
+    <script src="../js/druck_utils.js?v=147"></script>
+    <script src="../js/supabase_sync.js?v=147"></script>
+    <script src="../js/cloud_auth.js?v=147"></script>
+    <script src="../js/gemeinsam/datenbank.js?v=147"></script>
+    <script src="../js/gemeinsam/metriken.js?v=147"></script>
+    <!-- 2026-08-21: Datenmodell v2. Tut nichts, solange in
+         control/daten-v2.json nicht "aktiv": true steht. -->
+    <script src="../js/gemeinsam/daten_v2.js?v=147"></script>
 </head>
 <body>
 
@@ -1631,13 +1634,15 @@
             <p>Sicherung herunterladen, Momentaufnahme, Archiv:<br><b>Einstellungen → Daten &amp; Sicherung</b></p>
         </div>
     </div>
-    <script src="js/control-center-tagesexport.js?v=145"></script>
-    <script src="js/control-center-core.js?v=145"></script>
-    <script src="js/control-center-lieferanten.js?v=145"></script>
-    <script src="js/control-center-mitarbeiter.js?v=145"></script>
-    <script src="js/control-center-artikel.js?v=145"></script>
-    <script src="js/control-center-stats.js?v=145"></script>
-    <script src="js/control-center-deploy.js?v=145"></script>
+    <script src="js/control-center-tagesexport.js?v=147"></script>
+    <script src="js/control-center-core.js?v=147"></script>
+    <script src="js/control-center-lieferanten.js?v=147"></script>
+    <script src="js/control-center-mitarbeiter.js?v=147"></script>
+    <script src="js/control-center-artikel.js?v=147"></script>
+    <script src="js/control-center-stats.js?v=147"></script>
+    <script src="js/control-center-deploy.js?v=147"></script>
+    <!-- ganz zuletzt: haengt sich an window.onload, den core.js gesetzt hat -->
+    <script src="js/control-center-datenquelle.js?v=147"></script>
     <script>
     function toggleMobileSidebar() {
         document.getElementById('main-sidebar').classList.toggle('mobile-open');

@@ -29,6 +29,23 @@ const CONTROL_ADMIN_PIN = '0000';
 async function blockCloud(page) {
   await page.route(CLOUD_HOST_PATTERN, (route) => route.abort());
   await page.route(DEPLOY_API_PATTERN, (route) => route.abort());
+
+  // 2026-08-21: Datenmodell v2 aus dem Weg raeumen.
+  //
+  // Seit control/daten-v2.json mit "aktiv": true ausgeliefert wird, schaltet
+  // sich die neue Datenschicht auch in jedem Testlauf ein und will ihren
+  // Bestand aus der Cloud holen. Diese Tests pruefen aber ausdruecklich den
+  // ALTEN Weg -- den 1,55-MB-Klumpen, die Nie-Schrumpfen-Regel, den
+  // Schreibschutz. Mit halb angelaufener v2-Schicht pruefen sie etwas, das es
+  // so nicht gibt, und faellt reihenweise um.
+  //
+  // Ausgeliefert wird eine gueltige Datei mit "aktiv": false -- NICHT ein 404.
+  // Ein 404 landet als Konsolenmeldung im Protokoll, und mindestens ein Test
+  // prueft ausdruecklich, dass die Konsole sauber bleibt.
+  // Der v2-Weg hat eigene Pruefungen: D:\Firmen-App\server\*.pruefung.js
+  // und tests/datenmodell-v2.spec.js.
+  await page.route('**/control/daten-v2.json*', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ aktiv: false, _hinweis: 'im Testlauf abgeschaltet' }) }));
 }
 
 /** Rechner-App (index.html) entsperren -- Firmen-PIN. */

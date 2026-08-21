@@ -111,6 +111,17 @@ let db = {
     // aus der Cloud zurueckkommen (siehe Nie-Schrumpfen-Regel weiter unten).
     deletedArticles: [], deletedNoelke: [],
     deletedSuppliers: [], supplierLines: {}, supplierLinesCleared: [],
+    // 2026-08-21 dazugekommen: ohne diese beiden konnte das neue Datenmodell nicht
+    // unterscheiden, ob ein Mitarbeiter bzw. eine Lieferung bewusst geloescht wurde
+    // oder auf diesem PC nur gerade fehlt -- und genau dafuer brauchte es bisher den
+    // Knopf "In Cloud speichern" mit seiner Rueckfrage.
+    // Kunden haben bewusst KEINE Liste: es gibt im Control Center gar keine
+    // Loeschfunktion dafuer (angelegt werden sie am Tablet), also gibt es auch nie
+    // ein bewusstes Loeschen, das man festhalten muesste.
+    deletedWorkers: [], deletedLieferungen: [],
+    // Wer hier steht, wurde ausdruecklich WIEDER angelegt und schlaegt damit
+    // einen alten Loeschzettel aus der Cloud (siehe control-center-lieferanten.js).
+    wiederAngelegteSuppliers: [],
     todo: [], lose: [], later: [], hidden: [],
     workers: ["Ahmed","Dominik","Robert","Julian","Alex"], 
     workerColors: {"Ahmed":"#d32f2f","Alex":"#1976d2","Dominik":"#fbc02d","Julian":"#388e3c","Robert":"#7b1fa2"}, 
@@ -228,7 +239,7 @@ function hydrateFromKombiIfNeeded() {
         const l = localStorage.getItem('kombi_logistik_db');
         if (l) {
             const lDb = JSON.parse(l);
-            ['suppliers', 'customers', 'articles', 'todo', 'lose', 'later', 'hidden', 'workers', 'deliveries', 'dailyStaff', 'dailyAttendance', 'workerColors', 'settings', 'company', 'deletedSuppliers', 'supplierLines', 'supplierLinesCleared', 'artikelMarkt', 'tierartZuordnung', 'teamTagesMengen', 'teamSortierBuchungen', 'deletedSortierBuchungen', 'deletedSonderTemplates'].forEach(k => {
+            ['suppliers', 'customers', 'articles', 'todo', 'lose', 'later', 'hidden', 'workers', 'deliveries', 'dailyStaff', 'dailyAttendance', 'workerColors', 'settings', 'company', 'deletedSuppliers', 'supplierLines', 'supplierLinesCleared', 'artikelMarkt', 'tierartZuordnung', 'teamTagesMengen', 'teamSortierBuchungen', 'deletedSortierBuchungen', 'deletedSonderTemplates', 'deletedWorkers', 'deletedLieferungen', 'wiederAngelegteSuppliers'].forEach(k => {
                 if (lDb[k] !== undefined && lDb[k] !== null) db[k] = lDb[k];
             });
         }
@@ -1310,6 +1321,28 @@ function adminDeleteDelivery() {
     }
     db.deliveries = db.deliveries.filter(x => x.id !== adminEditingDeliveryId);
 
+    // 2026-08-21: Grabstein setzen — "diese Lieferung ist bewusst weg".
+    // Ohne ihn konnte das neue Datenmodell nicht unterscheiden, ob eine Lieferung
+    // geloescht wurde oder auf diesem PC nur gerade fehlt. Genau dafuer gab es
+    // bisher die Rueckfrage hinter "In Cloud speichern".
+    //
+    // ABER NUR FUER MANUELLE EINTRAEGE. Korrektur vom selben Tag: Sortier-
+    // Lieferungen kommen von selbst wieder, sobald in der App erneut gedruckt
+    // wird -- die Rueckfrage oben sagt das ausdruecklich. Ihre Kennung ist
+    // dieselbe (sort_<datum>_<lieferant>). Ein Grabstein darauf wuerde also den
+    // Schutz "automatisch wird nie geloescht" fuer genau diese Kennung dauerhaft
+    // aushebeln: raeumt das Control Center die Lieferung spaeter beim Zeichnen
+    // weg, ginge sie ohne Rueckfrage vom Server. Das ist der Fall, vor dem der
+    // Kommentar in schreibeAenderungenV2 warnt ("schon das OEFFNEN der Seite hat
+    // zwei Lieferungen geloescht").
+    const istVomHandy = (del.source === 'sortieren' || del.source === 'sortieren_tag');
+    if (!istVomHandy) {
+        if (!Array.isArray(db.deletedLieferungen)) db.deletedLieferungen = [];
+        if (adminEditingDeliveryId && !db.deletedLieferungen.includes(adminEditingDeliveryId)) {
+            db.deletedLieferungen.push(adminEditingDeliveryId);
+        }
+    }
+
     if (typeof patchOfflineDb === 'function') {
         patchOfflineDb({
             deliveries: db.deliveries,
@@ -1610,7 +1643,12 @@ function saveNoelkeItem() {
     if (doppelt.length && !confirm('Diese EAN steht schon im Katalog:\n\n' + doppelt.join('\n') + '\n\nDer Scanner meldet dann immer nur den ersten Treffer. Trotzdem anlegen?')) return;
 
     const nr = naechsteNoelkeNr();
-    db.savedProdukteRaw.push(baueNoelkeZeile(nr, marke, produkt, groesse, ean));
+    // 2026-08-21: wieder angelegt = nicht mehr geloescht. Die Funktion gab es
+    // schon, sie wurde nur von niemandem gerufen -- der Test rief sie direkt
+    // auf und war deshalb gruen, ohne dass die Falle zu war.
+    const _neueZeile = baueNoelkeZeile(nr, marke, produkt, groesse, ean);
+    if (typeof noelkeGrabsteinAufheben === 'function') noelkeGrabsteinAufheben(_neueZeile);
+    db.savedProdukteRaw.push(_neueZeile);
     if (artNr) { if (!db.noelkeArtNr) db.noelkeArtNr = {}; db.noelkeArtNr[String(nr)] = artNr; }
 
     ['new-noelke-marke', 'new-noelke-produkt', 'new-noelke-groesse', 'new-noelke-ean', 'new-noelke-eigene-artnr']
@@ -1624,6 +1662,7 @@ function saveNoelkeFreitext() {
     const feld = document.getElementById('new-noelke-frei');
     const val = feld.value.trim();
     if (!val) { setNoelkeStatus('Bitte einen Text eintragen.', 'fehler'); return; }
+    if (typeof noelkeGrabsteinAufheben === 'function') noelkeGrabsteinAufheben(val);
     db.savedProdukteRaw.push(val);
     feld.value = '';
     renderAll();

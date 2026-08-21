@@ -1,0 +1,19 @@
+{
+  "_hinweis": "LIVE-FASSUNG (GitHub Pages, Supabase-Cloud). Seit 21.08.2026 laeuft das Control Center hier auf dem Datenmodell v2: ein Datensatz statt ein Paket, Aenderungen kommen von selbst an, kein Speichern-Knopf mehr. Umlegen auf false stellt sofort den alten Weg wieder her -- ohne dass Daten verlorengehen, denn der alte Klumpen cloud_backup bleibt daneben stehen und wird von den Handys weiter gefuellt.",
+  "aktiv": true,
+
+  "_cloud": "true = die Gegenstelle ist die Supabase-Cloud (PostgREST). Auf dem Firmenserver steht hier false, dort laeuft unsere eigene Schnittstelle unter /api/daten. Derselbe Programmcode, nur eine andere Uebersetzung darunter -- siehe gemeinsam/daten_v2.js, Abschnitt DIE ZWEITE BETRIEBSART.",
+  "cloud": true,
+
+  "_basis": "Adresse der Cloud. Auf dem Firmenserver bleibt das leer (= derselbe Server, von dem die Seite kommt).",
+  "basis": "https://qoaqpzmclvacaorginor.supabase.co",
+
+  "_zugriff": "Der oeffentliche Schluessel -- derselbe, den die App seit jeher benutzt. Er steht ohnehin im Quelltext jeder Seite. Was er DARF, regeln die Zugriffsregeln in der Datenbank: lesen, anlegen, aendern -- aber nichts endgueltig loeschen.",
+  "zugriff": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvYXFwem1jbHZhY2Fvcmdpbm9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNzQ3NjYsImV4cCI6MjA5Njg1MDc2Nn0.QddH8vVM2-yD8PIW89phVVKAkwX8Rl4-occwmabeUyk",
+
+  "_geraet": "Steht an jedem Datensatz als 'wer hat das geaendert'. Auf jedem PC etwas anderes eintragen, damit man es spaeter zuordnen kann.",
+  "geraet": "Büro-PC",
+
+  "_automatischSpeichern": "true = kein Speichern-Knopf mehr noetig, Aenderungen gehen kurz nach dem Tippen von selbst raus.",
+  "automatischSpeichern": true
+}

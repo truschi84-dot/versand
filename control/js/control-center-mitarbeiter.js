@@ -51,6 +51,8 @@ function saveWorker() {
     if (!db.workers) db.workers = [];
     if (!db.workerColors) db.workerColors = {};
     const color = document.getElementById('new-worker-color').value || nextWorkerColor();
+    // 2026-08-21: wieder angelegt = nicht mehr geloescht (siehe Fall "Herta").
+    mitarbeiterGrabsteinAufheben(name);
     db.workers.push(name);
     db.workerColors[name] = color;
     document.getElementById('new-worker-name').value = '';
@@ -116,5 +118,23 @@ function deleteWorker(name) {
     if (!confirm(msg)) return;
     db.workers = (db.workers || []).filter(w => w !== name);
     if (db.workerColors) delete db.workerColors[name];
+    // 2026-08-21: Grabstein setzen. Er sagt "bewusst geloescht" -- ohne ihn kann das
+    // neue Datenmodell nicht unterscheiden, ob der Mitarbeiter geloescht wurde oder
+    // auf diesem PC nur gerade fehlt, und musste deshalb nachfragen.
+    if (!Array.isArray(db.deletedWorkers)) db.deletedWorkers = [];
+    if (!db.deletedWorkers.includes(name)) db.deletedWorkers.push(name);
     renderAll();
+}
+
+/**
+ * Gegenstueck zu deleteWorker(). Wird jemand wieder angelegt, ist er nicht mehr
+ * geloescht -- gleiche Regel wie bei Artikeln, Lieferanten und Sortier-Buchungen.
+ * Siehe den Fall "Herta" vom 21.08.2026.
+ */
+function mitarbeiterGrabsteinAufheben(name) {
+    const n = String(name || '').trim();
+    if (!n || !Array.isArray(db.deletedWorkers)) return false;
+    const vorher = db.deletedWorkers.length;
+    db.deletedWorkers = db.deletedWorkers.filter(w => String(w).trim() !== n);
+    return vorher !== db.deletedWorkers.length;
 }

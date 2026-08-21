@@ -41,6 +41,12 @@ async function alterStand(page, extra) {
 }
 
 async function appBereit(page) {
+    // 2026-08-21: v2 aus dem Weg raeumen -- diese Tests pruefen den alten Weg.
+    // Ohne das schaltet sich die neue Datenschicht ein und holt ihren Bestand
+    // aus der Cloud. Siehe tests/helpers.js, blockCloud().
+    await page.route('**/control/daten-v2.json*', (r) => r.fulfill({ status: 200,
+        contentType: 'application/json', body: JSON.stringify({ aktiv: false }) }));
+    await page.route('**://*.supabase.co/**', (r) => r.abort());
     await page.goto('/control/index.html');
     await expect(page.locator('#db-status')).not.toHaveText('Lade Datenbank…', { timeout: 10000 });
     expect(await page.evaluate(() => typeof holeVermissteZurueck)).toBe('function');

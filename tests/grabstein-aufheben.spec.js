@@ -48,6 +48,12 @@ const CLOUD = {
 };
 
 async function appBereit(page) {
+    // 2026-08-21: v2 aus dem Weg raeumen -- diese Tests pruefen den alten Weg.
+    // Ohne das schaltet sich die neue Datenschicht ein und holt ihren Bestand
+    // aus der Cloud. Siehe tests/helpers.js, blockCloud().
+    await page.route('**/control/daten-v2.json*', (r) => r.fulfill({ status: 200,
+        contentType: 'application/json', body: JSON.stringify({ aktiv: false }) }));
+    await page.route('**://*.supabase.co/**', (r) => r.abort());
     await page.goto('/control/index.html');
     await expect(page.locator('#db-status')).not.toHaveText('Lade Datenbank…', { timeout: 10000 });
     expect(await page.evaluate(() => typeof artikelGrabsteinAufheben)).toBe('function');
@@ -135,6 +141,10 @@ test.describe('Grabsteine wieder abnehmen', () => {
         const ergebnis = await page.evaluate(() => {
             db.suppliers = ['Wiesenhof', 'Herta'];      // Herta gerade wieder angelegt
             db.deletedSuppliers = ['nove'];
+            // ... und zwar AUSDRUECKLICH. Genau das setzt saveSupplier(); ohne
+            // diese Zeile ist es nur "steht in der Liste", und das reicht seit
+            // der Korrektur vom 21.08. bewusst nicht mehr aus.
+            db.wiederAngelegteSuppliers = ['Herta'];
             // Die Cloud kennt den alten Zettel noch
             mergeDeletedSuppliersFromCloud(['Herta', 'nove', 'ZMG']);
             return { lieferanten: db.suppliers, zettel: db.deletedSuppliers };
@@ -161,12 +171,94 @@ test.describe('Grabsteine wieder abnehmen', () => {
         const ergebnis = await page.evaluate(() => {
             db.suppliers = ['Wiesenhof'];               // Herta wurde geloescht, steht hier nicht
             db.deletedSuppliers = ['Herta'];
+            db.wiederAngelegteSuppliers = [];
             mergeDeletedSuppliersFromCloud(['Herta']);
             db.suppliers = mergeSuppliersList(db.suppliers, ['Wiesenhof', 'Herta']);
             return { lieferanten: db.suppliers, zettel: db.deletedSuppliers };
         });
         expect(ergebnis.lieferanten).not.toContain('Herta');   // bleibt weg
         expect(ergebnis.zettel).toContain('Herta');            // Zettel wirkt weiter
+    });
+
+    /**
+     * DIE RICHTUNG, DIE DER ERSTE TEST AUSGELASSEN HAT.
+     *
+     * Rico hat es gefunden: geprueft wurde nur der Zustand des LOESCHENDEN PCs.
+     * Der zweite PC — der die Loeschung nie mitbekommen hat, den Lieferanten
+     * aber noch in seiner Liste stehen hat — kam nie vor. Und genau der hat den
+     * Zettel abgenommen und die Loeschung global rueckgaengig gemacht.
+     *
+     * Ein Test, der nur die eigene Annahme nachspielt, ist kein Test.
+     */
+    test('PC B, der die Loeschung nie sah, macht sie NICHT rueckgaengig', async ({ page }) => {
+        await appBereit(page);
+        const ergebnis = await page.evaluate(() => {
+            // PC B: hat Metten noch, hat ihn aber nie geloescht UND nie neu angelegt
+            db.suppliers = ['Wiesenhof', 'Metten'];
+            db.deletedSuppliers = [];
+            db.wiederAngelegteSuppliers = [];
+            // PC A hat Metten geloescht -> Zettel kommt aus der Cloud
+            mergeDeletedSuppliersFromCloud(['Metten']);
+            db.suppliers = mergeSuppliersList(db.suppliers, ['Wiesenhof', 'Metten']);
+            return { lieferanten: db.suppliers, zettel: db.deletedSuppliers };
+        });
+        expect(ergebnis.lieferanten).not.toContain('Metten');   // Loeschung wirkt
+        expect(ergebnis.zettel).toContain('Metten');            // Zettel bleibt
+        expect(ergebnis.lieferanten).toContain('Wiesenhof');    // der Rest unberuehrt
+    });
+
+    test('Wer ihn ausdruecklich WIEDER anlegt, gewinnt gegen den Zettel', async ({ page }) => {
+        await appBereit(page);
+        const ergebnis = await page.evaluate(() => {
+            db.suppliers = ['Wiesenhof', 'Herta'];
+            db.deletedSuppliers = [];
+            db.wiederAngelegteSuppliers = ['Herta'];     // das setzt saveSupplier()
+            mergeDeletedSuppliersFromCloud(['Herta']);
+            db.suppliers = mergeSuppliersList(db.suppliers, ['Wiesenhof']);
+            return { lieferanten: db.suppliers, zettel: db.deletedSuppliers };
+        });
+        expect(ergebnis.lieferanten).toContain('Herta');
+        expect(ergebnis.zettel).not.toContain('Herta');
+    });
+
+    test('Loeschen widerruft eine fruehere Neuanlage — sonst waere Loeschen fuer immer wirkungslos', async ({ page }) => {
+        await appBereit(page);
+        const ergebnis = await page.evaluate(() => {
+            db.suppliers = ['Herta'];
+            db.deletedSuppliers = [];
+            db.wiederAngelegteSuppliers = ['Herta'];
+            // Jetzt wird Herta hier geloescht (der Rumpf von deleteSupplier)
+            db.suppliers = db.suppliers.filter(s => s !== 'Herta');
+            db.deletedSuppliers.push('Herta');
+            db.wiederAngelegteSuppliers = db.wiederAngelegteSuppliers.filter(x => x !== 'Herta');
+            // und ein anderer PC schickt Herta wieder mit
+            mergeDeletedSuppliersFromCloud([]);
+            db.suppliers = mergeSuppliersList(db.suppliers, ['Herta']);
+            return { lieferanten: db.suppliers, zettel: db.deletedSuppliers };
+        });
+        expect(ergebnis.lieferanten).not.toContain('Herta');
+        expect(ergebnis.zettel).toContain('Herta');
+    });
+
+    /**
+     * Fund 8: Die Funktion gab es, nur rief sie niemand auf. Der alte Test rief
+     * sie DIREKT auf und war deshalb gruen — er bewies, dass sie funktioniert,
+     * nicht dass sie benutzt wird. Dieser hier geht ueber die echte Anlegefunktion.
+     */
+    test('Ein wieder angelegtes Noelke-Produkt verliert seinen Zettel — ueber den echten Weg', async ({ page }) => {
+        await appBereit(page);
+        const ergebnis = await page.evaluate(() => {
+            const zeile = baueNoelkeZeile(777, 'Testmarke', 'Testprodukt', '100g', '4003171606589');
+            db.deletedNoelke = [noelkeGrabsteinKey(zeile), 'nr:1'];
+            db.savedProdukteRaw = [];
+            // genau das, was addNoelkeProdukt() intern tut
+            const neu = baueNoelkeZeile(777, 'Testmarke', 'Testprodukt', '100g', '4003171606589');
+            if (typeof noelkeGrabsteinAufheben === 'function') noelkeGrabsteinAufheben(neu);
+            db.savedProdukteRaw.push(neu);
+            return db.deletedNoelke;
+        });
+        expect(ergebnis).not.toContain('nr:777');
+        expect(ergebnis).toContain('nr:1');       // die anderen unberuehrt
     });
 
     test('Der Noelke-Katalog hat dasselbe Gegenstueck', async ({ page }) => {
