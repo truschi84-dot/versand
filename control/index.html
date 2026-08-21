@@ -551,14 +551,14 @@
         .is-android-app .sticky-save-bar .btn { width: auto; min-height: 44px; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="../js/druck_utils.js?v=147"></script>
-    <script src="../js/supabase_sync.js?v=147"></script>
-    <script src="../js/cloud_auth.js?v=147"></script>
-    <script src="../js/gemeinsam/datenbank.js?v=147"></script>
-    <script src="../js/gemeinsam/metriken.js?v=147"></script>
+    <script src="../js/druck_utils.js?v=148"></script>
+    <script src="../js/supabase_sync.js?v=148"></script>
+    <script src="../js/cloud_auth.js?v=148"></script>
+    <script src="../js/gemeinsam/datenbank.js?v=148"></script>
+    <script src="../js/gemeinsam/metriken.js?v=148"></script>
     <!-- 2026-08-21: Datenmodell v2. Tut nichts, solange in
          control/daten-v2.json nicht "aktiv": true steht. -->
-    <script src="../js/gemeinsam/daten_v2.js?v=147"></script>
+    <script src="../js/gemeinsam/daten_v2.js?v=148"></script>
 </head>
 <body>
 
@@ -1572,8 +1572,8 @@
                 <h3>Laden und speichern</h3>
                 <p style="font-size:12px; color:var(--text-muted); margin-top:0;">Dieselben zwei Knöpfe wie rechts in der Statusspalte — hier nur zum Nachschlagen.</p>
                 <div style="display:flex; gap:var(--s1); flex-wrap:wrap; align-items:center; margin-bottom:var(--s2);">
-                    <button class="btn btn-success" onclick="pushToCloud()">In Cloud speichern</button>
-                    <button class="btn btn-cloud" onclick="pullFromCloud()">Neu laden</button>
+                    <button id="btn-in-cloud-speichern-2" class="btn btn-success" onclick="pushToCloud()">In Cloud speichern</button>
+                    <button id="btn-neu-laden-2" class="btn btn-cloud" onclick="pullFromCloud()">Neu laden</button>
                     <label class="btn btn-black" style="cursor:pointer; margin:0;">
                         Zugangsdatei laden (app-secrets.json)
                         <input type="file" accept=".json,application/json" style="display:none;" onchange="importAppSecretsFile(this)">
@@ -1621,8 +1621,8 @@
             <p class="schiene-hinweis"><b>Lokal</b> heißt: nur auf diesem PC. Erst mit <b>In Cloud speichern</b> sehen die Tablets die Änderung.</p>
         </div>
         <div class="btn-group">
-            <button class="btn btn-success desktop-only" onclick="pushToCloud()">In Cloud speichern</button>
-            <button class="btn btn-cloud desktop-only" onclick="pullFromCloud()">Neu laden</button>
+            <button id="btn-in-cloud-speichern" class="btn btn-success desktop-only" onclick="pushToCloud()">In Cloud speichern</button>
+            <button id="btn-neu-laden" class="btn btn-cloud desktop-only" onclick="pullFromCloud()">Neu laden</button>
             <button class="btn btn-cloud tablet-only" onclick="downloadLocalBackup()">📥 Sicherung</button>
             <label class="btn btn-cloud tablet-only" style="cursor:pointer;margin:0;">
                 📤 Einspielen
@@ -1634,15 +1634,15 @@
             <p>Sicherung herunterladen, Momentaufnahme, Archiv:<br><b>Einstellungen → Daten &amp; Sicherung</b></p>
         </div>
     </div>
-    <script src="js/control-center-tagesexport.js?v=147"></script>
-    <script src="js/control-center-core.js?v=147"></script>
-    <script src="js/control-center-lieferanten.js?v=147"></script>
-    <script src="js/control-center-mitarbeiter.js?v=147"></script>
-    <script src="js/control-center-artikel.js?v=147"></script>
-    <script src="js/control-center-stats.js?v=147"></script>
-    <script src="js/control-center-deploy.js?v=147"></script>
+    <script src="js/control-center-tagesexport.js?v=148"></script>
+    <script src="js/control-center-core.js?v=148"></script>
+    <script src="js/control-center-lieferanten.js?v=148"></script>
+    <script src="js/control-center-mitarbeiter.js?v=148"></script>
+    <script src="js/control-center-artikel.js?v=148"></script>
+    <script src="js/control-center-stats.js?v=148"></script>
+    <script src="js/control-center-deploy.js?v=148"></script>
     <!-- ganz zuletzt: haengt sich an window.onload, den core.js gesetzt hat -->
-    <script src="js/control-center-datenquelle.js?v=147"></script>
+    <script src="js/control-center-datenquelle.js?v=148"></script>
     <script>
     function toggleMobileSidebar() {
         document.getElementById('main-sidebar').classList.toggle('mobile-open');
