@@ -123,6 +123,12 @@ function saveNewFertigArticle() {
     if(!nr || !name) return alert("Bitte Fertig-Nr. und Bezeichnung eingeben!");
     if(db.todo.some(a => a.fertigNr === nr) || db.articles.some(a => a.fertigNr === nr)) return alert("Diese Fertig-Nummer existiert bereits!");
     
+    // 2026-08-21: Wird die Nummer wieder angelegt, ist sie nicht mehr geloescht.
+    // Ohne das gilt ein alter Grabstein weiter und laesst den Artikel beim
+    // naechsten "In Cloud speichern" eines anderen PCs verschwinden.
+    // Siehe artikelGrabsteinAufheben() in control-center-core.js.
+    if (typeof artikelGrabsteinAufheben === 'function') artikelGrabsteinAufheben(nr);
+
     db.todo.push({ fertigNr: nr, name: name, nr: "", suppliers: [] });
     const marktEl = document.getElementById('create-fertig-markt');
     const marktVal = marktEl ? marktEl.value : '';
@@ -143,6 +149,10 @@ function saveNewLoseArticle() {
     if(!loseNr || !name) return alert("Bitte Lose-Nr. und Bezeichnung eingeben!");
     if(db.lose.some(a => a.fertigNr === loseNr)) return alert("Diese Lose-Nummer existiert bereits!");
     
+    // 2026-08-21: siehe saveNewFertigArticle() — Grabstein abnehmen, sonst
+    // verschwindet der Artikel spaeter wieder.
+    if (typeof artikelGrabsteinAufheben === 'function') artikelGrabsteinAufheben(loseNr);
+
     db.lose.push({ fertigNr: loseNr, name: name, nr: "", suppliers: [] });
     document.getElementById('create-lose-nr').value = '';
     document.getElementById('create-lose-name').value = '';

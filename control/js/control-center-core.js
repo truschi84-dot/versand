@@ -2302,6 +2302,73 @@ function artikelIstBekannt(fertigNr) {
 }
 
 /**
+ * 2026-08-21: GRABSTEIN WIEDER AUFHEBEN — der Fehler, der die Herta-Artikel
+ * gekostet hat.
+ *
+ * deleteArticle() legt eine Fertig-Nr auf die Liste db.deletedArticles und sagt
+ * damit: "die ist bewusst weg, hol sie nicht aus der Cloud zurueck". Nur wurde
+ * dieser Zettel NIE wieder abgenommen. Legt jemand spaeter einen Artikel mit
+ * derselben Nummer neu an, gilt der alte Grabstein weiter -- und dann passiert
+ * genau das hier:
+ *
+ *   PC A legt 80392 neu an  ->  hochgeladen, steht in der Cloud
+ *   PC B kennt 80392 nicht, hat aber noch den Grabstein von frueher
+ *   PC B drueckt "In Cloud speichern"
+ *        -> die Nie-Schrumpfen-Regel holt 80392 NICHT zurueck (Grabstein!)
+ *        -> PC B laedt seinen Stand hoch, ohne 80392
+ *        -> der Artikel ist aus der Cloud verschwunden
+ *
+ * Der Bediener hat dabei alles richtig gemacht. Es sah aus wie "der Knopf hat
+ * meine Artikel geloescht" -- in Wahrheit war es ein Zettel, den niemand mehr
+ * abgenommen hat.
+ *
+ * Bei den Sortier-Buchungen ist dieselbe Falle am 19.08. schon aufgefallen und
+ * behoben worden (sortierLoeschenAufheben in gemeinsam/metriken.js, "gebraucht
+ * vom Nachbuchen geloeschter Eintraege"). Fuer Artikel und den Noelke-Katalog
+ * hat das Gegenstueck gefehlt. Hier ist es.
+ *
+ * Regel: Wird etwas WIEDER ANGELEGT, ist es nicht mehr geloescht. Der Grabstein
+ * muss weg -- sonst widersprechen sich die beiden Aussagen, und der Grabstein
+ * gewinnt.
+ */
+function artikelGrabsteinAufheben(fertigNr) {
+    const nr = String(fertigNr || '').trim();
+    if (!nr || !Array.isArray(db.deletedArticles)) return false;
+    const vorher = db.deletedArticles.length;
+    db.deletedArticles = db.deletedArticles.filter(x => String(x) !== nr);
+    const weg = vorher !== db.deletedArticles.length;
+    if (weg && typeof addCloudLog === 'function') {
+        addCloudLog('Grabstein aufgehoben: Artikel ' + nr + ' wurde wieder angelegt');
+    }
+    return weg;
+}
+
+/**
+ * Gegenstueck fuer den Noelke-Katalog.
+ *
+ * Nimmt beides an: eine Katalogzeile ("[Nr. 38] Noelke - …") oder einen fertigen
+ * Schluessel ("nr:38"). Deshalb werden BEIDE Kandidaten entfernt -- der Rohwert
+ * und der daraus abgeleitete Schluessel. Der erste Anlauf hat nur bei einem
+ * Objekt den Schluessel gebildet, und eine Zeile ist ein String; der Zettel
+ * blieb dann liegen. Vom Test gefangen.
+ */
+function noelkeGrabsteinAufheben(zeileOderKey) {
+    if (!Array.isArray(db.deletedNoelke)) return false;
+    const roh = String(zeileOderKey || '').trim();
+    if (!roh) return false;
+    const kandidaten = new Set([roh]);
+    if (typeof noelkeGrabsteinKey === 'function') kandidaten.add(noelkeGrabsteinKey(zeileOderKey));
+    const key = roh;
+    const vorher = db.deletedNoelke.length;
+    db.deletedNoelke = db.deletedNoelke.filter(x => !kandidaten.has(String(x)));
+    const weg = vorher !== db.deletedNoelke.length;
+    if (weg && typeof addCloudLog === 'function') {
+        addCloudLog('Grabstein aufgehoben: Nölke ' + key + ' wurde wieder angelegt');
+    }
+    return weg;
+}
+
+/**
  * Holt zurueck, was die Cloud kennt und dieser PC nicht -- ohne das, was
  * bewusst geloescht wurde. Gibt zurueck, was zurueckgeholt wurde (fuer die
  * Statuszeile und das Protokoll).
@@ -2309,6 +2376,41 @@ function artikelIstBekannt(fertigNr) {
 function holeVermissteZurueck(cloudDb) {
     if (!cloudDb) return [];
     const zurueck = [];
+
+    // -----------------------------------------------------------------
+    // 2026-08-21: ERLEDIGTE GRABSTEINE ABRAEUMEN.
+    //
+    // Ein Grabstein hat genau EINEN Zweck: verhindern, dass die Regel weiter
+    // unten einen gerade geloeschten Artikel wieder aus der Cloud zurueckholt.
+    // Ist der Artikel dort nicht mehr drin, hat der Zettel seine Schuldigkeit
+    // getan -- und ab da ist er nur noch gefaehrlich: er wartet darauf, dass
+    // irgendwann jemand dieselbe Nummer neu anlegt, und laesst sie dann
+    // verschwinden.
+    //
+    // Die Liste wird ausserdem NICHT mit der Cloud zusammengefuehrt (anders als
+    // deletedSortierBuchungen, die ueber mergeDeletedSortierKeys laeuft). Jeder
+    // PC schleppt also seine eigenen alten Zettel mit, unbegrenzt lange.
+    //
+    // Deshalb: was in der Cloud ohnehin nicht mehr steht, faellt hier weg. Das
+    // raeumt auch die Altlasten ab, die sich seit dem 20.08. angesammelt haben.
+    // Grabsteine fuer Artikel, die noch in der Cloud stehen, bleiben unberuehrt
+    // -- die sollen ja beim naechsten Speichern noch wirken.
+    // -----------------------------------------------------------------
+    if (Array.isArray(db.deletedArticles) && db.deletedArticles.length) {
+        const inCloud = new Set();
+        ['articles', 'todo', 'lose', 'later', 'hidden'].forEach(liste => {
+            (Array.isArray(cloudDb[liste]) ? cloudDb[liste] : []).forEach(a => {
+                if (a && a.fertigNr != null) inCloud.add(String(a.fertigNr));
+            });
+        });
+        const vorher = db.deletedArticles.length;
+        db.deletedArticles = db.deletedArticles.filter(x => inCloud.has(String(x)));
+        const abgeraeumt = vorher - db.deletedArticles.length;
+        if (abgeraeumt > 0) {
+            addCloudLog('Erledigte Grabsteine abgeraeumt: ' + abgeraeumt
+                + ' Artikelnummer(n), die in der Cloud ohnehin nicht mehr stehen');
+        }
+    }
 
     // --- Artikel: fuenf Listen, ein Artikel gilt als bekannt, wenn er in
     //     einer davon steht. Zurueck kommt er in die Liste, in der er in der

@@ -110,13 +110,65 @@ function mergeSupplierLinesFromCloud(cloudLines) {
     }
 }
 
+/**
+ * 2026-08-21: WIEDER ANGELEGT SCHLAEGT GRABSTEIN.
+ *
+ * Hier stand der Fehler, der "Herta" immer wieder verschwinden liess. Die Liste
+ * db.deletedSuppliers wurde mit der Cloud VEREINIGT -- sie konnte also nur
+ * wachsen, nie schrumpfen. Und die letzte Zeile wirft jeden Namen darauf sofort
+ * wieder aus db.suppliers. Zusammen ergab das eine Falle ohne Ausweg:
+ *
+ *   Lieferant anlegen  ->  beim naechsten Laden steht er auf der Liste
+ *                      ->  wird rausgeworfen
+ *                      ->  wieder anlegen  ->  wieder raus  ->  ...
+ *
+ * Einmal geloescht hiess: nie wieder anlegbar. Auf keinem PC, fuer immer.
+ *
+ * Neu: Wer JETZT in db.suppliers steht, wurde hier bewusst (wieder) angelegt --
+ * und das ist die juengere Handlung. Der alte Zettel wird dafuer abgenommen,
+ * statt die Neuanlage stillschweigend rueckgaengig zu machen.
+ *
+ * Ein Loeschen wirkt weiterhin: solange niemand den Lieferanten neu anlegt,
+ * bleibt er auf der Liste und kommt nicht aus der Cloud zurueck.
+ */
 function mergeDeletedSuppliersFromCloud(cloudDeleted) {
     ensureSupplierMeta();
     if (!Array.isArray(cloudDeleted)) return;
+
+    // Was hier steht, ist ausdruecklich gewollt und schlaegt jeden alten Zettel.
+    const wiederAngelegt = new Set((db.suppliers || []).map(s => String(s).trim()).filter(Boolean));
+
     const set = new Set(db.deletedSuppliers.map(s => String(s).trim()).filter(Boolean));
     cloudDeleted.forEach(s => { const t = String(s || '').trim(); if (t) set.add(t); });
+
+    const aufgehoben = [...set].filter(n => wiederAngelegt.has(n));
+    aufgehoben.forEach(n => set.delete(n));
+    if (aufgehoben.length && typeof addCloudLog === 'function') {
+        addCloudLog('Grabstein aufgehoben, weil wieder angelegt: ' + aufgehoben.join(', '));
+    }
+
     db.deletedSuppliers = [...set];
     db.suppliers = (db.suppliers || []).filter(s => !set.has(String(s).trim()));
+}
+
+/**
+ * Nimmt den Grabstein eines Lieferanten ab. Gegenstueck zu deleteSupplier().
+ * Gleiche Regel wie bei den Artikeln (artikelGrabsteinAufheben in
+ * control-center-core.js) und bei den Sortier-Buchungen
+ * (sortierLoeschenAufheben in gemeinsam/metriken.js): wird etwas wieder
+ * angelegt, ist es nicht mehr geloescht.
+ */
+function lieferantGrabsteinAufheben(name) {
+    ensureSupplierMeta();
+    const n = String(name || '').trim();
+    if (!n) return false;
+    const vorher = db.deletedSuppliers.length;
+    db.deletedSuppliers = db.deletedSuppliers.filter(s => String(s).trim() !== n);
+    const weg = vorher !== db.deletedSuppliers.length;
+    if (weg && typeof addCloudLog === 'function') {
+        addCloudLog('Grabstein aufgehoben: Lieferant "' + n + '" wurde wieder angelegt');
+    }
+    return weg;
 }
 
 function deliveryDisplayName(d) {
@@ -326,8 +378,13 @@ function saveSupplier() {
     const n = document.getElementById('new-sup-name').value.trim();
     if(!n) return alert("Bitte einen Namen eingeben!");
     if(db.suppliers.includes(n)) return alert("Dieser Lieferant existiert bereits!");
-    
-    db.suppliers.push(n); 
+
+    // 2026-08-21: Grabstein abnehmen. Ohne das wird der gerade angelegte
+    // Lieferant beim naechsten Laden sofort wieder herausgeworfen -- genau das
+    // ist mit "Herta" passiert. Siehe lieferantGrabsteinAufheben() unten.
+    lieferantGrabsteinAufheben(n);
+
+    db.suppliers.push(n);
     document.getElementById('new-sup-name').value = ''; 
     renderAll(); 
 }
