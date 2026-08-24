@@ -1,3 +1,13 @@
+> ⛔ **Veraltet, gilt für den stillgelegten Pfad — aktuelle Fassung: `D:\Firmen-App\CLAUDE.md`**
+>
+> Alles unterhalb dieser Zeile beschreibt den alten Aufbau (`index.html` als Rechner,
+> `logistik.html`, `projekt/buero/control-center.html`, GitHub Pages als Auslieferweg).
+> Diesen Aufbau gibt es nicht mehr. Gearbeitet wird ausschließlich in `D:\Firmen-App\`
+> mit den Ordnern `rechner\`, `control\`, `gemeinsam\` und `server\`.
+>
+> Der Text bleibt nur als Nachschlagewerk stehen. Er ist **keine Arbeitsanweisung**.
+> (Hinweis eingetragen 19.08.2026)
+
 # Claude Code — Tresch & Sohn Kombi-App
 
 ## Projektordner-Regel (PFLICHT)
