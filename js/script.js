@@ -227,13 +227,35 @@ function cacheSettingsPins(settings) {
     AppStorage.set('kombi_logistik_db', lDb);
 }
 
+/**
+ * 2026-08-18: Rueckfallkette fuer eine PIN — Cloud, dann Zwischenspeicher, dann Konstante.
+ *
+ * SEHR WICHTIG: Liefert die Cloud eine PIN, GEWINNT SIE IMMER — auch wenn im Zwischenspeicher
+ * eine andere steht. Nur wenn die Cloud gar keine liefert, wird weitergefallen. Andersherum
+ * kaeme jemand mit einer alten, im Buero laengst gewechselten PIN wieder rein.
+ *
+ * Ein leerer Cloud-Wert zaehlt wie "nicht geliefert": eine leere PIN ist keine Sperre, sondern
+ * eine Aussperrung — eintippen kann sie niemand.
+ */
+function resolvePinFallback(cloudPin, cacheKey, konstante) {
+    const ausCloud = cloudPin == null ? '' : String(cloudPin).trim();
+    if (ausCloud) return ausCloud;
+    return String(getAppSetting(cacheKey, konstante)).trim();
+}
+
 async function validateAdminPin(enteredPin) {
     const pin = String(enteredPin).trim();
     if (!pin) return false;
     const settings = await fetchSettingsForPinCheck();
     if (settings) {
         cacheSettingsPins(settings);
-        const adminPin = String(settings?.adminPin ?? APP_CONFIG.ADMIN_PIN).trim();
+        // 2026-08-18: Hier stand "settings?.adminPin ?? APP_CONFIG.ADMIN_PIN" — liefert die
+        // Cloud ein Einstellungs-Objekt OHNE adminPin, wurde der Zwischenspeicher in diesem
+        // Zweig nie gefragt und es galt nur die Konstante. Ein im Buero gewechseltes
+        // Admin-Kennwort war damit am Handy wirkungslos. Jetzt Cloud -> Zwischenspeicher ->
+        // Konstante, siehe resolvePinFallback(): eine PIN AUS DER CLOUD gewinnt weiterhin
+        // immer, weitergefallen wird nur, wenn die Cloud keine liefert.
+        const adminPin = resolvePinFallback(settings.adminPin, 'adminPin', APP_CONFIG.ADMIN_PIN);
         return pin === adminPin;
     }
     const cached = getAppSetting('adminPin', APP_CONFIG.ADMIN_PIN);
@@ -285,7 +307,11 @@ async function validatePinAndUnlock(enteredPin) {
 
     const settings = await fetchSettingsForPinCheck();
     if (settings) {
-        const cloudPin = String(settings?.logistikPin ?? APP_CONFIG.LOGISTIK_PIN).trim();
+        // 2026-08-18: gleiche Rueckfallkette wie in validateAdminPin() — Cloud, dann
+        // Zwischenspeicher, dann Konstante. Fehlt logistikPin im Cloud-Objekt, galt vorher
+        // sofort die Konstante und eine im Buero gewechselte Firmen-PIN wurde nicht erkannt.
+        // Eine PIN AUS DER CLOUD gewinnt unveraendert immer.
+        const cloudPin = resolvePinFallback(settings.logistikPin, 'logistikPin', APP_CONFIG.LOGISTIK_PIN);
         const cloudPinVersion = parseInt(settings?.pinVersion, 10) || 0;
         if (pin !== cloudPin) return false;
         setAppAuthenticated(true);
@@ -1595,10 +1621,6 @@ window.refreshWarenlinieSelects = refreshWarenlinieSelects;
 function getLogistikFullCloudPayload() {
     const lData = AppStorage.get('kombi_logistik_db', {});
     const rData = AppStorage.get('kombi_rechner_db', {});
-    const safeSettings = { ...(lData.settings || {}) };
-    delete safeSettings.logistikPin;
-    delete safeSettings.adminPin;
-    delete safeSettings.pinVersion;
     const payload = {
         // 2026-08-18: suppliers, supplierLines, supplierLinesCleared, supplierNumbers und
         // deletedSuppliers sind hier raus -- aus demselben Grund wie in
@@ -1632,7 +1654,15 @@ function getLogistikFullCloudPayload() {
         // Stand zurueck in die Cloud und machte damit jedes Loeschen im Control Center rueckgaengig.
         sonderTemplates: rData.sonderTemplates || []
     };
-    if (Object.keys(safeSettings).length) payload.settings = safeSettings;
+    // 2026-08-18: settings wird hier nicht mehr mitgeschickt. Die drei PIN-Felder wurden zwar
+    // vorher entfernt (safeSettings), der Rest ging aber weiter mit — und SupabaseSync.patch()
+    // fuehrt nur auf oberster Ebene zusammen: settings wurde in der Cloud damit KOMPLETT
+    // ersetzt, also ohne adminPin, logistikPin und pinVersion. Jeder stille Handy-Sync hat die
+    // PINs aus der Cloud geworfen; dass trotzdem niemand ausgesperrt wurde, hing allein an der
+    // fest verdrahteten PIN in APP_CONFIG. Einstellungen (printerIp, notificationUrl,
+    // inactivityTimeout, noelkeDefaultArtNr, PINs) werden ausschliesslich im Control Center
+    // gepflegt — am Handy werden sie nur gelesen (getAppSetting), eine Oberflaeche dafuer gibt
+    // es nicht. Empfangen werden sie unveraendert weiter ueber applyLogistikFullFromCloud().
     if (lData.company) payload.company = lData.company;
     return payload;
 }
