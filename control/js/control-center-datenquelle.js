@@ -54,12 +54,41 @@
     let pflegeGeradeFremdeAenderungEin = false;
 
     // -----------------------------------------------------------------
+    // 2026-08-26: DIE STATUSZEILE HAT SICH SELBST UEBERSCHRIEBEN.
+    //
+    // Zwei Stellen schreiben in dasselbe Feld 'sticky-status':
+    //   hier            "gespeichert: Artikel 80393"   (die Cloud)
+    //   core.js:486     "Lokal gespeichert - 09:46"    (dieser PC)
+    //
+    // core.js schreibt bei JEDEM Neuzeichnen, und das laeuft dauernd. Die
+    // Cloud-Meldung war deshalb nach Millisekunden weg -- Fehler blieben
+    // stehen (danach kam kein Neuzeichnen mehr), Erfolge nie. Robert sah
+    // also nur "Lokal gespeichert" und konnte nicht mehr erkennen, ob
+    // etwas wirklich rausgegangen ist. Und "Lokal" heisst: Browserspeicher
+    // dieses PCs. Das Feld sagte das Gegenteil von dem, was es aussagen
+    // sollte.
+    //
+    // Deshalb merkt sich die Zeile jetzt ihren letzten Cloud-Stand und
+    // setzt ihn nach jedem Neuzeichnen wieder ein (siehe unten beim
+    // Umhaengen von renderAll).
+    let letzterStand = '';
+
     function status(text, art) {
-        const el = document.getElementById('sticky-status');
-        if (el) el.textContent = text;
+        letzterStand = text;
+        zeigeStand();
         const db2 = document.getElementById('db-status');
         if (db2 && art === 'start') db2.innerText = text;
         if (art === 'fehler') console.warn('[Datenquelle]', text);
+    }
+
+    function zeigeStand() {
+        if (!letzterStand) return;
+        const el = document.getElementById('sticky-status');
+        if (el) el.textContent = letzterStand;
+    }
+
+    function uhrzeit() {
+        return new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
     }
 
     /**
@@ -248,6 +277,10 @@
             window.renderAll = function () {
                 const r = altesRenderAll.apply(this, arguments);
                 planeSchreiben();
+                // core.js hat eben "Lokal gespeichert" in dieselbe Zeile
+                // geschrieben. Das letzte Wort hat die Cloud, nicht der
+                // Browserspeicher -- siehe Kommentar bei status().
+                zeigeStand();
                 return r;
             };
         }
@@ -256,6 +289,9 @@
     function planeSchreiben() {
         if (!bereit || pflegeGeradeFremdeAenderungEin) return;
         if (speicherTimer) clearTimeout(speicherTimer);
+        // Sichtbar machen, dass etwas ansteht. Ohne das sah eine noch nicht
+        // gesendete Aenderung genauso aus wie eine laengst angekommene.
+        status('✏️ Änderung noch nicht gesendet …');
         speicherTimer = setTimeout(() => { jetztSchreiben(false); }, 900);
     }
 
@@ -270,6 +306,7 @@
     async function jetztSchreiben(mitMeldung) {
         if (!bereit || laeuftGeradeEinSchreiben) return;
         laeuftGeradeEinSchreiben = true;
+        status('📤 wird gesendet …');
         try {
             const getan = await DatenV2.schreibeAenderungenV2(db, { loeschen: false });
 
@@ -292,12 +329,13 @@
                             + 'wurden aber NICHT gelöscht:', offen);
             }
 
+            // "In der Cloud" statt "gespeichert": gespeichert ist es auch
+            // lokal, und genau diese Verwechslung war das Problem.
             if (getan.length) {
-                status('💾 gespeichert: ' + getan.slice(0, 3).join(', ')
-                       + (getan.length > 3 ? ' und ' + (getan.length - 3) + ' weitere' : '')
-                       + ' · ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
-            } else if (mitMeldung) {
-                status('Nichts zu speichern — alles schon auf dem Server.');
+                status('✅ in der Cloud · ' + uhrzeit() + ' — ' + getan.slice(0, 3).join(', ')
+                       + (getan.length > 3 ? ' und ' + (getan.length - 3) + ' weitere' : ''));
+            } else {
+                status('✅ in der Cloud · nichts Offenes · ' + uhrzeit());
             }
         } catch (e) {
             status('⚠️ Nicht gespeichert: ' + e.message + ' — deine Änderung steht noch hier im Fenster.', 'fehler');
